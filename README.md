@@ -1,24 +1,63 @@
-# Pixel Perfect Clone
+# RISE NOW — Plataforma da Mentoria
 
-Implement exactly the screenshot and nothing else
+Plataforma privada de acompanhamento da jornada RISE NOW. A experiência da mentorada foi desenhada como um ambiente de conteúdo premium, inspirado na navegação de streaming, e não como site de vendas ou CRM.
 
-This project was built with [Lovable](https://lovable.dev).
+## O que existe nesta primeira versão
 
-## Build with Lovable
+- Tela de acesso exclusiva por e-mail aprovado, sem cadastro público.
+- Experiência da mentorada com início cinematográfico, trilha de seis meses, agenda, entregáveis e RISE 90.
+- Visões demonstrativas de mentora e administradora.
+- Integração de autenticação com o Supabase/Lovable Cloud.
+- Modelo de dados para conteúdos, progresso, encontros, entregas, notas privadas e plano RISE 90.
+- Regras de acesso por função e armazenamento privado preparadas em migrations SQL.
+- Layout responsivo para computador e celular.
 
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/8338b475-316e-4d97-83aa-16de6334c11e).
+Os dados exibidos ao clicar em **Explorar demonstração** são fictícios e ficam somente no front-end. O modo demonstração não concede acesso ao banco.
 
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
+## Fluxo de desenvolvimento
 
-## Development
+O GitHub é a fonte oficial do código. O repositório está conectado ao projeto no Lovable, portanto todo `push` para a branch `main` sincroniza as alterações com o editor sem consumir créditos de geração.
 
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
+- Repositório: <https://github.com/comunicacao-sudo/pixel-perfect-clone>
+- Projeto Lovable: <https://lovable.dev/projects/8338b475-316e-4d97-83aa-16de6334c11e>
 
-```sh
-git clone <this-repository-url>
-cd <repository-name>
-npm i
+Evite editar a mesma parte do código simultaneamente no Lovable e localmente. Nunca reescreva o histórico publicado da `main`.
+
+## Desenvolvimento local
+
+Requisitos: Node.js 20+ e npm.
+
+```bash
+npm install
+copy .env.example .env
 npm run dev
 ```
+
+Preencha no `.env` apenas a URL e a chave pública do projeto. A chave `service_role` é exclusivamente de servidor e nunca deve ter o prefixo `VITE_`.
+
+Comandos de validação:
+
+```bash
+npm run lint
+npm run build
+```
+
+## Banco e segurança
+
+As migrations ficam em `drizzle/migrations`:
+
+- `0000_rise_now_core_schema.sql`: estrutura inicial e políticas RLS.
+- `0001_secure_invites_and_private_storage.sql`: validação de convite, endurecimento das permissões, auditoria e bucket privado.
+
+Importante: enviar uma migration ao GitHub não a executa automaticamente no Lovable Cloud. Antes de liberar usuários reais, a migration `0001` precisa ser revisada e aplicada no banco conectado, e o primeiro administrador deve ser criado por um fluxo server-side seguro.
+
+Consulte [SECURITY.md](SECURITY.md) antes de publicar a plataforma.
+
+## Identidade visual
+
+- Marsala: `#5A0F14`
+- Rosé: `#99666B`
+- Dourado: `#D0AC5C`
+- Tipografia: Montserrat
+
+As fontes locais estão em `public/fonts` e incluem a licença OFL.

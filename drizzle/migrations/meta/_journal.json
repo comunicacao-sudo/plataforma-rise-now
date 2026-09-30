@@ -8,6 +8,13 @@
       "when": 1790723327939,
       "tag": "0000_rise_now_core_schema",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790726927939,
+      "tag": "0001_secure_invites_and_private_storage",
+      "breakpoints": true
     }
   ]
 }
