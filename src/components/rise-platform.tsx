@@ -38,9 +38,10 @@ import {
   type TrailLesson,
 } from "@/components/rise-trail";
 import { supabase } from "@/integrations/supabase/client";
+import { MenteeMeetings, NextMeetingBanner, StaffArea, type StaffView } from "@/components/rise-ops";
 
 type Role = "mentee" | "mentor" | "admin";
-type View = "inicio" | "jornada" | "agenda" | "entregas" | "rise90";
+type View = "inicio" | "jornada" | "agenda" | "entregas" | "rise90" | "painel" | "alunas";
 type AuthMode = "checking" | "login" | "authenticated" | "demo" | "change-password";
 
 const roleLabels: Record<Role, string> = {
@@ -344,13 +345,21 @@ function Header({
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
-  const nav: Array<{ label: string; view: View }> = [
-    { label: "Início", view: "inicio" },
-    { label: "Minha jornada", view: "jornada" },
-    { label: "Agenda", view: "agenda" },
-    { label: "Entregas", view: "entregas" },
-    { label: "RISE 90", view: "rise90" },
-  ];
+  const nav: Array<{ label: string; view: View }> =
+    role === "mentee"
+      ? [
+          { label: "Início", view: "inicio" },
+          { label: "Minha jornada", view: "jornada" },
+          { label: "Agenda", view: "agenda" },
+          { label: "Entregas", view: "entregas" },
+          { label: "RISE 90", view: "rise90" },
+        ]
+      : [
+          { label: "Painel", view: "painel" },
+          { label: "Agenda", view: "agenda" },
+          { label: "Entregas", view: "entregas" },
+          ...(role === "admin" ? [{ label: "Alunas e turmas", view: "alunas" as View }] : []),
+        ];
 
   return (
     <header className="app-header">
@@ -651,6 +660,7 @@ function HomeView({
         />
         <Rail title="Revisite quando quiser" items={revisit} onOpen={onOpen} />
         <MentorRail />
+        <NextMeetingBanner onAgenda={() => onView("agenda")} />
         <NextUp trail={trail} onAgenda={() => onView("agenda")} />
       </div>
     </>
@@ -799,6 +809,12 @@ function AgendaView({ trail, onOpen }: { trail: Trail; onOpen: (l: TrailLesson) 
         title="Agenda RISE"
         copy="Sessões individuais e encontros coletivos reunidos em um só lugar."
       />
+      <MenteeMeetings />
+      <div className="page-width section-heading ops-gap">
+        <div>
+          <h2>Sessões previstas na trilha</h2>
+        </div>
+      </div>
       <TrailAgenda trail={trail} onOpen={onOpen} />
     </main>
   );
@@ -1123,6 +1139,7 @@ export function RisePlatform() {
             "Participante RISE",
         );
         setRole(resolvedRole);
+        setActiveView((v) => (resolvedRole === "mentee" ? (v === "painel" || v === "alunas" ? "inicio" : v) : v === "inicio" ? "painel" : v));
         setAuthMode("authenticated");
       } catch {
         if (mounted) setAuthMode("login");
@@ -1162,18 +1179,22 @@ export function RisePlatform() {
         activeView={activeView}
         onView={setActiveView}
         role={role}
-        name={role === "mentee" ? name : role === "mentor" ? "Gabriela Ribeiro" : "Camila Mariano"}
+        name={!demo || role === "mentee" ? name : role === "mentor" ? "Gabriela Ribeiro" : "Camila Mariano"}
         demo={demo}
         onRole={(nextRole) => {
           setRole(nextRole);
-          setActiveView("inicio");
+          setActiveView(nextRole === "mentee" ? "inicio" : "painel");
         }}
         onExit={() => void exit()}
       />
-      {role === "mentor" ? (
-        <MentorDashboard />
-      ) : role === "admin" ? (
-        <AdminDashboard />
+      {role !== "mentee" && demo ? (
+        role === "mentor" ? <MentorDashboard /> : <AdminDashboard />
+      ) : role !== "mentee" ? (
+        <StaffArea
+          isAdmin={role === "admin"}
+          view={(["painel", "agenda", "entregas", "alunas"].includes(activeView) ? activeView : "painel") as StaffView}
+          onView={setActiveView}
+        />
       ) : (
         <MenteeArea demo={demo} view={activeView} onView={setActiveView} />
       )}

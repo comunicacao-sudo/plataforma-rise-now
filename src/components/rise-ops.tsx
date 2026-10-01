@@ -14,7 +14,7 @@ import {
   Video,
   X,
 } from "lucide-react";
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -659,7 +659,7 @@ function ReviewScreen({ sub, menteeName, onClose }: { sub: SubRow; menteeName: s
   });
 
   // Opening a sent delivery moves it into review.
-  useState(() => {
+  useEffect(() => {
     if (sub.status === "enviada") {
       void supabase
         .from("submissions")
@@ -667,8 +667,7 @@ function ReviewScreen({ sub, menteeName, onClose }: { sub: SubRow; menteeName: s
         .eq("id", sub.id)
         .then(() => qc.invalidateQueries({ queryKey: ["staff-submissions"] }));
     }
-    return null;
-  });
+  }, [sub.id, sub.status, qc]);
 
   async function save(status?: "em_andamento" | "concluida") {
     setBusy(true);
