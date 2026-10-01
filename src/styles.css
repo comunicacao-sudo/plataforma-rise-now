@@ -115,56 +115,56 @@ input:focus-visible {
 
 /* Brand */
 .rise-mark {
-  position: relative;
   display: inline-grid;
   width: max-content;
   justify-items: center;
+  gap: 1rem;
   color: var(--cream);
   line-height: 1;
 }
-.rise-mark__word {
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: 3.35rem;
-  letter-spacing: 0.12em;
+.rise-mark__logo {
+  width: 150px;
+  height: auto;
 }
-.rise-mark__now {
-  width: 100%;
-  display: flex;
+.rise-mark__pillars {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 1rem;
+  color: var(--rose);
+  letter-spacing: 0.02em;
+}
+.rise-mark--compact {
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
   gap: 0.6rem;
-  margin-top: 0.35rem;
-  color: var(--gold);
-  font-size: 0.7rem;
-  font-weight: 650;
-  letter-spacing: 0.7em;
-  transform: translateX(0.32em);
 }
-.rise-mark__now::before,
-.rise-mark__now::after {
-  content: "";
-  width: 28%;
+.rise-mark__icon {
+  height: 36px;
+  width: auto;
+}
+.rise-mark__text {
+  font-weight: 600;
+  font-size: 0.95rem;
+  letter-spacing: 0.32em;
+}
+.rise-mark__text em {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.1rem;
+  letter-spacing: 0.1em;
+  color: var(--gold);
+  text-transform: lowercase;
+}
+.hero h1 em,
+.login-panel__copy h1 em {
+  font-family: var(--font-display);
+  font-weight: 500;
+}
+hr,
+.hairline {
+  border: 0;
   height: 1px;
-  background: currentColor;
-}
-.rise-mark__spark {
-  position: absolute;
-  top: -1.25rem;
-  right: 0.35rem;
-  color: var(--gold);
-  font-size: 1.25rem;
-}
-.rise-mark--compact .rise-mark__word {
-  font-size: 1.7rem;
-}
-.rise-mark--compact .rise-mark__now {
-  margin-top: 0.22rem;
-  font-size: 0.48rem;
-  letter-spacing: 0.48em;
-}
-.rise-mark--compact .rise-mark__spark {
-  top: -0.7rem;
-  font-size: 0.75rem;
+  background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--gold) 55%, transparent), transparent);
 }
 
 /* Login */

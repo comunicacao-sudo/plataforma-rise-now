@@ -1,3 +1,5 @@
+import riseLogo from "@/assets/rise-logo-light.png.asset.json";
+import riseIcon from "@/assets/rise-icon-light.png.asset.json";
 import {
   ArrowRight,
   Bell,
@@ -47,11 +49,20 @@ const roleLabels: Record<Role, string> = {
 };
 
 function RiseMark({ compact = false }: { compact?: boolean }) {
+  if (compact) {
+    return (
+      <div className="rise-mark rise-mark--compact" aria-label="RISE NOW">
+        <img src={riseIcon.url} alt="" className="rise-mark__icon" />
+        <span className="rise-mark__text">
+          RISE <em>now</em>
+        </span>
+      </div>
+    );
+  }
   return (
-    <div className={`rise-mark ${compact ? "rise-mark--compact" : ""}`} aria-label="RISE NOW">
-      <span className="rise-mark__spark">✦</span>
-      <span className="rise-mark__word">RISE</span>
-      <span className="rise-mark__now">NOW</span>
+    <div className="rise-mark" aria-label="RISE NOW">
+      <img src={riseLogo.url} alt="RISE NOW" className="rise-mark__logo" />
+      <span className="rise-mark__pillars">Reflexão · Identidade · Segurança · Evolução</span>
     </div>
   );
 }
