@@ -2142,3 +2142,43 @@ hr,
     animation-duration: 0.01ms !important;
   }
 }
+
+/* Lesson / meeting screen */
+.lesson-screen { position: fixed; inset: 0; z-index: 60; overflow-y: auto; background: color-mix(in oklab, var(--background) 96%, transparent); backdrop-filter: blur(8px); padding: 4.5rem 0 4rem; }
+.lesson-screen__inner { position: relative; }
+.lesson-screen .modal-close { position: absolute; top: -3rem; right: 0; }
+.lesson-player { position: relative; aspect-ratio: 16 / 9; width: 100%; border-radius: 1rem; overflow: hidden; border: 1px solid var(--hairline, rgba(208,172,92,.25)); background: radial-gradient(circle at 30% 20%, #5a0f14 0%, #1a0607 55%, #070203 100%); }
+.lesson-player__media { width: 100%; height: 100%; border: 0; display: block; background: #000; }
+.lesson-wait { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: .8rem; padding: 2rem; }
+.lesson-wait h2 { font-size: clamp(1.2rem, 2.4vw, 1.9rem); text-transform: capitalize; }
+.lesson-wait p { opacity: .75; max-width: 30rem; }
+.lesson-wait__icon { display: grid; place-items: center; width: 3.5rem; height: 3.5rem; border-radius: 999px; border: 1px solid var(--gold, #d0ac5c); color: var(--gold, #d0ac5c); }
+.lesson-layout { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 2.5rem; margin-top: 2rem; }
+@media (max-width: 860px) { .lesson-layout { grid-template-columns: 1fr; } }
+.lesson-title { font-size: clamp(1.6rem, 3vw, 2.4rem); margin: .5rem 0 .8rem; }
+.lesson-block { margin-top: 1.8rem; padding-top: 1.4rem; border-top: 1px solid var(--hairline, rgba(208,172,92,.2)); }
+.lesson-block h3 { font-size: .8rem; letter-spacing: .14em; text-transform: uppercase; color: var(--gold, #d0ac5c); margin-bottom: .7rem; }
+.lesson-block p { opacity: .85; line-height: 1.6; }
+.lesson-block__head { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
+.lesson-block__head small { opacity: .6; font-size: .75rem; }
+.lesson-topics { list-style: none; padding: 0; margin-top: 1rem; display: grid; gap: .5rem; }
+.lesson-topics span { color: var(--gold, #d0ac5c); margin-right: .4rem; }
+.lesson-done { color: var(--gold, #d0ac5c); display: inline-flex; align-items: center; gap: .3rem; }
+.materials-empty { display: flex; gap: 1rem; align-items: flex-start; padding: 1.2rem; border: 1px dashed var(--hairline, rgba(208,172,92,.3)); border-radius: .8rem; color: var(--gold, #d0ac5c); }
+.materials-empty strong { color: var(--foreground); display: block; font-weight: 500; }
+.materials-empty p { font-size: .85rem; margin-top: .2rem; }
+.notebook { width: 100%; min-height: 14rem; resize: vertical; padding: 1rem; border-radius: .8rem; border: 1px solid var(--hairline, rgba(208,172,92,.25)); background: color-mix(in oklab, var(--foreground) 4%, transparent); color: inherit; font: inherit; line-height: 1.6; margin: .4rem 0 .8rem; }
+.notebook:focus { outline: 1px solid var(--gold, #d0ac5c); }
+.timeline-lessons { list-style: none; padding: 0; margin-top: .9rem; display: grid; gap: .35rem; }
+.timeline-lessons button { display: inline-flex; align-items: center; gap: .5rem; background: none; border: 0; color: inherit; cursor: pointer; padding: 0; text-align: left; font-size: .9rem; opacity: .85; }
+.timeline-lessons button:hover { color: var(--gold, #d0ac5c); opacity: 1; }
+.timeline-lessons small { opacity: .55; font-size: .72rem; }
+.deliverable-editor { max-width: 40rem; }
+.deliverable-editor .field { display: grid; gap: .3rem; margin-top: 1rem; }
+.deliverable-editor .field > span { display: inline-flex; gap: .4rem; align-items: center; font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; opacity: .75; }
+.deliverable-editor input[type="url"], .deliverable-editor input[type="file"] { padding: .7rem .9rem; border-radius: .6rem; border: 1px solid var(--hairline, rgba(208,172,92,.25)); background: transparent; color: inherit; }
+.link-button { background: none; border: 0; color: var(--gold, #d0ac5c); cursor: pointer; padding: 0; margin-top: .6rem; text-decoration: underline; }
+.form-message { margin-top: .8rem; color: var(--gold, #d0ac5c); }
+.delivery-status--nao_iniciada { opacity: .6; }
+.delivery-status--em_andamento, .delivery-status--enviada, .delivery-status--em_revisao { color: var(--gold, #d0ac5c); }
+.delivery-status--concluida { color: var(--gold, #d0ac5c); font-weight: 600; }

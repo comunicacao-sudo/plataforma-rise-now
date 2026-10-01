@@ -252,12 +252,17 @@ export type Database = {
           description: string | null
           duration_minutes: number | null
           id: string
+          join_url: string | null
           kind: Database["public"]["Enums"]["content_kind"]
           media_url: string | null
+          mentor_name: string | null
           phase_id: string
           position: number
+          scheduled_at: string | null
+          session_format: string | null
           subtitle: string | null
           title: string
+          topics: string[]
         }
         Insert: {
           cover_url?: string | null
@@ -265,12 +270,17 @@ export type Database = {
           description?: string | null
           duration_minutes?: number | null
           id?: string
+          join_url?: string | null
           kind?: Database["public"]["Enums"]["content_kind"]
           media_url?: string | null
+          mentor_name?: string | null
           phase_id: string
           position?: number
+          scheduled_at?: string | null
+          session_format?: string | null
           subtitle?: string | null
           title: string
+          topics?: string[]
         }
         Update: {
           cover_url?: string | null
@@ -278,12 +288,17 @@ export type Database = {
           description?: string | null
           duration_minutes?: number | null
           id?: string
+          join_url?: string | null
           kind?: Database["public"]["Enums"]["content_kind"]
           media_url?: string | null
+          mentor_name?: string | null
           phase_id?: string
           position?: number
+          scheduled_at?: string | null
+          session_format?: string | null
           subtitle?: string | null
           title?: string
+          topics?: string[]
         }
         Relationships: [
           {
@@ -392,25 +407,31 @@ export type Database = {
         Row: {
           description: string | null
           id: string
+          mentor_name: string | null
           month_number: number
           pillar: string
           program_id: string
+          question: string | null
           title: string
         }
         Insert: {
           description?: string | null
           id?: string
+          mentor_name?: string | null
           month_number: number
           pillar: string
           program_id: string
+          question?: string | null
           title: string
         }
         Update: {
           description?: string | null
           id?: string
+          mentor_name?: string | null
           month_number?: number
           pillar?: string
           program_id?: string
+          question?: string | null
           title?: string
         }
         Relationships: [
@@ -529,7 +550,9 @@ export type Database = {
           content: string | null
           deliverable_id: string
           enrollment_id: string
+          file_path: string | null
           id: string
+          link_url: string | null
           status: Database["public"]["Enums"]["submission_status"]
           updated_at: string
         }
@@ -537,7 +560,9 @@ export type Database = {
           content?: string | null
           deliverable_id: string
           enrollment_id: string
+          file_path?: string | null
           id?: string
+          link_url?: string | null
           status?: Database["public"]["Enums"]["submission_status"]
           updated_at?: string
         }
@@ -545,7 +570,9 @@ export type Database = {
           content?: string | null
           deliverable_id?: string
           enrollment_id?: string
+          file_path?: string | null
           id?: string
+          link_url?: string | null
           status?: Database["public"]["Enums"]["submission_status"]
           updated_at?: string
         }

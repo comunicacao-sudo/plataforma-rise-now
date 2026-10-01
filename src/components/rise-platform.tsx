@@ -27,15 +27,16 @@ import {
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
+import { demoMentees, mentors } from "@/data/rise-content";
 import {
-  continueLearning,
-  demoMentees,
-  journey,
-  mentors,
-  nextEvents,
-  recommendations,
-  type LearningItem,
-} from "@/data/rise-content";
+  LessonScreen,
+  TrailAgenda,
+  TrailDeliverables,
+  formatWhen,
+  useTrail,
+  type Trail,
+  type TrailLesson,
+} from "@/components/rise-trail";
 import { supabase } from "@/integrations/supabase/client";
 
 type Role = "mentee" | "mentor" | "admin";
@@ -440,11 +441,35 @@ function Header({
   );
 }
 
-function Hero({ onContinue, onJourney }: { onContinue: () => void; onJourney: () => void }) {
+const accents = [
+  "linear-gradient(135deg, #8f3544 0%, #461520 58%, #100608 100%)",
+  "linear-gradient(135deg, #a34c61 0%, #3e111d 72%, #11070a 100%)",
+  "linear-gradient(135deg, #d0ac5c 0%, #79541f 46%, #181006 100%)",
+  "linear-gradient(135deg, #74404e 0%, #331720 60%, #0b0608 100%)",
+  "linear-gradient(135deg, #8f6670 0%, #432830 58%, #100a0c 100%)",
+  "linear-gradient(135deg, #5a0f14 0%, #2a0709 60%, #0b0304 100%)",
+];
+
+function currentPhase(trail: Trail) {
+  return trail.phases.find((p) => p.month === trail.currentMonth) ?? trail.phases[0];
+}
+
+function Hero({
+  trail,
+  onContinue,
+  onJourney,
+}: {
+  trail: Trail;
+  onContinue: () => void;
+  onJourney: () => void;
+}) {
+  const phase = currentPhase(trail);
+  const pending = phase?.lessons.filter((l) => !l.completed).length ?? 0;
+  const previous = trail.phases.find((p) => p.month === (phase?.month ?? 1) - 1);
   return (
     <section className="hero">
       <div className="hero__ambient" aria-hidden="true">
-        <span className="hero__monogram">IS</span>
+        <span className="hero__monogram">{phase?.pillar.replace(/\s|·/g, "") ?? "R"}</span>
         <span className="hero__star">✦</span>
         <span className="hero__arc hero__arc--one" />
         <span className="hero__arc hero__arc--two" />
@@ -452,26 +477,25 @@ function Hero({ onContinue, onJourney }: { onContinue: () => void; onJourney: ()
       <div className="hero__content page-width">
         <div className="hero__copy">
           <span className="eyebrow">
-            <span className="eyebrow__dot" /> Mês 2 · Identidade + Segurança
+            <span className="eyebrow__dot" /> Mês {phase?.month ?? 1} · {phase?.title ?? "Reflexão"}
           </span>
           <h1>
-            Transforme competência em <em>presença.</em>
+            {phase?.question.replace("?", "") ?? "Onde estou"}<em>?</em>
           </h1>
-          <p>
-            Reconheça o seu valor, fortaleça o posicionamento e amplie a capacidade de agir no novo
-            contexto profissional.
-          </p>
+          <p>{phase?.description}</p>
           <div className="hero__meta">
+            {previous ? (
+              <span>
+                <CheckCircle2 size={16} /> {previous.title}
+              </span>
+            ) : null}
             <span>
-              <CheckCircle2 size={16} /> Reflexão concluída
-            </span>
-            <span>
-              <Clock3 size={16} /> 3h12 nesta etapa
+              <UsersRound size={16} /> {phase?.mentor}
             </span>
           </div>
           <div className="hero__actions">
             <button className="button button--primary" type="button" onClick={onContinue}>
-              <Play size={18} fill="currentColor" /> Continuar jornada
+              <Play size={18} fill="currentColor" /> {trail.progressPct ? "Continuar jornada" : "Começar jornada"}
             </button>
             <button className="button button--glass" type="button" onClick={onJourney}>
               Ver trilha completa <ArrowRight size={17} />
@@ -479,11 +503,13 @@ function Hero({ onContinue, onJourney }: { onContinue: () => void; onJourney: ()
           </div>
         </div>
         <div className="hero__progress">
-          <ProgressRing value={28} />
+          <ProgressRing value={trail.progressPct} />
           <div>
             <span>Próximo marco</span>
-            <strong>Mapa de Identidade</strong>
-            <small>2 atividades para avançar</small>
+            <strong>{phase?.deliverable?.title ?? "—"}</strong>
+            <small>
+              {pending} {pending === 1 ? "etapa" : "etapas"} para avançar
+            </small>
           </div>
         </div>
       </div>
@@ -491,33 +517,29 @@ function Hero({ onContinue, onJourney }: { onContinue: () => void; onJourney: ()
   );
 }
 
-function ContentCard({
-  item,
-  onOpen,
-}: {
-  item: LearningItem;
-  onOpen: (item: LearningItem) => void;
-}) {
+function ContentCard({ item, onOpen }: { item: TrailLesson; onOpen: (item: TrailLesson) => void }) {
   return (
     <button className="content-card" type="button" onClick={() => onOpen(item)}>
-      <div className="content-card__art" style={{ background: item.accent }}>
-        <span className="content-card__type">{item.type}</span>
+      <div className="content-card__art" style={{ background: accents[(item.month - 1) % accents.length] }}>
+        <span className="content-card__type">{item.kind === "aula" ? "Aula" : item.format ?? "Encontro"}</span>
         <span className="content-card__spark">✦</span>
         <span className="content-card__initial">{item.title.charAt(0)}</span>
         <span className="content-card__play">
-          <Play size={19} fill="currentColor" />
+          {item.completed ? <Check size={19} /> : <Play size={19} fill="currentColor" />}
         </span>
       </div>
-      {item.progress > 0 ? (
+      {item.completed ? (
         <div className="card-progress">
-          <span style={{ width: `${item.progress}%` }} />
+          <span style={{ width: "100%" }} />
         </div>
       ) : null}
       <div className="content-card__body">
-        <span>{item.eyebrow}</span>
+        <span>
+          Mês {item.month} · {item.phaseTitle}
+        </span>
         <strong>{item.title}</strong>
         <small>
-          {item.mentor} · {item.duration}
+          {item.mentor} · {item.duration} min
         </small>
       </div>
     </button>
@@ -531,10 +553,11 @@ function Rail({
   onOpen,
 }: {
   title: string;
-  subtitle?: string;
-  items: LearningItem[];
-  onOpen: (item: LearningItem) => void;
+  subtitle?: string | undefined;
+  items: TrailLesson[];
+  onOpen: (item: TrailLesson) => void;
 }) {
+  if (!items.length) return null;
   return (
     <section className="content-section page-width">
       <div className="section-heading">
@@ -542,9 +565,6 @@ function Rail({
           <h2>{title}</h2>
           {subtitle ? <p>{subtitle}</p> : null}
         </div>
-        <button type="button">
-          Ver tudo <ChevronRight size={17} />
-        </button>
       </div>
       <div className="content-rail">
         {items.map((item) => (
@@ -555,7 +575,11 @@ function Rail({
   );
 }
 
-function JourneyRail({ onView }: { onView: () => void }) {
+function phaseStatus(trail: Trail, month: number) {
+  return month < trail.currentMonth ? "completed" : month === trail.currentMonth ? "current" : "upcoming";
+}
+
+function JourneyRail({ trail, onView }: { trail: Trail; onView: () => void }) {
   return (
     <section className="content-section page-width">
       <div className="section-heading">
@@ -568,54 +592,67 @@ function JourneyRail({ onView }: { onView: () => void }) {
         </button>
       </div>
       <div className="journey-rail">
-        {journey.map((item) => (
-          <article key={item.month} className={`journey-card journey-card--${item.status}`}>
-            <div className="journey-card__top">
-              <span>MÊS {item.month}</span>
-              {item.status === "completed" ? <CheckCircle2 size={19} /> : null}
-              {item.status === "current" ? <span className="status-pill">AGORA</span> : null}
-            </div>
-            <div className="journey-card__letter" style={{ color: item.accent }}>
-              {item.pillar}
-            </div>
-            <h3>{item.title}</h3>
-            <p>{item.question}</p>
-            <div className="journey-card__delivery">
-              <FileCheck2 size={15} /> {item.deliverable}
-            </div>
-          </article>
-        ))}
+        {trail.phases.map((item) => {
+          const status = phaseStatus(trail, item.month);
+          return (
+            <article key={item.month} className={`journey-card journey-card--${status}`}>
+              <div className="journey-card__top">
+                <span>MÊS {item.month}</span>
+                {status === "completed" ? <CheckCircle2 size={19} /> : null}
+                {status === "current" ? <span className="status-pill">AGORA</span> : null}
+              </div>
+              <div className="journey-card__letter">{item.pillar}</div>
+              <h3>{item.title}</h3>
+              <p>{item.question}</p>
+              <div className="journey-card__delivery">
+                <FileCheck2 size={15} /> {item.deliverable?.title}
+              </div>
+            </article>
+          );
+        })}
       </div>
     </section>
   );
 }
 
-function HomeView({ onView }: { onView: (view: View) => void }) {
-  const [selected, setSelected] = useState<LearningItem | null>(null);
-
+function HomeView({
+  trail,
+  onView,
+  onOpen,
+}: {
+  trail: Trail;
+  onView: (view: View) => void;
+  onOpen: (l: TrailLesson) => void;
+}) {
+  const phase = currentPhase(trail);
+  const next = trail.phases.find((p) => p.month === trail.currentMonth + 1);
+  const firstPending = phase?.lessons.find((l) => !l.completed) ?? phase?.lessons[0];
+  const revisit = trail.phases.flatMap((p) => p.lessons).filter((l) => l.completed && l.kind === "aula");
   return (
     <>
       <Hero
-        onContinue={() => setSelected(continueLearning[0]!)}
+        trail={trail}
+        onContinue={() => firstPending && onOpen(firstPending)}
         onJourney={() => onView("jornada")}
       />
       <div className="dashboard-body">
         <Rail
-          title="Continue de onde parou"
-          subtitle="Seu ritmo, sua evolução."
-          items={continueLearning}
-          onOpen={setSelected}
+          title={`Mês ${phase?.month ?? 1} · ${phase?.title ?? ""}`}
+          subtitle="Encontros, sessões e aulas desta etapa."
+          items={phase?.lessons ?? []}
+          onOpen={onOpen}
         />
-        <JourneyRail onView={() => onView("jornada")} />
+        <JourneyRail trail={trail} onView={() => onView("jornada")} />
         <Rail
           title="Prepare o seu próximo movimento"
-          items={recommendations}
-          onOpen={setSelected}
+          subtitle={next ? `Mês ${next.month} · ${next.title}` : undefined}
+          items={next?.lessons ?? []}
+          onOpen={onOpen}
         />
+        <Rail title="Revisite quando quiser" items={revisit} onOpen={onOpen} />
         <MentorRail />
-        <NextUp onAgenda={() => onView("agenda")} />
+        <NextUp trail={trail} onAgenda={() => onView("agenda")} />
       </div>
-      {selected ? <ContentModal item={selected} onClose={() => setSelected(null)} /> : null}
     </>
   );
 }
@@ -650,67 +687,33 @@ function MentorRail() {
   );
 }
 
-function NextUp({ onAgenda }: { onAgenda: () => void }) {
-  const event = nextEvents[0]!;
+function NextUp({ trail, onAgenda }: { trail: Trail; onAgenda: () => void }) {
+  const meetings = trail.phases.flatMap((p) => p.lessons).filter((l) => l.kind === "encontro" && !l.completed);
+  const upcoming =
+    meetings
+      .filter((m) => m.scheduledAt && new Date(m.scheduledAt).getTime() > Date.now())
+      .sort((a, b) => a.scheduledAt!.localeCompare(b.scheduledAt!))[0] ?? meetings[0];
+  if (!upcoming) return null;
+  const d = upcoming.scheduledAt ? new Date(upcoming.scheduledAt) : null;
   return (
     <section className="next-up page-width">
       <div className="next-up__date">
-        <strong>{event.day}</strong>
-        <span>{event.month}</span>
+        <strong>{d ? String(d.getDate()).padStart(2, "0") : "✦"}</strong>
+        <span>
+          {d ? d.toLocaleString("pt-BR", { month: "short" }).replace(".", "").toUpperCase() : `MÊS ${upcoming.month}`}
+        </span>
       </div>
       <div className="next-up__copy">
         <span>Seu próximo encontro</span>
-        <h2>{event.title}</h2>
-        <p>{event.meta}</p>
+        <h2>{upcoming.title}</h2>
+        <p>
+          {upcoming.format} com {upcoming.mentor} · {formatWhen(upcoming.scheduledAt)}
+        </p>
       </div>
       <button className="button button--glass" type="button" onClick={onAgenda}>
         Ver agenda <ArrowRight size={17} />
       </button>
     </section>
-  );
-}
-
-function ContentModal({ item, onClose }: { item: LearningItem; onClose: () => void }) {
-  return (
-    <div
-      className="modal-backdrop"
-      role="presentation"
-      onMouseDown={(event) => event.target === event.currentTarget && onClose()}
-    >
-      <section className="content-modal" role="dialog" aria-modal="true" aria-label={item.title}>
-        <button className="modal-close" type="button" onClick={onClose} aria-label="Fechar">
-          <X size={21} />
-        </button>
-        <div className="content-modal__visual" style={{ background: item.accent }}>
-          <span className="content-modal__spark">✦</span>
-          <button className="modal-play" type="button">
-            <Play size={28} fill="currentColor" />
-          </button>
-        </div>
-        <div className="content-modal__body">
-          <span className="eyebrow eyebrow--gold">{item.eyebrow}</span>
-          <h2>{item.title}</h2>
-          <div className="content-modal__meta">
-            <span>{item.type}</span>
-            <span>{item.duration}</span>
-            <span>{item.mentor}</span>
-          </div>
-          <p>{item.description}</p>
-          <div className="content-modal__actions">
-            <button className="button button--primary" type="button">
-              <Play size={17} fill="currentColor" /> {item.progress ? "Continuar" : "Começar"}
-            </button>
-            <button className="button button--glass" type="button">
-              <Download size={17} /> Materiais
-            </button>
-          </div>
-          <div className="private-note">
-            <LockKeyhole size={15} />
-            <span>Suas anotações são privadas e visíveis somente para você.</span>
-          </div>
-        </div>
-      </section>
-    </div>
   );
 }
 
@@ -724,7 +727,7 @@ function PageIntro({ eyebrow, title, copy }: { eyebrow: string; title: string; c
   );
 }
 
-function JourneyView() {
+function JourneyView({ trail, onOpen }: { trail: Trail; onOpen: (l: TrailLesson) => void }) {
   return (
     <main className="inner-page">
       <PageIntro
@@ -733,46 +736,62 @@ function JourneyView() {
         copy="Cada etapa transforma clareza em decisão, posicionamento, liderança e execução."
       />
       <section className="journey-timeline page-width">
-        {journey.map((item, index) => (
-          <article className={`timeline-item timeline-item--${item.status}`} key={item.month}>
-            <div className="timeline-item__axis">
-              <span>{item.month}</span>
-              {index < journey.length - 1 ? <i /> : null}
-            </div>
-            <div className="timeline-item__content">
-              <div>
-                <span>{item.pillar === "E" ? "Evolução" : item.title}</span>
-                <h2>{item.title}</h2>
-                <p>{item.question}</p>
+        {trail.phases.map((item, index) => {
+          const status = phaseStatus(trail, item.month);
+          return (
+            <article className={`timeline-item timeline-item--${status}`} key={item.month}>
+              <div className="timeline-item__axis">
+                <span>{item.month}</span>
+                {index < trail.phases.length - 1 ? <i /> : null}
               </div>
-              <div className="timeline-item__delivery">
-                <small>ENTREGA</small>
-                <strong>{item.deliverable}</strong>
+              <div className="timeline-item__content">
+                <div>
+                  <span>
+                    {item.pillar} · {item.mentor}
+                  </span>
+                  <h2>{item.title}</h2>
+                  <p>{item.question}</p>
+                  <ul className="timeline-lessons">
+                    {item.lessons.map((l) => (
+                      <li key={l.id}>
+                        <button type="button" onClick={() => onOpen(l)}>
+                          {l.completed ? <CheckCircle2 size={14} /> : <Play size={13} />}
+                          {l.title}
+                          <small>{l.kind === "aula" ? "Aula" : l.format}</small>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="timeline-item__delivery">
+                  <small>ENTREGA</small>
+                  <strong>{item.deliverable?.title}</strong>
+                </div>
+                <div className="timeline-item__state">
+                  {status === "completed" ? (
+                    <>
+                      <CheckCircle2 size={18} /> Concluído
+                    </>
+                  ) : status === "current" ? (
+                    <>
+                      <Sparkles size={18} /> Em andamento
+                    </>
+                  ) : (
+                    <>
+                      <LockKeyhole size={17} /> Em breve
+                    </>
+                  )}
+                </div>
               </div>
-              <div className="timeline-item__state">
-                {item.status === "completed" ? (
-                  <>
-                    <CheckCircle2 size={18} /> Concluído
-                  </>
-                ) : item.status === "current" ? (
-                  <>
-                    <Sparkles size={18} /> Em andamento
-                  </>
-                ) : (
-                  <>
-                    <LockKeyhole size={17} /> Em breve
-                  </>
-                )}
-              </div>
-            </div>
-          </article>
-        ))}
+            </article>
+          );
+        })}
       </section>
     </main>
   );
 }
 
-function AgendaView() {
+function AgendaView({ trail, onOpen }: { trail: Trail; onOpen: (l: TrailLesson) => void }) {
   return (
     <main className="inner-page">
       <PageIntro
@@ -780,64 +799,49 @@ function AgendaView() {
         title="Agenda RISE"
         copy="Sessões individuais e encontros coletivos reunidos em um só lugar."
       />
-      <section className="event-list page-width">
-        {nextEvents.map((event, index) => (
-          <article className="event-row" key={event.title}>
-            <div className="event-row__date">
-              <strong>{event.day}</strong>
-              <span>{event.month}</span>
-            </div>
-            <div className="event-row__line" />
-            <div className="event-row__content">
-              <span>{event.type}</span>
-              <h2>{event.title}</h2>
-              <p>{event.meta}</p>
-            </div>
-            <button
-              className={`button ${index === 0 ? "button--primary" : "button--glass"}`}
-              type="button"
-            >
-              {index === 0 ? "Entrar na sala" : "Ver detalhes"}
-              <ArrowRight size={16} />
-            </button>
-          </article>
-        ))}
-      </section>
+      <TrailAgenda trail={trail} onOpen={onOpen} />
     </main>
   );
 }
 
-function DeliverablesView() {
-  const deliverables = journey.map((item, index) => ({
-    ...item,
-    state: index === 0 ? "Concluída" : index === 1 ? "Em andamento" : "Não iniciada",
-  }));
+function DeliverablesView({ trail }: { trail: Trail }) {
   return (
     <main className="inner-page">
       <PageIntro
         eyebrow="Evidências de evolução"
         title="Suas entregas"
-        copy="Acompanhe o que já foi construído e o próximo passo da sua jornada."
+        copy="Envie texto, arquivo ou link. A mentora acompanha cada etapa."
       />
-      <section className="deliverable-grid page-width">
-        {deliverables.map((item) => (
-          <article className="deliverable-card" key={item.month}>
-            <div className="deliverable-card__icon">
-              <FileCheck2 size={22} />
-            </div>
-            <span>
-              Mês {item.month} · {item.title}
-            </span>
-            <h2>{item.deliverable}</h2>
-            <p>{item.question}</p>
-            <div className={`delivery-status delivery-status--${item.status}`}>{item.state}</div>
-            <button type="button">
-              Abrir entrega <ChevronRight size={17} />
-            </button>
-          </article>
-        ))}
-      </section>
+      <TrailDeliverables trail={trail} />
     </main>
+  );
+}
+
+function MenteeArea({ demo, view, onView }: { demo: boolean; view: View; onView: (v: View) => void }) {
+  const { data: trail, isLoading } = useTrail(demo);
+  const [lesson, setLesson] = useState<TrailLesson | null>(null);
+  if (isLoading) return <main className="inner-page" />;
+  if (!trail || !trail.phases.length)
+    return (
+      <main className="inner-page">
+        <PageIntro eyebrow="RISE NOW" title="Sua jornada está sendo preparada." copy="Em breve sua trilha aparece aqui." />
+      </main>
+    );
+  return (
+    <>
+      {view === "inicio" ? (
+        <HomeView trail={trail} onView={onView} onOpen={setLesson} />
+      ) : view === "jornada" ? (
+        <JourneyView trail={trail} onOpen={setLesson} />
+      ) : view === "agenda" ? (
+        <AgendaView trail={trail} onOpen={setLesson} />
+      ) : view === "entregas" ? (
+        <DeliverablesView trail={trail} />
+      ) : (
+        <Rise90View />
+      )}
+      {lesson ? <LessonScreen lesson={lesson} trail={trail} onClose={() => setLesson(null)} /> : null}
+    </>
   );
 }
 
@@ -1170,16 +1174,8 @@ export function RisePlatform() {
         <MentorDashboard />
       ) : role === "admin" ? (
         <AdminDashboard />
-      ) : activeView === "inicio" ? (
-        <HomeView onView={setActiveView} />
-      ) : activeView === "jornada" ? (
-        <JourneyView />
-      ) : activeView === "agenda" ? (
-        <AgendaView />
-      ) : activeView === "entregas" ? (
-        <DeliverablesView />
       ) : (
-        <Rise90View />
+        <MenteeArea demo={demo} view={activeView} onView={setActiveView} />
       )}
       <AppFooter />
     </div>
