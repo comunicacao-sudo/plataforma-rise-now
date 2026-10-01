@@ -673,7 +673,11 @@ function ReviewScreen({ sub, menteeName, onClose }: { sub: SubRow; menteeName: s
     setBusy(true);
     setMsg("");
     const { data: auth } = await supabase.auth.getUser();
-    const patch: Record<string, unknown> = { feedback: feedback || null, reviewed_by: auth.user?.id, reviewed_at: new Date().toISOString() };
+    const patch: { feedback: string | null; reviewed_by: string | null; reviewed_at: string; status?: "em_andamento" | "concluida" } = {
+      feedback: feedback || null,
+      reviewed_by: auth.user?.id ?? null,
+      reviewed_at: new Date().toISOString(),
+    };
     if (status) patch.status = status;
     const { error } = await supabase.from("submissions").update(patch).eq("id", sub.id);
     setBusy(false);

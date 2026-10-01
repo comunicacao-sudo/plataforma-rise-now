@@ -136,7 +136,7 @@ export const updateEnrollment = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase, context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const patch: Record<string, unknown> = {};
+    const patch: { cohort_id?: string | null; mentor_id?: string | null; status?: string } = {};
     if (data.cohortId !== undefined) patch.cohort_id = data.cohortId;
     if (data.mentorId !== undefined) patch.mentor_id = data.mentorId;
     if (data.status) patch.status = data.status;
