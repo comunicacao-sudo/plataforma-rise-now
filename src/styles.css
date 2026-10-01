@@ -52,6 +52,7 @@
   --gold: #d0ac5c;
   --cream: #f4e8dd;
   --ink: #090607;
+  --font-display: "Cormorant Garamond", Georgia, serif;
 }
 
 * {
@@ -2066,8 +2067,9 @@ hr,
     padding: 0 0.75rem;
     font-size: 0.53rem;
   }
-  .rise-mark--compact .rise-mark__word {
-    font-size: 1.45rem;
+  .rise-mark__text {
+    font-size: 0.8rem;
+    letter-spacing: 0.22em;
   }
   .notification-button {
     display: none;
