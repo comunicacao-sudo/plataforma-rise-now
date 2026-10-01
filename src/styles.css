@@ -2150,7 +2150,7 @@ hr,
 .lesson-player { position: relative; aspect-ratio: 16 / 9; width: 100%; border-radius: 1rem; overflow: hidden; border: 1px solid var(--hairline, rgba(208,172,92,.25)); background: radial-gradient(circle at 30% 20%, #5a0f14 0%, #1a0607 55%, #070203 100%); }
 .lesson-player__media { width: 100%; height: 100%; border: 0; display: block; background: #000; }
 .lesson-wait { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: .8rem; padding: 2rem; }
-.lesson-wait h2 { font-size: clamp(1.2rem, 2.4vw, 1.9rem); text-transform: capitalize; }
+.lesson-wait h2 { font-size: clamp(1.2rem, 2.4vw, 1.9rem); }
 .lesson-wait p { opacity: .75; max-width: 30rem; }
 .lesson-wait__icon { display: grid; place-items: center; width: 3.5rem; height: 3.5rem; border-radius: 999px; border: 1px solid var(--gold, #d0ac5c); color: var(--gold, #d0ac5c); }
 .lesson-layout { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 2.5rem; margin-top: 2rem; }
