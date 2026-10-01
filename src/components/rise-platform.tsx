@@ -553,7 +553,7 @@ function Rail({
   onOpen,
 }: {
   title: string;
-  subtitle?: string;
+  subtitle?: string | undefined;
   items: TrailLesson[];
   onOpen: (item: TrailLesson) => void;
 }) {
