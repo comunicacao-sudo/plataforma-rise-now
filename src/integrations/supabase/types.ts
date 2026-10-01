@@ -52,6 +52,33 @@ export type Database = {
           },
         ]
       }
+      app_user_connections: {
+        Row: {
+          connection_key_ciphertext: string
+          connector_id: string
+          created_at: string
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          connection_key_ciphertext: string
+          connector_id: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          connection_key_ciphertext?: string
+          connector_id?: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       audit_log: {
         Row: {
           action: string
@@ -86,6 +113,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      cohorts: {
+        Row: {
+          created_at: string
+          ends_on: string | null
+          id: string
+          name: string
+          starts_on: string | null
+        }
+        Insert: {
+          created_at?: string
+          ends_on?: string | null
+          id?: string
+          name: string
+          starts_on?: string | null
+        }
+        Update: {
+          created_at?: string
+          ends_on?: string | null
+          id?: string
+          name?: string
+          starts_on?: string | null
+        }
+        Relationships: []
       }
       consents: {
         Row: {
@@ -153,6 +204,7 @@ export type Database = {
       }
       enrollments: {
         Row: {
+          cohort_id: string | null
           created_at: string
           current_month: number
           id: string
@@ -161,8 +213,10 @@ export type Database = {
           program_id: string
           progress_pct: number
           started_at: string
+          status: string
         }
         Insert: {
+          cohort_id?: string | null
           created_at?: string
           current_month?: number
           id?: string
@@ -171,8 +225,10 @@ export type Database = {
           program_id: string
           progress_pct?: number
           started_at?: string
+          status?: string
         }
         Update: {
+          cohort_id?: string | null
           created_at?: string
           current_month?: number
           id?: string
@@ -181,8 +237,16 @@ export type Database = {
           program_id?: string
           progress_pct?: number
           started_at?: string
+          status?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "enrollments_cohort_id_fkey"
+            columns: ["cohort_id"]
+            isOneToOne: false
+            referencedRelation: "cohorts"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "enrollments_mentee_id_fkey"
             columns: ["mentee_id"]
@@ -310,43 +374,141 @@ export type Database = {
           },
         ]
       }
+      meeting_attendees: {
+        Row: {
+          enrollment_id: string
+          meeting_id: string
+        }
+        Insert: {
+          enrollment_id: string
+          meeting_id: string
+        }
+        Update: {
+          enrollment_id?: string
+          meeting_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_attendees_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "enrollments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_attendees_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "meetings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       meetings: {
         Row: {
+          audience: string
+          cohort_id: string | null
+          created_at: string
+          created_by: string | null
           description: string | null
           duration_minutes: number | null
+          ends_at: string | null
           enrollment_id: string | null
+          google_event_id: string | null
           id: string
           join_url: string | null
           kind: Database["public"]["Enums"]["meeting_kind"]
+          lesson_id: string | null
+          mentor_id: string | null
+          mentor_name: string | null
+          phase_id: string | null
+          recording_url: string | null
           scheduled_at: string
           title: string
         }
         Insert: {
+          audience?: string
+          cohort_id?: string | null
+          created_at?: string
+          created_by?: string | null
           description?: string | null
           duration_minutes?: number | null
+          ends_at?: string | null
           enrollment_id?: string | null
+          google_event_id?: string | null
           id?: string
           join_url?: string | null
           kind?: Database["public"]["Enums"]["meeting_kind"]
+          lesson_id?: string | null
+          mentor_id?: string | null
+          mentor_name?: string | null
+          phase_id?: string | null
+          recording_url?: string | null
           scheduled_at: string
           title: string
         }
         Update: {
+          audience?: string
+          cohort_id?: string | null
+          created_at?: string
+          created_by?: string | null
           description?: string | null
           duration_minutes?: number | null
+          ends_at?: string | null
           enrollment_id?: string | null
+          google_event_id?: string | null
           id?: string
           join_url?: string | null
           kind?: Database["public"]["Enums"]["meeting_kind"]
+          lesson_id?: string | null
+          mentor_id?: string | null
+          mentor_name?: string | null
+          phase_id?: string | null
+          recording_url?: string | null
           scheduled_at?: string
           title?: string
         }
         Relationships: [
           {
+            foreignKeyName: "meetings_cohort_id_fkey"
+            columns: ["cohort_id"]
+            isOneToOne: false
+            referencedRelation: "cohorts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meetings_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "meetings_enrollment_id_fkey"
             columns: ["enrollment_id"]
             isOneToOne: false
             referencedRelation: "enrollments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meetings_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "lessons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meetings_mentor_id_fkey"
+            columns: ["mentor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meetings_phase_id_fkey"
+            columns: ["phase_id"]
+            isOneToOne: false
+            referencedRelation: "phases"
             referencedColumns: ["id"]
           },
         ]
@@ -550,30 +712,42 @@ export type Database = {
           content: string | null
           deliverable_id: string
           enrollment_id: string
+          feedback: string | null
           file_path: string | null
           id: string
           link_url: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
           status: Database["public"]["Enums"]["submission_status"]
+          submitted_at: string | null
           updated_at: string
         }
         Insert: {
           content?: string | null
           deliverable_id: string
           enrollment_id: string
+          feedback?: string | null
           file_path?: string | null
           id?: string
           link_url?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           status?: Database["public"]["Enums"]["submission_status"]
+          submitted_at?: string | null
           updated_at?: string
         }
         Update: {
           content?: string | null
           deliverable_id?: string
           enrollment_id?: string
+          feedback?: string | null
           file_path?: string | null
           id?: string
           link_url?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           status?: Database["public"]["Enums"]["submission_status"]
+          submitted_at?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -589,6 +763,13 @@ export type Database = {
             columns: ["enrollment_id"]
             isOneToOne: false
             referencedRelation: "enrollments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "submissions_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -631,6 +812,7 @@ export type Database = {
         Args: { _enrollment_id: string }
         Returns: boolean
       }
+      can_see_meeting: { Args: { _meeting_id: string }; Returns: boolean }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -643,6 +825,7 @@ export type Database = {
         Args: { _enrollment_id: string }
         Returns: boolean
       }
+      is_staff: { Args: never; Returns: boolean }
     }
     Enums: {
       app_role: "admin" | "mentor" | "mentee"
