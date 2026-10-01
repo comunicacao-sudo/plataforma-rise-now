@@ -93,6 +93,7 @@ create policy "admins manage deliverables" on public.deliverables for all to aut
 
 -- A mentee must not be able to reassign mentors, programs, or her own phase.
 drop policy if exists "update enrollments" on public.enrollments;
+drop policy if exists "mentors and admins update enrollments" on public.enrollments;
 create policy "mentors and admins update enrollments" on public.enrollments
   for update to authenticated
   using (mentor_id = auth.uid() or public.is_admin())
@@ -155,11 +156,7 @@ create trigger audit_user_roles
 
 -- One private bucket. Paths start with the profile UUID:
 -- <owner-profile-id>/<area>/<random-file-name>
-insert into storage.buckets (id, name, public, file_size_limit)
-values ('rise-private', 'rise-private', false, 52428800)
-on conflict (id) do update
-  set public = false,
-      file_size_limit = excluded.file_size_limit;
+-- bucket rise-private is created via the storage tool
 
 drop policy if exists "rise private read" on storage.objects;
 create policy "rise private read" on storage.objects for select to authenticated
