@@ -15,6 +15,13 @@
       "when": 1790726927939,
       "tag": "0001_secure_invites_and_private_storage",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790889770839,
+      "tag": "0002_trail_lessons_and_submissions",
+      "breakpoints": true
     }
   ]
 }
