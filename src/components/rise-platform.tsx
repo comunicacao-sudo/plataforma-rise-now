@@ -70,7 +70,8 @@ function LoginScreen({ onDemo }: { onDemo: () => void }) {
     try {
       const { error: authError } = await supabase.auth.signInWithOtp({
         email: email.trim().toLowerCase(),
-        options: { shouldCreateUser: false },
+        // Unapproved emails are rejected by the database trigger on signup.
+        options: { shouldCreateUser: true, emailRedirectTo: window.location.origin },
       });
 
       if (authError) throw authError;
