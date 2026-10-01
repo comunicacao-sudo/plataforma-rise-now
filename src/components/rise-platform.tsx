@@ -80,6 +80,7 @@ function LoginScreen({ onDemo }: { onDemo: () => void }) {
           setError("E-mail ou senha incorretos.");
           return;
         }
+        sessionStorage.setItem("rise-initial-pw", password);
         return;
       }
       const { error: authError } = await supabase.auth.signInWithOtp({
@@ -215,7 +216,16 @@ function LoginScreen({ onDemo }: { onDemo: () => void }) {
   );
 }
 
-export function NewPasswordScreen({ onDone }: { onDone?: () => void }) {
+export function NewPasswordScreen({
+  onDone,
+  recovery = false,
+}: {
+  onDone?: () => void;
+  recovery?: boolean;
+}) {
+  const [current, setCurrent] = useState(
+    () => (typeof window !== "undefined" && sessionStorage.getItem("rise-initial-pw")) || "",
+  );
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
@@ -230,10 +240,23 @@ export function NewPasswordScreen({ onDone }: { onDone?: () => void }) {
     setBusy(true);
     const { error: updateError } = await supabase.auth.updateUser({
       password,
+      ...(recovery ? {} : { current_password: current }),
       data: { must_change_password: false },
-    });
+    } as Parameters<typeof supabase.auth.updateUser>[0]);
     setBusy(false);
-    if (updateError) return setError("Não foi possível salvar a senha. Tente novamente.");
+    if (updateError) {
+      const code = (updateError as { code?: string }).code;
+      const messages: Record<string, string> = {
+        current_password_required: "Informe a senha atual (a senha inicial que você recebeu).",
+        current_password_mismatch: "A senha atual está incorreta.",
+        invalid_credentials: "A senha atual está incorreta.",
+        weak_password: "Essa senha é fraca demais. Use letras, números e símbolos.",
+        same_password: "A nova senha precisa ser diferente da atual.",
+        session_not_found: "Sua sessão expirou. Saia e entre novamente.",
+      };
+      return setError(messages[code ?? ""] ?? `Não foi possível salvar a senha: ${updateError.message}`);
+    }
+    sessionStorage.removeItem("rise-initial-pw");
     onDone?.();
   }
 
@@ -252,6 +275,13 @@ export function NewPasswordScreen({ onDone }: { onDone?: () => void }) {
           <p>Por segurança, defina uma senha pessoal antes de continuar.</p>
         </div>
         <form className="login-form" onSubmit={save}>
+          {!recovery ? (
+            <>
+              <label htmlFor="rise-current-password">Senha atual</label>
+              <input id="rise-current-password" type="password" required autoComplete="current-password"
+                value={current} onChange={(e) => setCurrent(e.target.value)} />
+            </>
+          ) : null}
           <label htmlFor="rise-new-password">Nova senha</label>
           <input id="rise-new-password" type="password" required autoComplete="new-password"
             value={password} onChange={(e) => setPassword(e.target.value)} />
