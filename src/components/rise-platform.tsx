@@ -38,7 +38,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 type Role = "mentee" | "mentor" | "admin";
 type View = "inicio" | "jornada" | "agenda" | "entregas" | "rise90";
-type AuthMode = "checking" | "login" | "authenticated" | "demo";
+type AuthMode = "checking" | "login" | "authenticated" | "demo" | "change-password";
 
 const roleLabels: Record<Role, string> = {
   mentee: "Mentorada",
@@ -210,6 +210,60 @@ function LoginScreen({ onDemo }: { onDemo: () => void }) {
           Visualizar demonstração com dados fictícios
           <ChevronRight size={16} />
         </button>
+      </section>
+    </main>
+  );
+}
+
+export function NewPasswordScreen({ onDone }: { onDone?: () => void }) {
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    if (password.length < 8) return setError("A senha precisa ter pelo menos 8 caracteres.");
+    if (password !== confirm) return setError("As senhas não são iguais.");
+    if (password === "rise@2026") return setError("Escolha uma senha diferente da inicial.");
+    setBusy(true);
+    const { error: updateError } = await supabase.auth.updateUser({
+      password,
+      data: { must_change_password: false },
+    });
+    setBusy(false);
+    if (updateError) return setError("Não foi possível salvar a senha. Tente novamente.");
+    onDone?.();
+  }
+
+  return (
+    <main className="login-shell">
+      <div className="login-shell__art" aria-hidden="true">
+        <div className="orb orb--one" />
+        <div className="orb orb--two" />
+        <span className="login-shell__spark">✦</span>
+      </div>
+      <section className="login-panel">
+        <RiseMark />
+        <div className="login-panel__copy">
+          <span className="eyebrow eyebrow--gold">Primeiro acesso</span>
+          <h1>Crie sua nova senha.</h1>
+          <p>Por segurança, defina uma senha pessoal antes de continuar.</p>
+        </div>
+        <form className="login-form" onSubmit={save}>
+          <label htmlFor="rise-new-password">Nova senha</label>
+          <input id="rise-new-password" type="password" required autoComplete="new-password"
+            value={password} onChange={(e) => setPassword(e.target.value)} />
+          <label htmlFor="rise-confirm-password">Repita a nova senha</label>
+          <input id="rise-confirm-password" type="password" required autoComplete="new-password"
+            value={confirm} onChange={(e) => setConfirm(e.target.value)} />
+          {error ? <p className="form-error" role="alert">{error}</p> : null}
+          <button className="button button--primary button--wide" type="submit" disabled={busy}>
+            {busy ? "Salvando…" : "Salvar e entrar"}
+            {!busy ? <ArrowRight size={18} /> : null}
+          </button>
+        </form>
       </section>
     </main>
   );
@@ -994,6 +1048,10 @@ export function RisePlatform() {
           return;
         }
 
+        if (data.session.user.user_metadata?.must_change_password) {
+          setAuthMode("change-password");
+          return;
+        }
         const userId = data.session.user.id;
         const [profileResult, rolesResult] = await Promise.all([
           supabase.from("profiles").select("full_name").eq("id", userId).maybeSingle(),
@@ -1045,6 +1103,7 @@ export function RisePlatform() {
   }
 
   if (authMode === "checking") return <LoadingScreen />;
+  if (authMode === "change-password") return <NewPasswordScreen />;
   if (authMode === "login") return <LoginScreen onDemo={() => setAuthMode("demo")} />;
 
   return (
