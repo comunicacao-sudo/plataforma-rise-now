@@ -1048,7 +1048,7 @@ export function RisePlatform() {
           return;
         }
 
-        if (data.session.user.user_metadata?.must_change_password) {
+        if (data.session.user.user_metadata?.['must_change_password']) {
           setAuthMode("change-password");
           return;
         }
