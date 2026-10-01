@@ -480,7 +480,7 @@ function Hero({
             <span className="eyebrow__dot" /> Mês {phase?.month ?? 1} · {phase?.title ?? "Reflexão"}
           </span>
           <h1>
-            {phase?.question.replace("?", "") ?? "Onde estou"}<em>?</em>
+            {phase?.question ?? "Onde estou?"}
           </h1>
           <p>{phase?.description}</p>
           <div className="hero__meta">
