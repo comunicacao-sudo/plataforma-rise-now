@@ -162,6 +162,7 @@ async function loadTrail(): Promise<Trail> {
       content: string | null;
       link_url: string | null;
       file_path: string | null;
+      feedback: string | null;
     }[]).map((s) => [s.deliverable_id, s]),
   );
 
