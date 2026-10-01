@@ -48,6 +48,7 @@ export type TrailDeliverable = {
   content: string;
   linkUrl: string;
   filePath: string;
+  feedback?: string;
 };
 
 export type TrailPhase = {
@@ -161,6 +162,7 @@ async function loadTrail(): Promise<Trail> {
       content: string | null;
       link_url: string | null;
       file_path: string | null;
+      feedback: string | null;
     }[]).map((s) => [s.deliverable_id, s]),
   );
 
@@ -204,6 +206,7 @@ async function loadTrail(): Promise<Trail> {
             content: sub?.content ?? "",
             linkUrl: sub?.link_url ?? "",
             filePath: sub?.file_path ?? "",
+            feedback: sub?.feedback ?? "",
           }
         : null,
     };
@@ -632,6 +635,12 @@ function DeliverableEditor({
             <button className="link-button" type="button" onClick={() => void openFile()}>
               Ver arquivo enviado
             </button>
+          ) : null}
+          {item.feedback ? (
+            <div className="feedback-box">
+              <span className="eyebrow eyebrow--gold">Retorno da mentora</span>
+              <p>{item.feedback}</p>
+            </div>
           ) : null}
           {msg ? <p className="form-message">{msg}</p> : null}
           {locked ? (

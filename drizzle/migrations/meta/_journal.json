@@ -22,6 +22,20 @@
       "when": 1790889770839,
       "tag": "0002_trail_lessons_and_submissions",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790890878138,
+      "tag": "0003_operations_cohorts_meetings_reviews",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790891320460,
+      "tag": "0004_meetings_read_policy_staff",
+      "breakpoints": true
     }
   ]
 }
