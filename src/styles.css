@@ -2255,3 +2255,4 @@ hr,
   .ops-grid2, .ops-grid3, .ops-filters, .ops-inline-form { grid-template-columns: 1fr; }
   .ops-sub-row { grid-template-columns: 40px 1fr !important; }
 }
+.ops-cohorts .admin-card, .ops-google { min-height: 0 !important; height: auto; }
