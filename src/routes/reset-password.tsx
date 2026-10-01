@@ -18,5 +18,5 @@ export const Route = createFileRoute("/reset-password")({
 
 function ResetPassword() {
   const navigate = useNavigate();
-  return <NewPasswordScreen onDone={() => void navigate({ to: "/" })} />;
+  return <NewPasswordScreen recovery onDone={() => void navigate({ to: "/" })} />;
 }
