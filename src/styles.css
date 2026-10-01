@@ -196,7 +196,7 @@ hr,
   left: 6vw;
   top: 50%;
   color: rgba(244, 232, 221, 0.055);
-  font-family: Georgia, serif;
+  font-family: "Montserrat", sans-serif;
   font-size: clamp(9rem, 19vw, 21rem);
   line-height: 0.8;
   letter-spacing: 0.04em;
@@ -262,7 +262,7 @@ hr,
   bottom: 7%;
   margin: 0;
   color: rgba(244, 232, 221, 0.65);
-  font-family: Georgia, serif;
+  font-family: "Montserrat", sans-serif;
   font-size: 1.05rem;
   font-style: italic;
   letter-spacing: 0.13em;
@@ -285,7 +285,7 @@ hr,
 .page-intro h1,
 .hero h1 {
   margin: 0;
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: "Montserrat", sans-serif;
   font-weight: 400;
   letter-spacing: -0.025em;
 }
@@ -689,7 +689,7 @@ hr,
   right: 4vw;
   bottom: 5%;
   color: rgba(244, 232, 221, 0.045);
-  font-family: Georgia, serif;
+  font-family: "Montserrat", sans-serif;
   font-size: min(42vw, 38rem);
   line-height: 0.8;
 }
@@ -794,7 +794,7 @@ hr,
   text-transform: uppercase;
 }
 .hero__progress strong {
-  font-family: Georgia, serif;
+  font-family: "Montserrat", sans-serif;
   font-size: 1rem;
   font-weight: 400;
 }
@@ -857,7 +857,7 @@ hr,
 }
 .section-heading h2 {
   margin: 0;
-  font-family: Georgia, serif;
+  font-family: "Montserrat", sans-serif;
   font-size: clamp(1.45rem, 2.2vw, 2.15rem);
   font-weight: 400;
   letter-spacing: -0.015em;
@@ -960,7 +960,7 @@ hr,
   left: 1.2rem;
   bottom: -0.22em;
   color: rgba(244, 232, 221, 0.13);
-  font-family: Georgia, serif;
+  font-family: "Montserrat", sans-serif;
   font-size: 7.5rem;
   line-height: 1;
 }
@@ -1071,13 +1071,13 @@ hr,
 }
 .journey-card__letter {
   margin-top: 1.2rem;
-  font-family: Georgia, serif;
+  font-family: "Montserrat", sans-serif;
   font-size: 3.2rem;
   line-height: 1;
 }
 .journey-card h3 {
   margin: 0.8rem 0 0;
-  font-family: Georgia, serif;
+  font-family: "Montserrat", sans-serif;
   font-size: 1.2rem;
   font-weight: 400;
 }
@@ -1146,7 +1146,7 @@ hr,
 .mentor-avatar span {
   position: relative;
   z-index: 2;
-  font-family: Georgia, serif;
+  font-family: "Montserrat", sans-serif;
   font-size: 1.2rem;
 }
 .mentor-card > div:last-child > span {
@@ -1158,7 +1158,7 @@ hr,
 }
 .mentor-card h3 {
   margin: 0.4rem 0 0;
-  font-family: Georgia, serif;
+  font-family: "Montserrat", sans-serif;
   font-size: 1.05rem;
   font-weight: 400;
 }
@@ -1189,7 +1189,7 @@ hr,
   border-radius: 0.35rem;
 }
 .next-up__date strong {
-  font-family: Georgia, serif;
+  font-family: "Montserrat", sans-serif;
   font-size: 1.5rem;
   font-weight: 400;
   line-height: 1;
@@ -1213,7 +1213,7 @@ hr,
 }
 .next-up__copy h2 {
   margin: 0.35rem 0 0;
-  font-family: Georgia, serif;
+  font-family: "Montserrat", sans-serif;
   font-size: 1.25rem;
   font-weight: 400;
 }
@@ -1297,7 +1297,7 @@ hr,
 }
 .content-modal__body h2 {
   margin: 0.8rem 0 0;
-  font-family: Georgia, serif;
+  font-family: "Montserrat", sans-serif;
   font-size: 2.35rem;
   font-weight: 400;
 }
@@ -1383,7 +1383,7 @@ hr,
   border-radius: 50%;
   background: #160c0e;
   color: rgba(244, 232, 221, 0.5);
-  font-family: Georgia, serif;
+  font-family: "Montserrat", sans-serif;
 }
 .timeline-item__axis i {
   position: absolute;
@@ -1416,7 +1416,7 @@ hr,
 }
 .timeline-item__content h2 {
   margin: 0.35rem 0 0;
-  font-family: Georgia, serif;
+  font-family: "Montserrat", sans-serif;
   font-size: 1.7rem;
   font-weight: 400;
 }
@@ -1475,7 +1475,7 @@ hr,
   justify-items: center;
 }
 .event-row__date strong {
-  font-family: Georgia, serif;
+  font-family: "Montserrat", sans-serif;
   font-size: 2rem;
   font-weight: 400;
   line-height: 1;
@@ -1504,7 +1504,7 @@ hr,
 }
 .event-row__content h2 {
   margin: 0.35rem 0 0;
-  font-family: Georgia, serif;
+  font-family: "Montserrat", sans-serif;
   font-size: 1.35rem;
   font-weight: 400;
 }
@@ -1547,7 +1547,7 @@ hr,
 }
 .deliverable-card h2 {
   margin: 0.5rem 0 0;
-  font-family: Georgia, serif;
+  font-family: "Montserrat", sans-serif;
   font-size: 1.25rem;
   font-weight: 400;
 }
@@ -1615,7 +1615,7 @@ hr,
   text-transform: uppercase;
 }
 .rise90-summary strong {
-  font-family: Georgia, serif;
+  font-family: "Montserrat", sans-serif;
   font-size: 1.65rem;
   font-weight: 400;
 }
@@ -1647,7 +1647,7 @@ hr,
 }
 .goal-card__copy h2 {
   margin: 0.35rem 0 0;
-  font-family: Georgia, serif;
+  font-family: "Montserrat", sans-serif;
   font-size: 1.2rem;
   font-weight: 400;
 }
@@ -1660,7 +1660,7 @@ hr,
   justify-self: end;
 }
 .goal-card__number strong {
-  font-family: Georgia, serif;
+  font-family: "Montserrat", sans-serif;
   font-size: 1.8rem;
   font-weight: 400;
 }
@@ -1712,7 +1712,7 @@ hr,
   font-size: 0.58rem;
 }
 .mentor-stats strong {
-  font-family: Georgia, serif;
+  font-family: "Montserrat", sans-serif;
   font-size: 2.2rem;
   font-weight: 400;
 }
@@ -1849,7 +1849,7 @@ hr,
 }
 .admin-card--security h2 {
   margin: 0.45rem 0 0;
-  font-family: Georgia, serif;
+  font-family: "Montserrat", sans-serif;
   font-size: 1.45rem;
   font-weight: 400;
 }
@@ -1884,7 +1884,7 @@ hr,
   color: rgba(244, 232, 221, 0.3);
 }
 .app-footer p {
-  font-family: Georgia, serif;
+  font-family: "Montserrat", sans-serif;
   font-size: 0.85rem;
   font-style: italic;
 }
