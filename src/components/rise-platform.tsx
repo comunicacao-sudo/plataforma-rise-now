@@ -58,7 +58,9 @@ function RiseMark({ compact = false }: { compact?: boolean }) {
 
 function LoginScreen({ onDemo }: { onDemo: () => void }) {
   const [email, setEmail] = useState("");
-  const [sent, setSent] = useState(false);
+  const [password, setPassword] = useState("");
+  const [method, setMethod] = useState<"password" | "link">("password");
+  const [sent, setSent] = useState<"" | "link" | "reset">("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -66,16 +68,27 @@ function LoginScreen({ onDemo }: { onDemo: () => void }) {
     event.preventDefault();
     setError("");
     setBusy(true);
+    const cleanEmail = email.trim().toLowerCase();
 
     try {
+      if (method === "password") {
+        const { error: authError } = await supabase.auth.signInWithPassword({
+          email: cleanEmail,
+          password,
+        });
+        if (authError) {
+          setError("E-mail ou senha incorretos.");
+          return;
+        }
+        return;
+      }
       const { error: authError } = await supabase.auth.signInWithOtp({
-        email: email.trim().toLowerCase(),
+        email: cleanEmail,
         // Unapproved emails are rejected by the database trigger on signup.
         options: { shouldCreateUser: true, emailRedirectTo: window.location.origin },
       });
-
       if (authError) throw authError;
-      setSent(true);
+      setSent("link");
     } catch {
       setError(
         "Não foi possível liberar o acesso. Confirme se este é o e-mail aprovado pela equipe RISE.",
@@ -83,6 +96,22 @@ function LoginScreen({ onDemo }: { onDemo: () => void }) {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function forgotPassword() {
+    setError("");
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail) {
+      setError("Digite seu e-mail acima para receber o link de nova senha.");
+      return;
+    }
+    setBusy(true);
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    setBusy(false);
+    if (resetError) setError("Não foi possível enviar o link agora. Tente novamente.");
+    else setSent("reset");
   }
 
   return (
@@ -114,7 +143,11 @@ function LoginScreen({ onDemo }: { onDemo: () => void }) {
             </div>
             <div>
               <strong>Confira seu e-mail</strong>
-              <p>Enviamos um link seguro e temporário para continuar.</p>
+              <p>
+                {sent === "reset"
+                  ? "Enviamos um link para você criar uma nova senha."
+                  : "Enviamos um link seguro e temporário para continuar."}
+              </p>
             </div>
           </div>
         ) : (
@@ -129,15 +162,42 @@ function LoginScreen({ onDemo }: { onDemo: () => void }) {
               value={email}
               onChange={(event) => setEmail(event.target.value)}
             />
+            {method === "password" ? (
+              <>
+                <label htmlFor="rise-password">Senha</label>
+                <input
+                  id="rise-password"
+                  type="password"
+                  required
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                />
+              </>
+            ) : null}
             {error ? (
               <p className="form-error" role="alert">
                 {error}
               </p>
             ) : null}
             <button className="button button--primary button--wide" type="submit" disabled={busy}>
-              {busy ? "Verificando…" : "Receber acesso seguro"}
+              {busy ? "Verificando…" : method === "password" ? "Entrar" : "Receber acesso seguro"}
               {!busy ? <ArrowRight size={18} /> : null}
             </button>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+              <button
+                className="demo-link"
+                type="button"
+                onClick={() => setMethod(method === "password" ? "link" : "password")}
+              >
+                {method === "password" ? "Entrar com link por e-mail" : "Entrar com senha"}
+              </button>
+              {method === "password" ? (
+                <button className="demo-link" type="button" onClick={() => void forgotPassword()}>
+                  Esqueci minha senha
+                </button>
+              ) : null}
+            </div>
           </form>
         )}
 
