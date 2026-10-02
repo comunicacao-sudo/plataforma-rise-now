@@ -27,6 +27,7 @@ import {
   updateMeeting,
 } from "@/lib/google.functions";
 import { createMember, getDirectory, resetMemberPassword, updateEnrollment } from "@/lib/admin.functions";
+import { CalendarButtons, MaterialsList, MaterialsManager, Rise90StaffDrawer } from "@/components/rise-extras";
 
 /* ---------- shared ---------- */
 
@@ -112,7 +113,7 @@ function tempPassword() {
 
 /* ---------- meeting card (shared mentee + staff) ---------- */
 
-function MeetingCard({ m, actions }: { m: MeetingRow; actions?: ReactNode }) {
+function MeetingCard({ m, actions, showMaterials }: { m: MeetingRow; actions?: ReactNode; showMaterials?: boolean }) {
   const start = new Date(m.scheduled_at);
   const now = Date.now();
   const live = now >= start.getTime() - 15 * 60000 && now <= endOf(m);
@@ -145,7 +146,7 @@ function MeetingCard({ m, actions }: { m: MeetingRow; actions?: ReactNode }) {
             <span className="ops-muted">Gravação em breve</span>
           )
         ) : m.join_url ? (
-          <a className={`button ${live ? "button--primary" : "button--glass"}`} href={m.join_url} target="_blank" rel="noreferrer">
+          <a className={`button ${live ? "button--primary x-pulse" : "button--glass"}`} href={m.join_url} target="_blank" rel="noreferrer">
             Entrar no Google Meet <ExternalLink size={15} />
           </a>
         ) : (
@@ -153,6 +154,25 @@ function MeetingCard({ m, actions }: { m: MeetingRow; actions?: ReactNode }) {
         )}
         {actions}
       </div>
+      {!past ? (
+        <div className="ops-meeting__extra">
+          <CalendarButtons
+            ev={{
+              title: m.title,
+              description: m.description,
+              start: m.scheduled_at,
+              end: new Date(endOf(m)).toISOString(),
+              joinUrl: m.join_url,
+              mentor: m.mentor_name,
+            }}
+          />
+        </div>
+      ) : null}
+      {showMaterials ? (
+        <div className="ops-meeting__extra">
+          <MaterialsList meetingId={m.id} />
+        </div>
+      ) : null}
     </article>
   );
 }
