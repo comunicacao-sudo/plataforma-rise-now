@@ -43,6 +43,13 @@
       "when": 1790899468347,
       "tag": "0005_rise90_materials_notifications",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790899859849,
+      "tag": "0006_profiles_contacts_staff_notifications",
+      "breakpoints": true
     }
   ]
 }

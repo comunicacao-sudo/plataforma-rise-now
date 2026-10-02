@@ -705,30 +705,36 @@ export type Database = {
         Row: {
           avatar_url: string | null
           claimed: boolean
+          contact_email: string | null
           created_at: string
           email: string
           full_name: string
           id: string
+          phone: string | null
           pillar: string | null
           title: string | null
         }
         Insert: {
           avatar_url?: string | null
           claimed?: boolean
+          contact_email?: string | null
           created_at?: string
           email: string
           full_name: string
           id?: string
+          phone?: string | null
           pillar?: string | null
           title?: string | null
         }
         Update: {
           avatar_url?: string | null
           claimed?: boolean
+          contact_email?: string | null
           created_at?: string
           email?: string
           full_name?: string
           id?: string
+          phone?: string | null
           pillar?: string | null
           title?: string | null
         }
@@ -976,6 +982,18 @@ export type Database = {
           _type: string
         }
         Returns: undefined
+      }
+      staff_directory: {
+        Args: never
+        Returns: {
+          avatar_url: string
+          contact_email: string
+          full_name: string
+          id: string
+          is_admin: boolean
+          phone: string
+          title: string
+        }[]
       }
     }
     Enums: {
