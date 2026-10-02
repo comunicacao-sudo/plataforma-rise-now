@@ -270,6 +270,60 @@ export type Database = {
           },
         ]
       }
+      lesson_materials: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          file_path: string | null
+          id: string
+          kind: string
+          lesson_id: string | null
+          meeting_id: string | null
+          title: string
+          url: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          file_path?: string | null
+          id?: string
+          kind: string
+          lesson_id?: string | null
+          meeting_id?: string | null
+          title: string
+          url?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          file_path?: string | null
+          id?: string
+          kind?: string
+          lesson_id?: string | null
+          meeting_id?: string | null
+          title?: string
+          url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lesson_materials_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "lessons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lesson_materials_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "meetings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lesson_progress: {
         Row: {
           completed: boolean
@@ -565,6 +619,47 @@ export type Database = {
           },
         ]
       }
+      notifications: {
+        Row: {
+          body: string | null
+          created_at: string
+          id: string
+          link: string | null
+          read_at: string | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          link?: string | null
+          read_at?: string | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          link?: string | null
+          read_at?: string | null
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       phases: {
         Row: {
           description: string | null
@@ -670,30 +765,42 @@ export type Database = {
         Row: {
           created_at: string
           current_value: number
+          deadline: string | null
+          description: string | null
           enrollment_id: string
           horizon: string | null
           id: string
           metric: string | null
+          position: number
+          progress_pct: number
           target_value: number | null
           title: string
         }
         Insert: {
           created_at?: string
           current_value?: number
+          deadline?: string | null
+          description?: string | null
           enrollment_id: string
           horizon?: string | null
           id?: string
           metric?: string | null
+          position?: number
+          progress_pct?: number
           target_value?: number | null
           title: string
         }
         Update: {
           created_at?: string
           current_value?: number
+          deadline?: string | null
+          description?: string | null
           enrollment_id?: string
           horizon?: string | null
           id?: string
           metric?: string | null
+          position?: number
+          progress_pct?: number
           target_value?: number | null
           title?: string
         }
@@ -703,6 +810,41 @@ export type Database = {
             columns: ["enrollment_id"]
             isOneToOne: false
             referencedRelation: "enrollments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rise90_milestones: {
+        Row: {
+          created_at: string
+          done: boolean
+          goal_id: string
+          id: string
+          position: number
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          done?: boolean
+          goal_id: string
+          id?: string
+          position?: number
+          title: string
+        }
+        Update: {
+          created_at?: string
+          done?: boolean
+          goal_id?: string
+          id?: string
+          position?: number
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rise90_milestones_goal_id_fkey"
+            columns: ["goal_id"]
+            isOneToOne: false
+            referencedRelation: "rise90_goals"
             referencedColumns: ["id"]
           },
         ]
@@ -826,6 +968,15 @@ export type Database = {
         Returns: boolean
       }
       is_staff: { Args: never; Returns: boolean }
+      notify_meeting_audience: {
+        Args: {
+          _body: string
+          _meeting_id: string
+          _title: string
+          _type: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role: "admin" | "mentor" | "mentee"
