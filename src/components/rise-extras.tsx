@@ -104,7 +104,7 @@ type Material = {
   file_path: string | null;
 };
 
-function useMaterials(target: { lessonId?: string | null | undefined; meetingId?: string | null }) {
+function useMaterials(target: { lessonId?: string | null | undefined; meetingId?: string | null | undefined }) {
   const key = target.lessonId ?? target.meetingId ?? "";
   return useQuery({
     queryKey: ["materials", key],
