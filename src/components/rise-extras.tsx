@@ -104,7 +104,7 @@ type Material = {
   file_path: string | null;
 };
 
-function useMaterials(target: { lessonId?: string | null; meetingId?: string | null }) {
+function useMaterials(target: { lessonId?: string | null | undefined; meetingId?: string | null }) {
   const key = target.lessonId ?? target.meetingId ?? "";
   return useQuery({
     queryKey: ["materials", key],
@@ -150,7 +150,7 @@ function MaterialCard({ m, action }: { m: Material; action?: ReactNode }) {
   );
 }
 
-export function MaterialsList({ lessonId, meetingId, emptyText }: { lessonId?: string | null; meetingId?: string | null; emptyText?: boolean }) {
+export function MaterialsList({ lessonId, meetingId, emptyText }: { lessonId?: string | null | undefined; meetingId?: string | null | undefined; emptyText?: boolean }) {
   const { data = [], isLoading } = useMaterials({ lessonId, meetingId });
   if (isLoading) return null;
   if (!data.length)
@@ -178,8 +178,8 @@ export function MaterialsManager({
   label,
   onClose,
 }: {
-  lessonId?: string | null;
-  meetingId?: string | null;
+  lessonId?: string | null | undefined;
+  meetingId?: string | null | undefined;
   label: string;
   onClose: () => void;
 }) {
