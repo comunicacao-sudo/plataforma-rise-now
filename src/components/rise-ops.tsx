@@ -7,6 +7,7 @@ import {
   ExternalLink,
   FileCheck2,
   LockKeyhole,
+  Paperclip,
   Plus,
   RefreshCw,
   Trash2,
@@ -27,6 +28,7 @@ import {
   updateMeeting,
 } from "@/lib/google.functions";
 import { createMember, getDirectory, resetMemberPassword, updateEnrollment } from "@/lib/admin.functions";
+import { CalendarButtons, MaterialsList, MaterialsManager, Rise90StaffDrawer } from "@/components/rise-extras";
 
 /* ---------- shared ---------- */
 
@@ -112,7 +114,7 @@ function tempPassword() {
 
 /* ---------- meeting card (shared mentee + staff) ---------- */
 
-function MeetingCard({ m, actions }: { m: MeetingRow; actions?: ReactNode }) {
+function MeetingCard({ m, actions, showMaterials }: { m: MeetingRow; actions?: ReactNode; showMaterials?: boolean }) {
   const start = new Date(m.scheduled_at);
   const now = Date.now();
   const live = now >= start.getTime() - 15 * 60000 && now <= endOf(m);
@@ -145,7 +147,7 @@ function MeetingCard({ m, actions }: { m: MeetingRow; actions?: ReactNode }) {
             <span className="ops-muted">Gravação em breve</span>
           )
         ) : m.join_url ? (
-          <a className={`button ${live ? "button--primary" : "button--glass"}`} href={m.join_url} target="_blank" rel="noreferrer">
+          <a className={`button ${live ? "button--primary x-pulse" : "button--glass"}`} href={m.join_url} target="_blank" rel="noreferrer">
             Entrar no Google Meet <ExternalLink size={15} />
           </a>
         ) : (
@@ -153,6 +155,25 @@ function MeetingCard({ m, actions }: { m: MeetingRow; actions?: ReactNode }) {
         )}
         {actions}
       </div>
+      {!past ? (
+        <div className="ops-meeting__extra">
+          <CalendarButtons
+            ev={{
+              title: m.title,
+              description: m.description,
+              start: m.scheduled_at,
+              end: new Date(endOf(m)).toISOString(),
+              joinUrl: m.join_url,
+              mentor: m.mentor_name,
+            }}
+          />
+        </div>
+      ) : null}
+      {showMaterials ? (
+        <div className="ops-meeting__extra">
+          <MaterialsList meetingId={m.id} />
+        </div>
+      ) : null}
     </article>
   );
 }
@@ -174,7 +195,7 @@ export function MenteeMeetings() {
         </div>
       </div>
       {upcoming.length ? (
-        <div className="ops-list">{upcoming.map((m) => <MeetingCard key={m.id} m={m} />)}</div>
+        <div className="ops-list">{upcoming.map((m) => <MeetingCard key={m.id} m={m} showMaterials />)}</div>
       ) : (
         <p className="ops-empty">Nenhum encontro agendado ainda. Assim que a sua mentora marcar, ele aparece aqui.</p>
       )}
@@ -186,7 +207,7 @@ export function MenteeMeetings() {
               <p>Reveja as gravações quando estiverem disponíveis.</p>
             </div>
           </div>
-          <div className="ops-list">{past.map((m) => <MeetingCard key={m.id} m={m} />)}</div>
+          <div className="ops-list">{past.map((m) => <MeetingCard key={m.id} m={m} showMaterials />)}</div>
         </>
       ) : null}
     </section>
@@ -542,6 +563,38 @@ function RecordingEditor({ m, onDone }: { m: MeetingRow; onDone: () => void }) {
   );
 }
 
+function LessonMaterialsSection({ onOpen }: { onOpen: (l: { lessonId: string; label: string }) => void }) {
+  const { data = [] } = useQuery({
+    queryKey: ["staff-lessons"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("lessons")
+        .select("id, title, kind, position, phase:phases(month_number, pillar), materials:lesson_materials(count)")
+        .order("position");
+      return ((data ?? []) as any[]).sort((a, b) => (a.phase?.month_number ?? 0) - (b.phase?.month_number ?? 0) || a.position - b.position);
+    },
+  });
+  return (
+    <section className="page-width ops-section">
+      <div className="section-heading ops-gap">
+        <div>
+          <h2>Materiais da trilha</h2>
+          <p>Anexe links e arquivos a cada aula ou encontro da jornada.</p>
+        </div>
+      </div>
+      <div className="x-lessons">
+        {data.map((l) => (
+          <button key={l.id} type="button" className="x-lesson" onClick={() => onOpen({ lessonId: l.id, label: `Mês ${l.phase?.month_number ?? "—"} · ${l.title}` })}>
+            <small>Mês {l.phase?.month_number ?? "—"} · {l.kind === "aula" ? "Aula" : "Encontro"}</small>
+            <strong>{l.title}</strong>
+            <span><Paperclip size={13} /> {l.materials?.[0]?.count ?? 0} material(is)</span>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function StaffAgenda() {
   const qc = useQueryClient();
   const { data = [] } = useMeetings();
@@ -549,6 +602,7 @@ function StaffAgenda() {
   const cancelFn = useServerFn(cancelMeeting);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<MeetingRow | null>(null);
+  const [mats, setMats] = useState<{ lessonId?: string; meetingId?: string; label: string } | null>(null);
   const now = Date.now();
   const upcoming = data.filter((m) => endOf(m) >= now);
   const past = data.filter((m) => endOf(m) < now).reverse();
@@ -565,6 +619,9 @@ function StaffAgenda() {
   const actions = (m: MeetingRow) => (
     <>
       <span className="ops-tag">{audienceLabel(m)}</span>
+      <button className="icon-button" type="button" aria-label="Materiais" title="Materiais de apoio" onClick={() => setMats({ meetingId: m.id, label: m.title })}>
+        <Paperclip size={17} />
+      </button>
       <button className="icon-button" type="button" aria-label="Editar links" onClick={() => setEditing(m)}>
         <Video size={17} />
       </button>
@@ -605,7 +662,9 @@ function StaffAgenda() {
         ) : null}
       </section>
       {open ? <ScheduleForm onDone={() => setOpen(false)} /> : null}
+      <LessonMaterialsSection onOpen={(l) => setMats(l)} />
       {editing ? <RecordingEditor m={editing} onDone={() => setEditing(null)} /> : null}
+      {mats ? <MaterialsManager lessonId={mats.lessonId} meetingId={mats.meetingId} label={mats.label} onClose={() => setMats(null)} /> : null}
     </main>
   );
 }
@@ -952,6 +1011,7 @@ function MembersPanel() {
   const { data: subs = [] } = useSubmissions();
   const [cohortOpen, setCohortOpen] = useState(false);
   const [memberOpen, setMemberOpen] = useState(false);
+  const [goalsOf, setGoalsOf] = useState<{ id: string; name: string } | null>(null);
 
   async function update(enrollmentId: string, patch: { cohortId?: string | null; mentorId?: string | null; status?: "ativa" | "pausada" | "desativada" }) {
     await updateFn({ data: { enrollmentId, ...patch } });
@@ -1013,7 +1073,7 @@ function MembersPanel() {
             <tbody>
               {dir?.enrollments.map((e) => (
                 <tr key={e.id}>
-                  <td><strong>{e.name}</strong><small>{e.email}</small></td>
+                  <td><button type="button" className="x-namebtn" onClick={() => setGoalsOf({ id: e.id, name: e.name })} title="Ver RISE 90"><strong>{e.name}</strong><small>{e.email} · RISE 90</small></button></td>
                   <td>
                     <select value={e.cohortId ?? ""} onChange={(ev) => void update(e.id, { cohortId: ev.target.value || null })}>
                       <option value="">Sem turma</option>
@@ -1064,6 +1124,7 @@ function MembersPanel() {
         </div>
       </section>
       {memberOpen ? <MemberForm onDone={() => setMemberOpen(false)} /> : null}
+      {goalsOf ? <Rise90StaffDrawer enrollmentId={goalsOf.id} name={goalsOf.name} onClose={() => setGoalsOf(null)} /> : null}
     </main>
   );
 }

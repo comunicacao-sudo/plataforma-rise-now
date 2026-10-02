@@ -28,6 +28,7 @@ import {
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import { demoMentees, mentors } from "@/data/rise-content";
+import { NotificationBell, Rise90Live } from "@/components/rise-extras";
 import {
   LessonScreen,
   TrailAgenda,
@@ -394,10 +395,13 @@ function Header({
         <button className="icon-button search-button" type="button" aria-label="Buscar">
           <Search size={20} />
         </button>
-        <button className="icon-button notification-button" type="button" aria-label="Notificações">
-          <Bell size={20} />
-          <span />
-        </button>
+        {!demo && role === "mentee" ? (
+          <NotificationBell onNavigate={(link) => onView((link.startsWith("lesson:") ? "jornada" : link) as View)} />
+        ) : (
+          <button className="icon-button notification-button" type="button" aria-label="Notificações">
+            <Bell size={20} />
+          </button>
+        )}
         <div className="profile-menu">
           <button
             className="profile-trigger"
@@ -854,7 +858,7 @@ function MenteeArea({ demo, view, onView }: { demo: boolean; view: View; onView:
       ) : view === "entregas" ? (
         <DeliverablesView trail={trail} />
       ) : (
-        <Rise90View />
+        trail.enrollmentId && !trail.demo ? <Rise90Live enrollmentId={trail.enrollmentId} /> : <Rise90View />
       )}
       {lesson ? <LessonScreen lesson={lesson} trail={trail} onClose={() => setLesson(null)} /> : null}
     </>

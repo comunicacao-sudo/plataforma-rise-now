@@ -2256,3 +2256,82 @@ hr,
   .ops-sub-row { grid-template-columns: 40px 1fr !important; }
 }
 .ops-cohorts .admin-card, .ops-google { min-height: 0 !important; height: auto; }
+
+/* ===== RISE extras: calendar, materials, RISE 90, notifications ===== */
+.x-cal { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .75rem; justify-content: center; }
+.ops-meeting__extra { grid-column: 1 / -1; width: 100%; }
+.ops-meeting__extra .x-cal { justify-content: flex-start; margin-top: .25rem; }
+.x-cal__btn { display: inline-flex; align-items: center; gap: .4rem; padding: .45rem .85rem; border-radius: 999px; border: 1px solid rgba(208,172,92,.35); color: var(--cream); background: rgba(208,172,92,.06); font-size: .78rem; letter-spacing: .02em; cursor: pointer; transition: background .2s, border-color .2s; }
+.x-cal__btn:hover { background: rgba(208,172,92,.16); border-color: var(--gold); }
+@keyframes x-pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(208,172,92,.55); } 50% { box-shadow: 0 0 0 10px rgba(208,172,92,0); } }
+.x-pulse, .ops-meeting.is-live .button--primary { animation: x-pulse 2s ease-in-out infinite; }
+
+.x-mats { display: grid; gap: .6rem; margin-top: .5rem; }
+.x-mat { display: flex; align-items: center; gap: .85rem; padding: .8rem 1rem; border-radius: .8rem; border: 1px solid rgba(208,172,92,.2); background: linear-gradient(135deg, rgba(90,15,20,.35), rgba(9,6,7,.6)); }
+.x-mat__icon { display: grid; place-items: center; width: 2.4rem; height: 2.4rem; border-radius: .6rem; background: rgba(208,172,92,.12); color: var(--gold); flex: none; }
+.x-mat__body { flex: 1; min-width: 0; }
+.x-mat__body strong { display: block; color: var(--cream); font-size: .92rem; }
+.x-mat__body p { margin: .15rem 0 0; font-size: .8rem; color: var(--rose); }
+.x-mat__open { display: inline-flex; align-items: center; gap: .35rem; padding: .4rem .8rem; border-radius: 999px; background: var(--gold); color: var(--ink); font-size: .78rem; font-weight: 600; border: 0; cursor: pointer; }
+.x-seg { display: inline-flex; gap: .25rem; padding: .25rem; border-radius: 999px; border: 1px solid rgba(208,172,92,.25); margin: 1rem 0 .5rem; }
+.x-seg button { display: inline-flex; align-items: center; gap: .35rem; padding: .4rem .9rem; border-radius: 999px; background: none; border: 0; color: var(--cream); cursor: pointer; font-size: .82rem; }
+.x-seg button.is-active { background: var(--gold); color: var(--ink); }
+.x-lessons { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: .75rem; }
+.x-lesson { text-align: left; display: grid; gap: .3rem; padding: 1rem; border-radius: .9rem; border: 1px solid rgba(208,172,92,.18); background: rgba(255,255,255,.02); color: var(--cream); cursor: pointer; transition: border-color .2s; }
+.x-lesson:hover { border-color: var(--gold); }
+.x-lesson small { color: var(--gold); letter-spacing: .08em; text-transform: uppercase; font-size: .66rem; }
+.x-lesson span { display: inline-flex; align-items: center; gap: .3rem; color: var(--rose); font-size: .76rem; }
+
+.x-ruler { margin-bottom: 1.5rem; padding: 1.4rem; border-radius: 1rem; border: 1px solid rgba(208,172,92,.22); background: linear-gradient(135deg, rgba(90,15,20,.45), rgba(9,6,7,.7)); }
+.x-ruler__head { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 1rem; }
+.x-ruler__head div { display: grid; gap: .2rem; color: var(--rose); font-size: .75rem; text-transform: uppercase; letter-spacing: .1em; }
+.x-ruler__head svg { color: var(--gold); }
+.x-ruler__head strong { color: var(--cream); font-size: 1.8rem; font-weight: 600; letter-spacing: 0; text-transform: none; }
+.x-ruler__head small { font-size: .8rem; color: var(--rose); }
+.x-ruler__track { height: 4px; border-radius: 4px; background: rgba(244,232,221,.08); margin-bottom: .6rem; overflow: hidden; }
+.x-ruler__days { display: block; height: 100%; background: var(--rose); }
+.x-bar { height: 8px; border-radius: 8px; background: rgba(244,232,221,.08); overflow: hidden; }
+.x-bar span { display: block; height: 100%; border-radius: 8px; background: linear-gradient(90deg, var(--marsala-bright), var(--gold)); transition: width .4s; }
+.x-goal { display: grid; gap: .8rem; }
+.x-goal__meta { display: flex; flex-wrap: wrap; gap: .8rem; margin-top: .4rem; color: var(--gold); }
+.x-range { width: 100%; accent-color: var(--gold); }
+.x-link { background: none; border: 0; color: var(--gold); cursor: pointer; font-size: .8rem; text-decoration: underline; }
+.x-ms { display: grid; gap: .4rem; }
+.x-ms__label { font-size: .7rem; letter-spacing: .12em; text-transform: uppercase; color: var(--rose); }
+.x-ms__item { display: flex; align-items: center; gap: .6rem; color: var(--cream); font-size: .88rem; }
+.x-ms__item > button:first-child { width: 1.15rem; height: 1.15rem; border-radius: .3rem; border: 1px solid var(--gold); background: none; display: grid; place-items: center; color: var(--ink); cursor: pointer; flex: none; }
+.x-ms__item.is-done > button:first-child { background: var(--gold); }
+.x-ms__item.is-done span { text-decoration: line-through; opacity: .6; }
+.x-ms__del { margin-left: auto; background: none; border: 0; color: var(--rose); cursor: pointer; }
+.x-ms__add { display: flex; gap: .4rem; }
+.x-ms__add input { flex: 1; background: rgba(255,255,255,.03); border: 1px solid rgba(208,172,92,.2); border-radius: .5rem; padding: .45rem .7rem; color: var(--cream); }
+.x-ms__add button { background: var(--gold); color: var(--ink); border: 0; border-radius: .5rem; padding: 0 .7rem; cursor: pointer; }
+.x-goal-add { display: grid; place-items: center; gap: .4rem; padding: 2rem; border-radius: 1rem; border: 1px dashed rgba(208,172,92,.45); background: rgba(208,172,92,.04); color: var(--cream); cursor: pointer; }
+.x-goal-add svg { color: var(--gold); }
+.x-goal-add span { color: var(--rose); font-size: .8rem; }
+.x-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .6rem; margin-top: .6rem; }
+.x-check { display: inline-flex; align-items: center; gap: .4rem; color: var(--cream); font-size: .85rem; }
+.x-notes { display: grid; gap: .6rem; margin-top: 2rem; }
+.x-notes h3 { font-family: var(--font-display); font-style: italic; color: var(--gold); font-size: 1.5rem; margin: 0; }
+.x-notes textarea { width: 100%; background: rgba(255,255,255,.03); border: 1px solid rgba(208,172,92,.2); border-radius: .6rem; padding: .7rem; color: var(--cream); }
+.x-note { padding: .8rem 1rem; border-left: 2px solid var(--gold); background: rgba(255,255,255,.02); border-radius: 0 .6rem .6rem 0; }
+.x-note small { color: var(--rose); }
+.x-note p { margin: .3rem 0 0; color: var(--cream); white-space: pre-wrap; }
+.x-drawer { max-width: 920px; }
+.x-namebtn { background: none; border: 0; padding: 0; text-align: left; color: inherit; cursor: pointer; display: grid; }
+.x-namebtn:hover strong { color: var(--gold); }
+
+.x-bell { position: relative; }
+.x-bell__panel { position: absolute; right: 0; top: calc(100% + .6rem); width: min(360px, 90vw); max-height: 70vh; overflow-y: auto; z-index: 60; border-radius: 1rem; border: 1px solid rgba(208,172,92,.25); background: #0f0809; box-shadow: 0 24px 60px rgba(0,0,0,.6); }
+.x-bell__head { display: flex; justify-content: space-between; align-items: center; padding: .9rem 1rem; border-bottom: 1px solid rgba(208,172,92,.15); color: var(--cream); }
+.x-bell__head button { background: none; border: 0; color: var(--gold); font-size: .75rem; cursor: pointer; }
+.x-bell__head button:disabled { opacity: .4; cursor: default; }
+.x-bell__item { display: grid; gap: .2rem; width: 100%; text-align: left; padding: .8rem 1rem; background: none; border: 0; border-bottom: 1px solid rgba(244,232,221,.05); color: var(--cream); cursor: pointer; }
+.x-bell__item:hover { background: rgba(208,172,92,.06); }
+.x-bell__item strong { font-size: .86rem; font-weight: 500; }
+.x-bell__item span { font-size: .78rem; color: var(--rose); }
+.x-bell__item small { font-size: .7rem; color: rgba(244,232,221,.45); }
+.x-bell__item.is-unread { border-left: 2px solid var(--gold); background: rgba(208,172,92,.04); }
+.x-bell__item.is-unread strong { font-weight: 600; }
+.x-bell__empty { padding: 1.2rem 1rem; }
+@media (max-width: 640px) { .x-ruler__head strong { font-size: 1.3rem; } }

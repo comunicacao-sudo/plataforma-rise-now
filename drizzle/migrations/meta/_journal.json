@@ -36,6 +36,13 @@
       "when": 1790891320460,
       "tag": "0004_meetings_read_policy_staff",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790899468347,
+      "tag": "0005_rise90_materials_notifications",
+      "breakpoints": true
     }
   ]
 }

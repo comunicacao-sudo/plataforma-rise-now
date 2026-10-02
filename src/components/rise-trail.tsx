@@ -19,6 +19,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { track } from "@/data/rise-track";
 import { supabase } from "@/integrations/supabase/client";
+import { CalendarButtons, MaterialsList } from "@/components/rise-extras";
 
 export type TrailLesson = {
   id: string;
@@ -463,6 +464,18 @@ export function LessonScreen({
                   <Video size={18} /> Entrar no Google Meet
                 </a>
               ) : null}
+              {lesson.scheduledAt && !meetingPast ? (
+                <CalendarButtons
+                  ev={{
+                    title: lesson.title,
+                    description: lesson.description,
+                    start: lesson.scheduledAt,
+                    end: new Date(endsAt!).toISOString(),
+                    joinUrl: lesson.joinUrl,
+                    mentor: lesson.mentor,
+                  }}
+                />
+              ) : null}
             </div>
           ) : (
             <div className="lesson-wait">
@@ -509,13 +522,7 @@ export function LessonScreen({
             </section>
             <section className="lesson-block">
               <h3>Materiais de apoio</h3>
-              <div className="materials-empty">
-                <FileText size={22} />
-                <div>
-                  <strong>Os materiais deste encontro estão sendo preparados.</strong>
-                  <p>PDFs e modelos aparecerão aqui para você baixar.</p>
-                </div>
-              </div>
+              <MaterialsList lessonId={lesson.id} emptyText />
             </section>
           </div>
           <Notebook lesson={lesson} trail={trail} />
