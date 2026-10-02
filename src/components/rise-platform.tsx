@@ -813,6 +813,7 @@ function JourneyView({ trail, onOpen }: { trail: Trail; onOpen: (l: TrailLesson)
           );
         })}
       </section>
+      {!trail.demo ? <MentorsSection /> : null}
     </main>
   );
 }

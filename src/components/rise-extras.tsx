@@ -750,7 +750,7 @@ export function useMyProfile(enabled = true) {
   });
 }
 
-export function Avatar({ name, url, size = 40 }: { name: string; url?: string | null; size?: number }) {
+export function Avatar({ name, url, size = 40 }: { name: string; url?: string | null | undefined; size?: number }) {
   const initials = name.split(" ").map((p) => p[0]).slice(0, 2).join("");
   return url ? (
     <img className="x-avatar" src={url} alt={name} style={{ width: size, height: size }} />
