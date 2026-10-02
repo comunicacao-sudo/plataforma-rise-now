@@ -2335,3 +2335,5 @@ hr,
 .x-bell__item.is-unread strong { font-weight: 600; }
 .x-bell__empty { padding: 1.2rem 1rem; }
 @media (max-width: 640px) { .x-ruler__head strong { font-size: 1.3rem; } }
+.x-goal > .x-bar, .x-goal > .x-range, .x-goal > .x-ms { grid-column: 1 / -1; }
+.goal-card__number { display: flex; align-items: baseline; gap: .6rem; }
