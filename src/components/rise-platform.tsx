@@ -28,7 +28,7 @@ import {
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import { demoMentees, mentors } from "@/data/rise-content";
-import { NotificationBell, Rise90Live } from "@/components/rise-extras";
+import { Avatar, MentorsSection, NotificationBell, ProfileModal, Rise90Live, useMyProfile } from "@/components/rise-extras";
 import {
   LessonScreen,
   TrailAgenda,
@@ -346,6 +346,8 @@ function Header({
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [editProfile, setEditProfile] = useState(false);
+  const { data: me } = useMyProfile(!demo);
   const nav: Array<{ label: string; view: View }> =
     role === "mentee"
       ? [
@@ -395,8 +397,16 @@ function Header({
         <button className="icon-button search-button" type="button" aria-label="Buscar">
           <Search size={20} />
         </button>
-        {!demo && role === "mentee" ? (
-          <NotificationBell onNavigate={(link) => onView((link.startsWith("lesson:") ? "jornada" : link) as View)} />
+        {!demo ? (
+          <NotificationBell
+            onNavigate={(link) =>
+              onView(
+                (role === "mentee"
+                  ? link.startsWith("lesson:") ? "jornada" : link
+                  : ["agenda", "entregas"].includes(link) ? link : "painel") as View,
+              )
+            }
+          />
         ) : (
           <button className="icon-button notification-button" type="button" aria-label="Notificações">
             <Bell size={20} />
@@ -408,13 +418,7 @@ function Header({
             type="button"
             onClick={() => setProfileOpen(!profileOpen)}
           >
-            <span className="profile-avatar">
-              {name
-                .split(" ")
-                .map((part) => part[0])
-                .slice(0, 2)
-                .join("")}
-            </span>
+            <Avatar name={me?.full_name ?? name} url={demo ? null : me?.avatar_url} size={36} />
             <span className="profile-trigger__copy">
               <strong>{name}</strong>
               <small>{roleLabels[role]}</small>
@@ -443,6 +447,11 @@ function Header({
                   <div className="dropdown-divider" />
                 </>
               ) : null}
+              {!demo ? (
+                <button type="button" onClick={() => { setEditProfile(true); setProfileOpen(false); }}>
+                  <UserRound size={16} /> Meu perfil
+                </button>
+              ) : null}
               <button type="button" onClick={onExit}>
                 <LogOut size={16} /> Sair
               </button>
@@ -450,6 +459,7 @@ function Header({
           ) : null}
         </div>
       </div>
+      {editProfile ? <ProfileModal role={role} onClose={() => setEditProfile(false)} /> : null}
     </header>
   );
 }
@@ -665,6 +675,7 @@ function HomeView({
         <Rail title="Revisite quando quiser" items={revisit} onOpen={onOpen} />
         <MentorRail />
         <NextMeetingBanner onAgenda={() => onView("agenda")} />
+        {!trail.demo ? <MentorsSection /> : null}
         <NextUp trail={trail} onAgenda={() => onView("agenda")} />
       </div>
     </>

@@ -652,6 +652,7 @@ export function Rise90StaffDrawer({ enrollmentId, name, onClose }: { enrollmentI
         <div className="content-modal__body">
           <span className="eyebrow eyebrow--gold">RISE 90</span>
           <h2>{name}</h2>
+          <MenteeContactCard enrollmentId={enrollmentId} />
           <CycleRuler goals={goals} />
           <div className="goal-list">
             {goals.map((g) => (
@@ -724,6 +725,207 @@ export function NotificationBell({ onNavigate }: { onNavigate: (link: string) =>
           )}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+/* ================= Profile ================= */
+
+type MyProfile = { id: string; email: string; full_name: string; title: string | null; avatar_url: string | null; phone: string | null; contact_email: string | null };
+
+export function useMyProfile(enabled = true) {
+  return useQuery({
+    queryKey: ["my-profile"],
+    enabled,
+    queryFn: async () => {
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) return null;
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, email, full_name, title, avatar_url, phone, contact_email")
+        .eq("id", u.user.id)
+        .maybeSingle();
+      return (data as MyProfile | null) ?? null;
+    },
+  });
+}
+
+export function Avatar({ name, url, size = 40 }: { name: string; url?: string | null; size?: number }) {
+  const initials = name.split(" ").map((p) => p[0]).slice(0, 2).join("");
+  return url ? (
+    <img className="x-avatar" src={url} alt={name} style={{ width: size, height: size }} />
+  ) : (
+    <span className="profile-avatar x-avatar" style={{ width: size, height: size }}>{initials}</span>
+  );
+}
+
+const waLink = (phone: string) => `https://wa.me/${phone.replace(/\D/g, "").replace(/^(?!55)(\d{10,11})$/, "55$1")}`;
+
+export function ContactButtons({ phone, email }: { phone?: string | null; email?: string | null }) {
+  if (!phone && !email) return null;
+  return (
+    <div className="x-contact">
+      {phone ? (
+        <a href={waLink(phone)} target="_blank" rel="noreferrer">WhatsApp · {phone}</a>
+      ) : null}
+      {email ? <a href={`mailto:${email}`}>{email}</a> : null}
+    </div>
+  );
+}
+
+export function ProfileModal({ role, onClose }: { role: "mentee" | "mentor" | "admin"; onClose: () => void }) {
+  const qc = useQueryClient();
+  const { data: p } = useMyProfile();
+  const [form, setForm] = useState({ full_name: "", title: "", phone: "", contact_email: "" });
+  const [msg, setMsg] = useState("");
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (p) setForm({ full_name: p.full_name ?? "", title: p.title ?? "", phone: p.phone ?? "", contact_email: p.contact_email ?? "" });
+  }, [p]);
+  if (!p) return null;
+  const set = (k: keyof typeof form) => (e: { target: { value: string } }) => setForm({ ...form, [k]: e.target.value });
+
+  async function uploadPhoto(file: File) {
+    if (!file.type.startsWith("image/")) return setMsg("Escolha uma imagem (JPG ou PNG).");
+    if (file.size > 5 * 1024 * 1024) return setMsg("A foto precisa ter até 5 MB.");
+    setBusy(true);
+    const path = `${p!.id}/${Date.now()}.${file.name.split(".").pop() ?? "jpg"}`;
+    const { error } = await supabase.storage.from("avatars").upload(path, file, { upsert: true });
+    if (error) {
+      setBusy(false);
+      return setMsg("Não foi possível enviar a foto.");
+    }
+    const url = supabase.storage.from("avatars").getPublicUrl(path).data.publicUrl;
+    await supabase.from("profiles").update({ avatar_url: url }).eq("id", p!.id);
+    setBusy(false);
+    setMsg("Foto atualizada.");
+    void qc.invalidateQueries();
+  }
+  async function save() {
+    setMsg("");
+    if (form.full_name.trim().length < 2) return setMsg("Informe seu nome.");
+    if (form.contact_email && !/^\S+@\S+\.\S+$/.test(form.contact_email)) return setMsg("E-mail de contato inválido.");
+    setBusy(true);
+    const { error } = await supabase
+      .from("profiles")
+      .update({
+        full_name: form.full_name.trim(),
+        title: form.title.trim() || null,
+        phone: form.phone.trim() || null,
+        contact_email: form.contact_email.trim() || null,
+      })
+      .eq("id", p!.id);
+    setBusy(false);
+    if (error) return setMsg("Não foi possível salvar.");
+    setMsg("Perfil salvo.");
+    void qc.invalidateQueries();
+  }
+
+  return (
+    <div className="modal-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <section className="content-modal ops-modal" role="dialog" aria-modal="true" aria-label="Meu perfil">
+        <button className="modal-close" type="button" onClick={onClose} aria-label="Fechar">
+          <X size={21} />
+        </button>
+        <div className="content-modal__body ops-form">
+          <span className="eyebrow eyebrow--gold">Configurações</span>
+          <h2>Meu perfil</h2>
+          <div className="x-profile-photo">
+            <Avatar name={form.full_name || p.full_name} url={p.avatar_url} size={88} />
+            <label className="button button--glass">
+              {busy ? "Enviando..." : p.avatar_url ? "Trocar foto" : "Enviar foto"}
+              <input type="file" accept="image/*" hidden onChange={(e) => e.target.files?.[0] && void uploadPhoto(e.target.files[0])} />
+            </label>
+          </div>
+          <label className="ops-field">
+            <span>Nome</span>
+            <input value={form.full_name} onChange={set("full_name")} />
+          </label>
+          <label className="ops-field">
+            <span>E-mail de acesso</span>
+            <input value={p.email} readOnly disabled />
+          </label>
+          <label className="ops-field">
+            <span>Cargo ou especialidade (opcional)</span>
+            <input value={form.title} onChange={set("title")} placeholder={role === "mentee" ? "Ex.: Diretora Comercial" : "Ex.: Mentora de Identidade"} />
+          </label>
+          <label className="ops-field">
+            <span>Telefone / WhatsApp de contato</span>
+            <input value={form.phone} onChange={set("phone")} placeholder="(11) 99999-9999" />
+          </label>
+          <label className="ops-field">
+            <span>E-mail de contato</span>
+            <input type="email" value={form.contact_email} onChange={set("contact_email")} />
+          </label>
+          <p className="x-privacy">
+            {role === "mentee"
+              ? "Seus contatos ficam visíveis apenas para as mentoras e a equipe RISE NOW."
+              : "Sua foto, nome, especialidade e contatos ficam visíveis para as mentoradas."}
+          </p>
+          {msg ? <p className="form-message">{msg}</p> : null}
+          <button className="button button--primary" type="button" disabled={busy} onClick={() => void save()}>
+            Salvar perfil
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+type StaffCard = { id: string; full_name: string; title: string | null; avatar_url: string | null; phone: string | null; contact_email: string | null };
+
+export function MentorsSection() {
+  const { data = [] } = useQuery({
+    queryKey: ["staff-directory"],
+    queryFn: async () => {
+      const { data } = await supabase.rpc("staff_directory");
+      return (data ?? []) as StaffCard[];
+    },
+  });
+  if (!data.length) return null;
+  return (
+    <section className="page-width ops-section">
+      <div className="section-heading">
+        <div>
+          <h2>Suas mentoras</h2>
+          <p>Quem caminha com você na jornada RISE NOW.</p>
+        </div>
+      </div>
+      <div className="x-mentors">
+        {data.map((m) => (
+          <article key={m.id} className="x-mentor">
+            <Avatar name={m.full_name} url={m.avatar_url} size={64} />
+            <strong>{m.full_name}</strong>
+            {m.title ? <small>{m.title}</small> : null}
+            <ContactButtons phone={m.phone} email={m.contact_email} />
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+export function MenteeContactCard({ enrollmentId }: { enrollmentId: string }) {
+  const { data } = useQuery({
+    queryKey: ["mentee-contact", enrollmentId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("enrollments")
+        .select("mentee:profiles!enrollments_mentee_id_fkey(full_name, email, title, avatar_url, phone, contact_email)")
+        .eq("id", enrollmentId)
+        .maybeSingle();
+      return (data as any)?.mentee as (StaffCard & { email: string }) | null;
+    },
+  });
+  if (!data) return null;
+  return (
+    <div className="x-mentee-card">
+      <Avatar name={data.full_name} url={data.avatar_url} size={56} />
+      <div>
+        <strong>{data.full_name}</strong>
+        <small>{data.title ?? data.email}</small>
+        <ContactButtons phone={data.phone} email={data.contact_email ?? data.email} />
+      </div>
     </div>
   );
 }
