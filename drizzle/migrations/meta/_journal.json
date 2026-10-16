@@ -50,6 +50,13 @@
       "when": 1790899859849,
       "tag": "0006_profiles_contacts_staff_notifications",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792180800000,
+      "tag": "0007_profile_preferences_and_privacy",
+      "breakpoints": true
     }
   ]
 }

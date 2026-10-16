@@ -7,8 +7,10 @@ import {
   ExternalLink,
   FileText,
   Link2,
+  Moon,
   Paperclip,
   Plus,
+  Sun,
   Target,
   Trash2,
   X,
@@ -731,7 +733,21 @@ export function NotificationBell({ onNavigate }: { onNavigate: (link: string) =>
 
 /* ================= Profile ================= */
 
-type MyProfile = { id: string; email: string; full_name: string; title: string | null; avatar_url: string | null; phone: string | null; contact_email: string | null };
+export type ThemePreference = "dark" | "light";
+
+export type MyProfile = {
+  id: string;
+  email: string;
+  display_name: string | null;
+  full_name: string;
+  title: string | null;
+  avatar_url: string | null;
+  phone: string | null;
+  contact_email: string | null;
+  profession: string | null;
+  profession_visible: boolean;
+  theme_preference: ThemePreference;
+};
 
 export function useMyProfile(enabled = true) {
   return useQuery({
@@ -742,7 +758,7 @@ export function useMyProfile(enabled = true) {
       if (!u.user) return null;
       const { data } = await supabase
         .from("profiles")
-        .select("id, email, full_name, title, avatar_url, phone, contact_email")
+        .select("id, email, display_name, full_name, title, avatar_url, phone, contact_email, profession, profession_visible, theme_preference")
         .eq("id", u.user.id)
         .maybeSingle();
       return (data as MyProfile | null) ?? null;
@@ -776,14 +792,34 @@ export function ContactButtons({ phone, email }: { phone?: string | null; email?
 export function ProfileModal({ role, onClose }: { role: "mentee" | "mentor" | "admin"; onClose: () => void }) {
   const qc = useQueryClient();
   const { data: p } = useMyProfile();
-  const [form, setForm] = useState({ full_name: "", title: "", phone: "", contact_email: "" });
+  const [form, setForm] = useState({
+    display_name: "",
+    full_name: "",
+    title: "",
+    phone: "",
+    contact_email: "",
+    profession: "",
+    profession_visible: false,
+    theme_preference: "dark" as ThemePreference,
+  });
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
   useEffect(() => {
-    if (p) setForm({ full_name: p.full_name ?? "", title: p.title ?? "", phone: p.phone ?? "", contact_email: p.contact_email ?? "" });
+    if (p)
+      setForm({
+        display_name: p.display_name ?? p.full_name ?? "",
+        full_name: p.full_name ?? "",
+        title: p.title ?? "",
+        phone: p.phone ?? "",
+        contact_email: p.contact_email ?? "",
+        profession: p.profession ?? "",
+        profession_visible: p.profession_visible ?? false,
+        theme_preference: p.theme_preference === "light" ? "light" : "dark",
+      });
   }, [p]);
   if (!p) return null;
-  const set = (k: keyof typeof form) => (e: { target: { value: string } }) => setForm({ ...form, [k]: e.target.value });
+  const set = (k: "display_name" | "full_name" | "title" | "phone" | "contact_email" | "profession") =>
+    (e: { target: { value: string } }) => setForm({ ...form, [k]: e.target.value });
 
   async function uploadPhoto(file: File) {
     if (!file.type.startsWith("image/")) return setMsg("Escolha uma imagem (JPG ou PNG).");
@@ -803,16 +839,21 @@ export function ProfileModal({ role, onClose }: { role: "mentee" | "mentor" | "a
   }
   async function save() {
     setMsg("");
-    if (form.full_name.trim().length < 2) return setMsg("Informe seu nome.");
+    if (form.display_name.trim().length < 2) return setMsg("Informe o nome que aparecerá na plataforma.");
+    if (form.full_name.trim().length < 2) return setMsg("Informe seu nome completo.");
     if (form.contact_email && !/^\S+@\S+\.\S+$/.test(form.contact_email)) return setMsg("E-mail de contato inválido.");
     setBusy(true);
     const { error } = await supabase
       .from("profiles")
       .update({
+        display_name: form.display_name.trim(),
         full_name: form.full_name.trim(),
         title: form.title.trim() || null,
         phone: form.phone.trim() || null,
         contact_email: form.contact_email.trim() || null,
+        profession: form.profession.trim() || null,
+        profession_visible: form.profession_visible,
+        theme_preference: form.theme_preference,
       })
       .eq("id", p!.id);
     setBusy(false);
@@ -830,36 +871,87 @@ export function ProfileModal({ role, onClose }: { role: "mentee" | "mentor" | "a
         <div className="content-modal__body ops-form">
           <span className="eyebrow eyebrow--gold">Configurações</span>
           <h2>Meu perfil</h2>
+          <fieldset className="x-theme-picker">
+            <legend>Fundo da plataforma</legend>
+            <div>
+              <button
+                type="button"
+                className={form.theme_preference === "dark" ? "is-active" : ""}
+                aria-pressed={form.theme_preference === "dark"}
+                onClick={() => setForm({ ...form, theme_preference: "dark" })}
+              >
+                <Moon size={17} /> Escuro
+                <span>#1b0909</span>
+              </button>
+              <button
+                type="button"
+                className={form.theme_preference === "light" ? "is-active" : ""}
+                aria-pressed={form.theme_preference === "light"}
+                onClick={() => setForm({ ...form, theme_preference: "light" })}
+              >
+                <Sun size={17} /> Claro
+                <span>#f2f0ef</span>
+              </button>
+            </div>
+          </fieldset>
           <div className="x-profile-photo">
-            <Avatar name={form.full_name || p.full_name} url={p.avatar_url} size={88} />
+            <Avatar name={form.display_name || form.full_name || p.full_name} url={p.avatar_url} size={88} />
             <label className="button button--glass">
               {busy ? "Enviando..." : p.avatar_url ? "Trocar foto" : "Enviar foto"}
               <input type="file" accept="image/*" hidden onChange={(e) => e.target.files?.[0] && void uploadPhoto(e.target.files[0])} />
             </label>
           </div>
           <label className="ops-field">
-            <span>Nome</span>
+            <span>Nome visível na plataforma</span>
+            <input value={form.display_name} onChange={set("display_name")} />
+          </label>
+          <label className="ops-field">
+            <span>Nome completo <small>Privado · somente você e a administração</small></span>
             <input value={form.full_name} onChange={set("full_name")} />
           </label>
           <label className="ops-field">
-            <span>E-mail de acesso</span>
+            <span>E-mail <small>Privado · somente você e a administração</small></span>
             <input value={p.email} readOnly disabled />
           </label>
           <label className="ops-field">
-            <span>Cargo ou especialidade (opcional)</span>
-            <input value={form.title} onChange={set("title")} placeholder={role === "mentee" ? "Ex.: Diretora Comercial" : "Ex.: Mentora de Identidade"} />
-          </label>
-          <label className="ops-field">
-            <span>Telefone / WhatsApp de contato</span>
+            <span>Telefone <small>{role === "mentee" ? "Privado · somente você e a administração" : "Contato profissional"}</small></span>
             <input value={form.phone} onChange={set("phone")} placeholder="(11) 99999-9999" />
           </label>
-          <label className="ops-field">
-            <span>E-mail de contato</span>
-            <input type="email" value={form.contact_email} onChange={set("contact_email")} />
-          </label>
+          {role === "mentee" ? (
+            <>
+              <label className="ops-field">
+                <span>Profissão</span>
+                <input value={form.profession} onChange={set("profession")} placeholder="Ex.: Diretora Comercial" />
+              </label>
+              <button
+                className={`x-visibility-toggle ${form.profession_visible ? "is-active" : ""}`}
+                type="button"
+                role="switch"
+                aria-checked={form.profession_visible}
+                onClick={() => setForm({ ...form, profession_visible: !form.profession_visible })}
+              >
+                <span>
+                  <strong>Mostrar profissão na plataforma</strong>
+                  <small>Quando ativada, aparece logo abaixo do seu nome.</small>
+                </span>
+                <i aria-hidden="true"><b /></i>
+              </button>
+            </>
+          ) : (
+            <>
+              <label className="ops-field">
+                <span>Cargo ou especialidade</span>
+                <input value={form.title} onChange={set("title")} placeholder="Ex.: Mentora de Identidade" />
+              </label>
+              <label className="ops-field">
+                <span>E-mail de contato</span>
+                <input type="email" value={form.contact_email} onChange={set("contact_email")} />
+              </label>
+            </>
+          )}
           <p className="x-privacy">
             {role === "mentee"
-              ? "Seus contatos ficam visíveis apenas para as mentoras e a equipe RISE NOW."
+              ? "Seu nome completo, e-mail e telefone ficam visíveis somente para você e para a administração da RISE NOW."
               : "Sua foto, nome, especialidade e contatos ficam visíveis para as mentoradas."}
           </p>
           {msg ? <p className="form-message">{msg}</p> : null}
@@ -907,24 +999,19 @@ export function MentorsSection() {
 
 export function MenteeContactCard({ enrollmentId }: { enrollmentId: string }) {
   const { data } = useQuery({
-    queryKey: ["mentee-contact", enrollmentId],
+    queryKey: ["mentee-public-profile", enrollmentId],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("enrollments")
-        .select("mentee:profiles!enrollments_mentee_id_fkey(full_name, email, title, avatar_url, phone, contact_email)")
-        .eq("id", enrollmentId)
-        .maybeSingle();
-      return (data as any)?.mentee as (StaffCard & { email: string }) | null;
+      const { data } = await supabase.rpc("mentee_public_profile", { _enrollment_id: enrollmentId });
+      return data?.[0] ?? null;
     },
   });
   if (!data) return null;
   return (
     <div className="x-mentee-card">
-      <Avatar name={data.full_name} url={data.avatar_url} size={56} />
+      <Avatar name={data.display_name} url={data.avatar_url} size={56} />
       <div>
-        <strong>{data.full_name}</strong>
-        <small>{data.title ?? data.email}</small>
-        <ContactButtons phone={data.phone} email={data.contact_email ?? data.email} />
+        <strong>{data.display_name}</strong>
+        {data.profession_visible && data.profession ? <small>{data.profession}</small> : null}
       </div>
     </div>
   );

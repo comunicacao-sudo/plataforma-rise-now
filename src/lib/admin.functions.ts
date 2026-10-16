@@ -34,7 +34,7 @@ export const getDirectory = createServerFn({ method: "GET" })
     let eq = supabaseAdmin
       .from("enrollments")
       .select(
-        "id, status, progress_pct, current_month, cohort_id, mentor_id, mentee:profiles!enrollments_mentee_id_fkey(id, full_name, email)",
+        "id, status, progress_pct, current_month, cohort_id, mentor_id, mentee:profiles!enrollments_mentee_id_fkey(id, display_name, full_name, email, profession, profession_visible)",
       )
       .order("created_at");
     if (!r.isAdmin) eq = eq.eq("mentor_id", context.userId);
@@ -59,17 +59,21 @@ export const getDirectory = createServerFn({ method: "GET" })
         ...p,
         lessons: [...(p.lessons ?? [])].sort((a: any, b: any) => a.position - b.position),
       })),
-      enrollments: ((enrollments ?? []) as any[]).map((e) => ({
-        id: e.id as string,
-        status: e.status as string,
-        progress: e.progress_pct as number,
-        month: e.current_month as number,
-        cohortId: e.cohort_id as string | null,
-        mentorId: e.mentor_id as string | null,
-        menteeId: e.mentee?.id as string,
-        name: (e.mentee?.full_name ?? "") as string,
-        email: (e.mentee?.email ?? "") as string,
-      })),
+      enrollments: ((enrollments ?? []) as any[]).map((e) => {
+        const publicName = e.mentee?.display_name || e.mentee?.full_name || "";
+        return {
+          id: e.id as string,
+          status: e.status as string,
+          progress: e.progress_pct as number,
+          month: e.current_month as number,
+          cohortId: e.cohort_id as string | null,
+          mentorId: e.mentor_id as string | null,
+          menteeId: e.mentee?.id as string,
+          name: (r.isAdmin ? e.mentee?.full_name || publicName : publicName) as string,
+          email: (r.isAdmin ? e.mentee?.email ?? "" : "") as string,
+          profession: (e.mentee?.profession_visible ? e.mentee?.profession ?? "" : "") as string,
+        };
+      }),
     };
   });
 

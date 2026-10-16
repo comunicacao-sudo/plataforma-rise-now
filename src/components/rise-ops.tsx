@@ -1073,7 +1073,7 @@ function MembersPanel() {
             <tbody>
               {dir?.enrollments.map((e) => (
                 <tr key={e.id}>
-                  <td><button type="button" className="x-namebtn" onClick={() => setGoalsOf({ id: e.id, name: e.name })} title="Ver RISE 90"><strong>{e.name}</strong><small>{e.email} · RISE 90</small></button></td>
+                  <td><button type="button" className="x-namebtn" onClick={() => setGoalsOf({ id: e.id, name: e.name })} title="Ver RISE 90"><strong>{e.name}</strong><small>{e.email || e.profession ? `${e.email || e.profession} · ` : ""}RISE 90</small></button></td>
                   <td>
                     <select value={e.cohortId ?? ""} onChange={(ev) => void update(e.id, { cohortId: ev.target.value || null })}>
                       <option value="">Sem turma</option>

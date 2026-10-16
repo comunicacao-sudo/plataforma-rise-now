@@ -707,11 +707,15 @@ export type Database = {
           claimed: boolean
           contact_email: string | null
           created_at: string
+          display_name: string | null
           email: string
           full_name: string
           id: string
           phone: string | null
           pillar: string | null
+          profession: string | null
+          profession_visible: boolean
+          theme_preference: string
           title: string | null
         }
         Insert: {
@@ -719,11 +723,15 @@ export type Database = {
           claimed?: boolean
           contact_email?: string | null
           created_at?: string
+          display_name?: string | null
           email: string
           full_name: string
           id?: string
           phone?: string | null
           pillar?: string | null
+          profession?: string | null
+          profession_visible?: boolean
+          theme_preference?: string
           title?: string | null
         }
         Update: {
@@ -731,11 +739,15 @@ export type Database = {
           claimed?: boolean
           contact_email?: string | null
           created_at?: string
+          display_name?: string | null
           email?: string
           full_name?: string
           id?: string
           phone?: string | null
           pillar?: string | null
+          profession?: string | null
+          profession_visible?: boolean
+          theme_preference?: string
           title?: string | null
         }
         Relationships: []
@@ -974,6 +986,16 @@ export type Database = {
         Returns: boolean
       }
       is_staff: { Args: never; Returns: boolean }
+      mentee_public_profile: {
+        Args: { _enrollment_id: string }
+        Returns: {
+          avatar_url: string
+          display_name: string
+          id: string
+          profession: string
+          profession_visible: boolean
+        }[]
+      }
       notify_meeting_audience: {
         Args: {
           _body: string

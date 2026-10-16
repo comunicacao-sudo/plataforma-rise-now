@@ -364,6 +364,11 @@ function Header({
           { label: "Entregas", view: "entregas" },
           ...(role === "admin" ? [{ label: "Alunas e turmas", view: "alunas" as View }] : []),
         ];
+  const visibleName = demo ? name : me?.display_name?.trim() || me?.full_name || name;
+  const profileSubtitle =
+    !demo && role === "mentee" && me?.profession_visible && me.profession
+      ? me.profession
+      : roleLabels[role];
 
   return (
     <header className="app-header">
@@ -419,10 +424,10 @@ function Header({
             type="button"
             onClick={() => setProfileOpen(!profileOpen)}
           >
-            <Avatar name={me?.full_name ?? name} url={demo ? null : me?.avatar_url} size={36} />
+            <Avatar name={visibleName} url={demo ? null : me?.avatar_url} size={36} />
             <span className="profile-trigger__copy">
-              <strong>{name}</strong>
-              <small>{roleLabels[role]}</small>
+              <strong>{visibleName}</strong>
+              <small>{profileSubtitle}</small>
             </span>
             <ChevronDown size={16} />
           </button>
@@ -1132,7 +1137,7 @@ export function RisePlatform() {
         }
         const userId = data.session.user.id;
         const [profileResult, rolesResult] = await Promise.all([
-          supabase.from("profiles").select("full_name").eq("id", userId).maybeSingle(),
+          supabase.from("profiles").select("display_name, full_name").eq("id", userId).maybeSingle(),
           supabase.from("user_roles").select("role").eq("user_id", userId).limit(1),
         ]);
         if (!mounted) return;
@@ -1151,7 +1156,8 @@ export function RisePlatform() {
         }
 
         setName(
-          profileResult.data.full_name ||
+          profileResult.data.display_name ||
+            profileResult.data.full_name ||
             data.session.user.email?.split("@")[0] ||
             "Participante RISE",
         );
@@ -1172,6 +1178,8 @@ export function RisePlatform() {
   }, []);
 
   const demo = authMode === "demo";
+  const { data: currentProfile } = useMyProfile(authMode === "authenticated");
+  const theme = currentProfile?.theme_preference === "light" ? "light" : "dark";
   const shellClass = useMemo(() => `platform-shell platform-shell--${role}`, [role]);
 
   async function exit() {
@@ -1186,7 +1194,7 @@ export function RisePlatform() {
   if (authMode === "login") return <LoginScreen onDemo={() => setAuthMode("demo")} />;
 
   return (
-    <div className={shellClass}>
+    <div className={shellClass} data-theme={theme}>
       {demo ? (
         <div className="demo-banner">
           <Sparkles size={14} /> Demonstração visual · os dados abaixo são fictícios
