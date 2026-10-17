@@ -6,6 +6,7 @@ import {
   ArrowRight,
   Bell,
   BookOpen,
+  BrainCircuit,
   CalendarDays,
   Check,
   CheckCircle2,
@@ -66,6 +67,11 @@ import {
   JourneyContentLibraryPage,
 } from "@/components/journey-content";
 import type { JourneyContentItem } from "@/lib/content.functions";
+import {
+  AssessmentProfileModal,
+  AssessmentVisualPreview,
+  AssessmentVisualQuestionPreview,
+} from "@/components/rise-assessment";
 import {
   getNextJourneyStep,
   startJourneyStep,
@@ -420,6 +426,7 @@ function Header({
   const [menuOpen, setMenuOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [editProfile, setEditProfile] = useState(false);
+  const [assessmentOpen, setAssessmentOpen] = useState(false);
   const { data: me } = useMyProfile(!demo);
   const nav: Array<{ label: string; view: View }> =
     role === "mentee"
@@ -535,15 +542,28 @@ function Header({
                 </>
               ) : null}
               {!demo ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditProfile(true);
-                    setProfileOpen(false);
-                  }}
-                >
-                  <UserRound size={16} /> Meu perfil
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditProfile(true);
+                      setProfileOpen(false);
+                    }}
+                  >
+                    <UserRound size={16} /> Meu perfil
+                  </button>
+                  {role === "mentee" ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAssessmentOpen(true);
+                        setProfileOpen(false);
+                      }}
+                    >
+                      <BrainCircuit size={16} /> Meu mapeamento
+                    </button>
+                  ) : null}
+                </>
               ) : null}
               <button type="button" onClick={onExit}>
                 <LogOut size={16} /> Sair
@@ -553,6 +573,7 @@ function Header({
         </div>
       </div>
       {editProfile ? <ProfileModal role={role} onClose={() => setEditProfile(false)} /> : null}
+      {assessmentOpen ? <AssessmentProfileModal onClose={() => setAssessmentOpen(false)} /> : null}
     </header>
   );
 }
@@ -1351,6 +1372,18 @@ export function RisePlatform() {
   const [role, setRole] = useState<Role>("mentee");
   const [name, setName] = useState("Marina Alves");
   const [activeView, setActiveView] = useState<View>("inicio");
+  const [assessmentPreview, setAssessmentPreview] = useState<"report" | "questionnaire" | null>(null);
+
+  useEffect(() => {
+    const preview = new URLSearchParams(window.location.search).get("assessment-preview");
+    setAssessmentPreview(
+      import.meta.env.DEV && (preview === "1" || preview === "questionnaire")
+        ? preview === "questionnaire"
+          ? "questionnaire"
+          : "report"
+        : null,
+    );
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -1434,6 +1467,29 @@ export function RisePlatform() {
     setName("Marina Alves");
     setAuthMode("login");
   }
+
+  if (assessmentPreview)
+    return (
+      <div className="platform-shell platform-shell--admin" data-theme="dark">
+        <div className="demo-banner">
+          <Sparkles size={14} /> Demonstração visual · os dados abaixo são fictícios
+        </div>
+        <Header
+          activeView="painel"
+          onView={() => undefined}
+          role="admin"
+          name="Camila Mariano"
+          demo
+          onRole={() => undefined}
+          onExit={() => undefined}
+        />
+        {assessmentPreview === "questionnaire" ? (
+          <AssessmentVisualQuestionPreview />
+        ) : (
+          <AssessmentVisualPreview />
+        )}
+      </div>
+    );
 
   if (authMode === "checking") return <LoadingScreen />;
   if (authMode === "change-password") return <NewPasswordScreen />;

@@ -40,6 +40,7 @@ import {
   Rise90StaffDrawer,
 } from "@/components/rise-extras";
 import { JourneyAdmin } from "@/components/journey-admin";
+import { AssessmentMentorDrawer } from "@/components/rise-assessment";
 
 /* ---------- shared ---------- */
 
@@ -1393,6 +1394,7 @@ function MembersPanel() {
   const [cohortOpen, setCohortOpen] = useState(false);
   const [memberOpen, setMemberOpen] = useState(false);
   const [goalsOf, setGoalsOf] = useState<{ id: string; name: string } | null>(null);
+  const [assessmentOf, setAssessmentOf] = useState<{ id: string; name: string } | null>(null);
 
   async function update(
     enrollmentId: string,
@@ -1555,6 +1557,12 @@ function MembersPanel() {
                     <button type="button" onClick={() => void reset(e.menteeId, e.name)}>
                       Redefinir senha
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => setAssessmentOf({ id: e.id, name: e.name })}
+                    >
+                      Mapeamento
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -1583,6 +1591,13 @@ function MembersPanel() {
           enrollmentId={goalsOf.id}
           name={goalsOf.name}
           onClose={() => setGoalsOf(null)}
+        />
+      ) : null}
+      {assessmentOf ? (
+        <AssessmentMentorDrawer
+          enrollmentId={assessmentOf.id}
+          name={assessmentOf.name}
+          onClose={() => setAssessmentOf(null)}
         />
       ) : null}
     </main>
