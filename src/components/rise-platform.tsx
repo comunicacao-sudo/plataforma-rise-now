@@ -33,7 +33,7 @@ import {
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
-import { demoMentees, mentors } from "@/data/rise-content";
+import { mentors } from "@/data/rise-content";
 import {
   Avatar,
   MentorsSection,
@@ -66,15 +66,14 @@ import {
   type NextJourneyStep,
 } from "@/lib/journey.functions";
 
-type Role = "mentee" | "mentor" | "admin";
+type Role = "mentee" | "admin";
 type View =
   "inicio" | "jornada" | "agenda" | "entregas" | "rise90" | "painel" | "gestao-jornada" | "alunas";
 type AuthMode = "checking" | "login" | "authenticated" | "demo" | "change-password";
 
 const roleLabels: Record<Role, string> = {
   mentee: "Mentorada",
-  mentor: "Mentora",
-  admin: "Administradora",
+  admin: "Mentora · Administradora",
 };
 
 function RiseMark({ compact = false }: { compact?: boolean }) {
@@ -430,7 +429,7 @@ function Header({
           { label: "Minha jornada", view: "gestao-jornada" },
           { label: "Agenda", view: "agenda" },
           { label: "Entregas", view: "entregas" },
-          ...(role === "admin" ? [{ label: "Alunas e turmas", view: "alunas" as View }] : []),
+          { label: "Alunas e turmas", view: "alunas" },
         ];
   const visibleName = demo ? name : me?.display_name?.trim() || me?.full_name || name;
   const profileSubtitle =
@@ -512,7 +511,7 @@ function Header({
               {demo ? (
                 <>
                   <span className="profile-dropdown__label">Visualizar como</span>
-                  {(["mentee", "mentor", "admin"] as Role[]).map((option) => (
+                  {(["mentee", "admin"] as Role[]).map((option) => (
                     <button
                       key={option}
                       type="button"
@@ -1205,72 +1204,6 @@ function Rise90View() {
   );
 }
 
-function MentorDashboard() {
-  return (
-    <main className="inner-page">
-      <PageIntro
-        eyebrow="Área da mentora"
-        title="Acompanhe com profundidade."
-        copy="Veja somente as participantes atribuídas a você e os sinais importantes de cada jornada."
-      />
-      <section className="mentor-stats page-width">
-        <article>
-          <UsersRound size={23} />
-          <span>Mentoradas ativas</span>
-          <strong>4</strong>
-        </article>
-        <article>
-          <CalendarDays size={23} />
-          <span>Sessões nesta semana</span>
-          <strong>3</strong>
-        </article>
-        <article>
-          <FileCheck2 size={23} />
-          <span>Entregas para revisar</span>
-          <strong>2</strong>
-        </article>
-      </section>
-      <section className="people-section page-width">
-        <div className="section-heading">
-          <div>
-            <h2>Suas mentoradas</h2>
-            <p>Progresso, etapa atual e próximo encontro.</p>
-          </div>
-        </div>
-        <div className="people-table">
-          {demoMentees.map((mentee) => (
-            <article key={mentee.name}>
-              <span className="profile-avatar">
-                {mentee.name
-                  .split(" ")
-                  .map((part) => part[0])
-                  .join("")}
-              </span>
-              <div>
-                <strong>{mentee.name}</strong>
-                <small>{mentee.phase}</small>
-              </div>
-              <div className="table-progress">
-                <span>
-                  <i style={{ width: `${mentee.progress}%` }} />
-                </span>
-                <small>{mentee.progress}%</small>
-              </div>
-              <div className="next-label">
-                <small>Próximo</small>
-                <strong>{mentee.next}</strong>
-              </div>
-              <button type="button" aria-label={`Abrir ${mentee.name}`}>
-                <ChevronRight size={19} />
-              </button>
-            </article>
-          ))}
-        </div>
-      </section>
-    </main>
-  );
-}
-
 function AdminDashboard() {
   const pending = ["paula@empresa.com", "mariana@negocio.com"];
   return (
@@ -1326,8 +1259,8 @@ function AdminDashboard() {
         <article className="admin-card admin-card--security">
           <ShieldCheck size={30} />
           <span>Segurança</span>
-          <h2>Proteção por papel ativa</h2>
-          <p>Mentoradas, mentoras e administradoras têm acessos isolados por políticas no banco.</p>
+          <h2>Proteção por acesso ativa</h2>
+          <p>Mentoradas têm acesso próprio; toda mentora possui o mesmo acesso administrativo.</p>
           <ul>
             <li>
               <Check size={15} /> Cadastro público desativado
@@ -1397,13 +1330,13 @@ export function RisePlatform() {
         ]);
         if (!mounted) return;
 
-        const resolvedRole = rolesResult.data?.[0]?.role;
+        const storedRole = rolesResult.data?.[0]?.role;
         if (
           profileResult.error ||
           rolesResult.error ||
           !profileResult.data ||
-          !resolvedRole ||
-          !(["mentee", "mentor", "admin"] as const).includes(resolvedRole)
+          !storedRole ||
+          !(["mentee", "mentor", "admin"] as const).includes(storedRole)
         ) {
           await supabase.auth.signOut();
           if (mounted) setAuthMode("login");
@@ -1416,6 +1349,7 @@ export function RisePlatform() {
             data.session.user.email?.split("@")[0] ||
             "Participante RISE",
         );
+        const resolvedRole: Role = storedRole === "mentee" ? "mentee" : "admin";
         setRole(resolvedRole);
         setActiveView((v) =>
           resolvedRole === "mentee"
@@ -1467,13 +1401,7 @@ export function RisePlatform() {
         activeView={activeView}
         onView={setActiveView}
         role={role}
-        name={
-          !demo || role === "mentee"
-            ? name
-            : role === "mentor"
-              ? "Gabriela Ribeiro"
-              : "Camila Mariano"
-        }
+        name={!demo || role === "mentee" ? name : "Camila Mariano"}
         demo={demo}
         onRole={(nextRole) => {
           setRole(nextRole);
@@ -1482,14 +1410,9 @@ export function RisePlatform() {
         onExit={() => void exit()}
       />
       {role !== "mentee" && demo ? (
-        role === "mentor" ? (
-          <MentorDashboard />
-        ) : (
-          <AdminDashboard />
-        )
+        <AdminDashboard />
       ) : role !== "mentee" ? (
         <StaffArea
-          isAdmin={role === "admin"}
           view={
             (["painel", "gestao-jornada", "agenda", "entregas", "alunas"].includes(activeView)
               ? activeView

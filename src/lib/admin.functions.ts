@@ -7,47 +7,45 @@ async function roles(supabase: any, userId: string) {
     supabase.rpc("has_role", { _user_id: userId, _role: "admin" }),
     supabase.rpc("has_role", { _user_id: userId, _role: "mentor" }),
   ]);
-  return { isAdmin: !!a, isMentor: !!m };
+  return { isAdmin: !!a || !!m };
 }
 
 async function requireAdmin(supabase: any, userId: string) {
   const r = await roles(supabase, userId);
-  if (!r.isAdmin) throw new Error("Apenas administradoras podem fazer isso.");
+  if (!r.isAdmin) throw new Error("Acesso restrito à administração.");
 }
 
 async function audit(admin: any, actor: string, action: string, target: string, payload: unknown = null) {
   await admin.from("audit_log").insert({ actor_id: actor, action, target, payload });
 }
 
-/** Directory used by scheduling, reviews and member management. Mentors only see their own mentees. */
+/** Directory used by scheduling, reviews and member management. Every mentor is an administrator. */
 export const getDirectory = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const r = await roles(context.supabase, context.userId);
-    if (!r.isAdmin && !r.isMentor) throw new Error("Acesso restrito.");
+    if (!r.isAdmin) throw new Error("Acesso restrito.");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const [mentorRoles, cohorts, phases] = await Promise.all([
       supabaseAdmin.from("user_roles").select("role, profile:profiles(id, full_name, email)").in("role", ["mentor", "admin"]),
       supabaseAdmin.from("cohorts").select("*").order("created_at"),
       supabaseAdmin.from("phases").select("id, month_number, title, pillar, lessons(id, title, kind, position)").order("month_number"),
     ]);
-    let eq = supabaseAdmin
+    const eq = supabaseAdmin
       .from("enrollments")
       .select(
         "id, status, progress_pct, current_month, cohort_id, mentor_id, mentee:profiles!enrollments_mentee_id_fkey(id, display_name, full_name, email, profession, profession_visible)",
       )
       .order("created_at");
-    if (!r.isAdmin) eq = eq.eq("mentor_id", context.userId);
     const { data: enrollments } = await eq;
     const seen = new Map<string, { id: string; name: string; email: string; isAdmin: boolean }>();
     for (const row of (mentorRoles.data ?? []) as any[]) {
       if (!row.profile) continue;
-      const cur = seen.get(row.profile.id);
       seen.set(row.profile.id, {
         id: row.profile.id,
         name: row.profile.full_name,
         email: row.profile.email,
-        isAdmin: (cur?.isAdmin ?? false) || row.role === "admin",
+        isAdmin: true,
       });
     }
     return {
@@ -84,7 +82,7 @@ export const createMember = createServerFn({ method: "POST" })
       .object({
         fullName: z.string().trim().min(2).max(120),
         email: z.string().trim().toLowerCase().email().max(200),
-        role: z.enum(["mentee", "mentor", "admin"]),
+        role: z.enum(["mentee", "admin"]),
         cohortId: z.string().uuid().nullable(),
         mentorId: z.string().uuid().nullable(),
         password: z.string().min(8).max(72),
