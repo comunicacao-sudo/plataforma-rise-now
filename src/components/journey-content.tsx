@@ -17,6 +17,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { RecordedPlayer, type PlayerController } from "@/components/recorded-lessons";
+import { RiseAssessmentExperience } from "@/components/rise-assessment";
 import {
   addJourneyContentMarker,
   getJourneyContent,
@@ -449,6 +450,13 @@ export function JourneyContentLessonPage({
         </button>
       </main>
     );
+
+  if (
+    (item.format === "questionnaire" || item.format === "form") &&
+    (item.resourceType === "rise_assessment" ||
+      /perfil comportamental|mapeamento comportamental/i.test(item.title))
+  )
+    return <RiseAssessmentExperience stepKey={item.stepKey} onBack={onBack} />;
 
   if (item.format === "questionnaire" || item.format === "form")
     return (

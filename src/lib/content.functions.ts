@@ -24,6 +24,7 @@ export type JourneyMaterial = {
 export type JourneyContentItem = {
   stepKey: string;
   title: string;
+  resourceType: string | null;
   format:
     | "questionnaire"
     | "form"
@@ -127,7 +128,7 @@ async function loadLibrary(userId: string): Promise<JourneyContentLibrary | null
       admin
         .from("journey_steps")
         .select(
-          "version_id, stable_key, title, format, description, summary, responsible_name, duration_minutes, month_number, position, cover_path, media_path, resource_url, scheduled_at, release_at, topics, materials, access_scope, cohort_id, mentee_id",
+          "version_id, stable_key, title, format, description, summary, responsible_name, duration_minutes, month_number, position, cover_path, media_path, resource_type, resource_url, scheduled_at, release_at, topics, materials, access_scope, cohort_id, mentee_id",
         )
         .in("version_id", [...versions.keys()])
         .is("archived_at", null)
@@ -179,11 +180,12 @@ async function loadLibrary(userId: string): Promise<JourneyContentLibrary | null
       const hasResource = isVideo(step.format)
         ? !!resourceUrl
         : step.format === "questionnaire" || step.format === "form"
-          ? !!step.resource_url
+          ? step.resource_type === "rise_assessment" || !!step.resource_url
           : true;
       return {
         stepKey: step.stable_key,
         title: step.title,
+        resourceType: step.resource_type,
         format: step.format,
         description: step.description ?? "",
         summary: step.summary || step.description || "",
