@@ -61,6 +61,12 @@ import {
 import { NextStepHero } from "@/components/journey-next-step";
 import { RecordedLessonPage, RecordedLessonsLibrary } from "@/components/recorded-lessons";
 import {
+  ContinueJourneySection,
+  JourneyContentLessonPage,
+  JourneyContentLibraryPage,
+} from "@/components/journey-content";
+import type { JourneyContentItem } from "@/lib/content.functions";
+import {
   getNextJourneyStep,
   startJourneyStep,
   type NextJourneyStep,
@@ -747,7 +753,7 @@ function fallbackNextStep(trail: Trail): NextJourneyStep {
         : "live_group";
   return {
     state: "ready",
-    enrollmentId: trail.enrollmentId ?? undefined,
+    ...(trail.enrollmentId ? { enrollmentId: trail.enrollmentId } : {}),
     pillarName: lesson.phaseTitle,
     stepKey: lesson.id,
     title: lesson.title,
@@ -789,10 +795,12 @@ function HomeView({
   trail,
   onView,
   onOpen,
+  onOpenContent,
 }: {
   trail: Trail;
   onView: (view: View) => void;
   onOpen: (l: TrailLesson) => void;
+  onOpenContent: (stepKey: string) => void;
 }) {
   const loadNext = useServerFn(getNextJourneyStep);
   const startNext = useServerFn(startJourneyStep);
@@ -830,6 +838,27 @@ function HomeView({
         return;
       }
     }
+    if (
+      highlightedStep.stepKey &&
+      [
+        "questionnaire",
+        "form",
+        "recorded_class",
+        "collective_recording",
+        "cohort_onboarding",
+      ].includes(highlightedStep.format ?? "")
+    ) {
+      onOpenContent(highlightedStep.stepKey);
+      return;
+    }
+    if (
+      highlightedStep.format === "individual_1_1" &&
+      highlightedStep.actionLabel === "Ver meu encontro" &&
+      highlightedStep.stepKey
+    ) {
+      onOpenContent(highlightedStep.stepKey);
+      return;
+    }
     if (highlightedStep.format === "individual_1_1" || highlightedStep.format === "live_group") {
       if (highlightedStep.resourceUrl) {
         const url = new URL(highlightedStep.resourceUrl);
@@ -850,6 +879,7 @@ function HomeView({
         busy={nextStepQuery.isFetching}
       />
       <div className="dashboard-body">
+        <ContinueJourneySection demo={trail.demo} onOpen={(item) => onOpenContent(item.stepKey)} />
         <Rail
           title={`Mês ${phase?.month ?? 1} · ${phase?.title ?? ""}`}
           subtitle="Encontros, sessões e aulas desta etapa."
@@ -1086,6 +1116,7 @@ function MenteeArea({
 }) {
   const { data: trail, isLoading } = useTrail(demo);
   const [lesson, setLesson] = useState<TrailLesson | null>(null);
+  const [contentStepKey, setContentStepKey] = useState<string | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
   if (isLoading) return <main className="inner-page" />;
   if (!trail || !trail.phases.length)
@@ -1100,7 +1131,13 @@ function MenteeArea({
     );
   return (
     <>
-      {lesson?.kind === "aula" ? (
+      {contentStepKey ? (
+        <JourneyContentLessonPage
+          stepKey={contentStepKey}
+          onBack={() => setContentStepKey(null)}
+          onNavigate={setContentStepKey}
+        />
+      ) : lesson?.kind === "aula" ? (
         <RecordedLessonPage
           lesson={lesson}
           trail={trail}
@@ -1108,13 +1145,25 @@ function MenteeArea({
           onNavigate={setLesson}
         />
       ) : libraryOpen && view === "jornada" ? (
-        <RecordedLessonsLibrary
-          trail={trail}
-          onOpen={setLesson}
-          onBack={() => setLibraryOpen(false)}
-        />
+        trail.demo ? (
+          <RecordedLessonsLibrary
+            trail={trail}
+            onOpen={setLesson}
+            onBack={() => setLibraryOpen(false)}
+          />
+        ) : (
+          <JourneyContentLibraryPage
+            onOpen={(item: JourneyContentItem) => setContentStepKey(item.stepKey)}
+            onBack={() => setLibraryOpen(false)}
+          />
+        )
       ) : view === "inicio" ? (
-        <HomeView trail={trail} onView={onView} onOpen={setLesson} />
+        <HomeView
+          trail={trail}
+          onView={onView}
+          onOpen={setLesson}
+          onOpenContent={setContentStepKey}
+        />
       ) : view === "jornada" ? (
         <JourneyView trail={trail} onOpen={setLesson} onOpenLibrary={() => setLibraryOpen(true)} />
       ) : view === "agenda" ? (

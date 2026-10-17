@@ -23,7 +23,7 @@ import { MaterialsList } from "@/components/rise-extras";
 import type { Trail, TrailLesson } from "@/components/rise-trail";
 import { supabase } from "@/integrations/supabase/client";
 
-type PlayerController = {
+export type PlayerController = {
   seek: (seconds: number) => void;
   canSeek: boolean;
 };
@@ -57,15 +57,19 @@ function embedFor(url: string) {
   return { type: "frame" as const, src: url };
 }
 
-function RecordedPlayer({
+export function RecordedPlayer({
   url,
+  initialTime = 0,
   onEnded,
   onTime,
+  onDuration,
   onController,
 }: {
   url: string;
+  initialTime?: number;
   onEnded: () => void;
   onTime: (seconds: number) => void;
+  onDuration?: (seconds: number) => void;
   onController: (controller: PlayerController) => void;
 }) {
   const video = useRef<HTMLVideoElement>(null);
@@ -143,6 +147,13 @@ function RecordedPlayer({
         className="recorded-player__media"
         src={embed.src}
         controls
+        onLoadedMetadata={(event) => {
+          event.currentTarget.currentTime = Math.min(
+            initialTime,
+            event.currentTarget.duration || initialTime,
+          );
+          onDuration?.(event.currentTarget.duration);
+        }}
         onTimeUpdate={(event) => onTime(event.currentTarget.currentTime)}
         onEnded={onEnded}
       />
@@ -170,6 +181,21 @@ function RecordedPlayer({
               JSON.stringify({ method: "addEventListener", value }),
               "*",
             );
+        }
+        if (initialTime > 0 && embed.type !== "frame") {
+          window.setTimeout(() => {
+            if (embed.type === "youtube") {
+              frame.current?.contentWindow?.postMessage(
+                JSON.stringify({ event: "command", func: "seekTo", args: [initialTime, false] }),
+                "*",
+              );
+            } else {
+              frame.current?.contentWindow?.postMessage(
+                JSON.stringify({ method: "setCurrentTime", value: initialTime }),
+                "*",
+              );
+            }
+          }, 400);
         }
       }}
     />

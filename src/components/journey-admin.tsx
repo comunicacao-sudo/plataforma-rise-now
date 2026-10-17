@@ -3,8 +3,11 @@ import { useServerFn } from "@tanstack/react-start";
 import {
   ArrowDown,
   ArrowUp,
+  Copy,
   Eye,
   GripVertical,
+  ImagePlus,
+  LoaderCircle,
   Pencil,
   Plus,
   Save,
@@ -12,9 +15,12 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import { NextStepHero } from "@/components/journey-next-step";
+import { supabase } from "@/integrations/supabase/client";
+import { getDirectory } from "@/lib/admin.functions";
+import { createJourneyUpload } from "@/lib/content.functions";
 import {
   confirmJourneyStep,
   getJourneyEditor,
@@ -28,6 +34,8 @@ const formatLabels: Record<JourneyDraftStep["format"], string> = {
   questionnaire: "Questionário",
   form: "Formulário",
   recorded_class: "Aula gravada",
+  collective_recording: "Encontro coletivo gravado",
+  cohort_onboarding: "Onboarding por turma",
   live_group: "Aula coletiva ao vivo",
   individual_1_1: "Encontro individual 1:1",
 };
@@ -57,6 +65,16 @@ function emptyStep(): JourneyDraftStep {
     releaseAt: null,
     completionRule: "final_submission",
     required: true,
+    monthNumber: 1,
+    coverPath: null,
+    coverUrl: null,
+    mediaPath: null,
+    summary: "",
+    topics: [],
+    materials: [],
+    accessScope: "general",
+    cohortId: null,
+    menteeId: null,
   };
 }
 
@@ -70,18 +88,32 @@ function toIso(value: string) {
 
 function StepForm({
   initial,
+  cohorts,
+  mentees,
   onSave,
   onClose,
 }: {
   initial: JourneyDraftStep;
+  cohorts: Array<{ id: string; name: string }>;
+  mentees: Array<{ id: string; name: string }>;
   onSave: (step: JourneyDraftStep) => void;
   onClose: () => void;
 }) {
+  const createUpload = useServerFn(createJourneyUpload);
   const [step, setStep] = useState(initial);
+  const [uploading, setUploading] = useState<"" | "cover" | "media" | "material">("");
+  const [uploadError, setUploadError] = useState("");
+  const previewObject = useRef<string | null>(null);
   const update = <K extends keyof JourneyDraftStep>(key: K, value: JourneyDraftStep[K]) =>
     setStep((current) => ({ ...current, [key]: value }));
   const showMeeting = step.format === "live_group" || step.format === "individual_1_1";
-  const showDuration = showMeeting || step.format === "recorded_class";
+  const showVideo = [
+    "recorded_class",
+    "collective_recording",
+    "cohort_onboarding",
+    "individual_1_1",
+  ].includes(step.format);
+  const showDuration = showMeeting || showVideo;
 
   function changeFormat(format: JourneyDraftStep["format"]) {
     setStep((current) => ({
@@ -94,10 +126,62 @@ function StepForm({
       completionRule:
         format === "questionnaire" || format === "form"
           ? "final_submission"
-          : format === "recorded_class"
-            ? "mentor_confirmation"
+          : ["recorded_class", "collective_recording", "cohort_onboarding"].includes(format)
+            ? "player_ended"
             : "mentor_confirmation",
     }));
+  }
+
+  async function upload(file: File, kind: "cover" | "media" | "material") {
+    setUploading(kind);
+    setUploadError("");
+    try {
+      const signed = await createUpload({
+        data: {
+          kind,
+          fileName: file.name,
+          contentType: file.type || "application/octet-stream",
+          size: file.size,
+        },
+      });
+      const { error } = await supabase.storage
+        .from("journey-content")
+        .uploadToSignedUrl(signed.path, signed.token, file, { contentType: file.type });
+      if (error) throw error;
+      if (kind === "cover") {
+        if (previewObject.current) URL.revokeObjectURL(previewObject.current);
+        previewObject.current = URL.createObjectURL(file);
+        setStep((current) => ({
+          ...current,
+          coverPath: signed.path,
+          coverUrl: previewObject.current,
+        }));
+      } else if (kind === "media") {
+        setStep((current) => ({ ...current, mediaPath: signed.path, resourceType: "storage" }));
+      } else {
+        setStep((current) => ({
+          ...current,
+          materials: [
+            ...current.materials,
+            {
+              id: crypto.randomUUID(),
+              title: file.name,
+              url: null,
+              filePath: signed.path,
+            },
+          ],
+        }));
+      }
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : "Não foi possível enviar o arquivo.");
+    } finally {
+      setUploading("");
+    }
+  }
+
+  function removeAsset(kind: "cover" | "media") {
+    if (kind === "cover") setStep((current) => ({ ...current, coverPath: null, coverUrl: null }));
+    else setStep((current) => ({ ...current, mediaPath: null }));
   }
 
   return (
@@ -142,6 +226,53 @@ function StepForm({
               ))}
             </select>
           </label>
+          <label>
+            <span>Pilar / mês</span>
+            <select
+              value={step.monthNumber}
+              onChange={(e) => update("monthNumber", Number(e.target.value))}
+            >
+              {[1, 2, 3, 4, 5, 6].map((month) => (
+                <option key={month} value={month}>
+                  Mês {month}
+                </option>
+              ))}
+            </select>
+          </label>
+        </fieldset>
+
+        <fieldset>
+          <legend>Capa do card</legend>
+          <p className="journey-field-help">
+            A imagem é exibida sem logo, texto ou decoração automática. Use PNG, JPG ou WebP.
+          </p>
+          {step.coverUrl ? (
+            <div className="journey-cover-preview">
+              <img src={step.coverUrl} alt={`Prévia da capa de ${step.title || "etapa"}`} />
+              <button
+                type="button"
+                onClick={() => removeAsset("cover")}
+                disabled={uploading !== ""}
+              >
+                Remover capa
+              </button>
+            </div>
+          ) : null}
+          <label className="journey-upload">
+            <ImagePlus size={18} />
+            <span>
+              {uploading === "cover" ? "Enviando capa…" : "Selecionar ou substituir capa"}
+            </span>
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              disabled={uploading !== ""}
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) void upload(file, "cover");
+              }}
+            />
+          </label>
         </fieldset>
 
         <fieldset>
@@ -182,6 +313,34 @@ function StepForm({
               rows={5}
             />
           </label>
+          <label>
+            <span>Resumo executivo</span>
+            <textarea
+              value={step.summary}
+              onChange={(e) => update("summary", e.target.value)}
+              maxLength={4000}
+              rows={5}
+              placeholder="Resumo exibido abaixo do vídeo"
+            />
+          </label>
+          <label>
+            <span>Principais temas</span>
+            <textarea
+              value={step.topics.join("\n")}
+              onChange={(e) =>
+                update(
+                  "topics",
+                  e.target.value
+                    .split("\n")
+                    .map((topic) => topic.trim())
+                    .filter(Boolean)
+                    .slice(0, 20),
+                )
+              }
+              rows={5}
+              placeholder="Um tema por linha"
+            />
+          </label>
         </fieldset>
 
         <fieldset>
@@ -210,7 +369,11 @@ function StepForm({
             </label>
           ) : null}
           <label>
-            <span>URL do recurso ou acesso</span>
+            <span>
+              {step.format === "questionnaire" || step.format === "form"
+                ? "URL do questionário"
+                : "URL do vídeo ou acesso"}
+            </span>
             <input
               type="url"
               value={step.resourceUrl ?? ""}
@@ -218,9 +381,40 @@ function StepForm({
               placeholder="https://"
             />
           </label>
+          {showVideo ? (
+            <div className="journey-upload-group">
+              <label className="journey-upload">
+                {uploading === "media" ? (
+                  <LoaderCircle className="is-spinning" size={18} />
+                ) : (
+                  <ImagePlus size={18} />
+                )}
+                <span>
+                  {uploading === "media" ? "Enviando gravação…" : "Enviar arquivo de vídeo privado"}
+                </span>
+                <input
+                  type="file"
+                  accept="video/mp4,video/webm,video/quicktime"
+                  disabled={uploading !== ""}
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) void upload(file, "media");
+                  }}
+                />
+              </label>
+              {step.mediaPath ? (
+                <div className="journey-uploaded-file">
+                  <span>Vídeo privado armazenado</span>
+                  <button type="button" onClick={() => removeAsset("media")}>
+                    Remover
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           <p className="journey-field-help">
-            O formato não cria perguntas, vídeos ou reservas. Vincule apenas um recurso real já
-            disponível.
+            Questionários abrem dentro da plataforma. Para vídeos privados, prefira o upload acima
+            em vez de uma URL pública permanente.
           </p>
           {showMeeting ? (
             <label>
@@ -234,9 +428,138 @@ function StepForm({
           ) : null}
         </fieldset>
 
+        <fieldset>
+          <legend>Materiais de apoio</legend>
+          <label className="journey-upload">
+            <Plus size={18} />
+            <span>{uploading === "material" ? "Enviando material…" : "Adicionar arquivo"}</span>
+            <input
+              type="file"
+              disabled={uploading !== ""}
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) void upload(file, "material");
+              }}
+            />
+          </label>
+          <button
+            className="journey-add-link"
+            type="button"
+            onClick={() =>
+              update("materials", [
+                ...step.materials,
+                { id: crypto.randomUUID(), title: "Novo link", url: "https://", filePath: null },
+              ])
+            }
+          >
+            <Plus size={16} /> Adicionar link
+          </button>
+          <div className="journey-material-editor">
+            {step.materials.map((material, index) => (
+              <div key={material.id}>
+                <input
+                  aria-label={`Título do material ${index + 1}`}
+                  value={material.title}
+                  onChange={(event) =>
+                    update(
+                      "materials",
+                      step.materials.map((item) =>
+                        item.id === material.id ? { ...item, title: event.target.value } : item,
+                      ),
+                    )
+                  }
+                />
+                {material.url !== null ? (
+                  <input
+                    type="url"
+                    aria-label={`URL do material ${index + 1}`}
+                    value={material.url}
+                    onChange={(event) =>
+                      update(
+                        "materials",
+                        step.materials.map((item) =>
+                          item.id === material.id ? { ...item, url: event.target.value } : item,
+                        ),
+                      )
+                    }
+                  />
+                ) : (
+                  <span>Arquivo privado</span>
+                )}
+                <button
+                  type="button"
+                  aria-label={`Remover ${material.title}`}
+                  onClick={() =>
+                    update(
+                      "materials",
+                      step.materials.filter((item) => item.id !== material.id),
+                    )
+                  }
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            ))}
+          </div>
+          {uploadError ? <p className="journey-upload-error">{uploadError}</p> : null}
+        </fieldset>
+
         <details>
           <summary>Percurso e regras avançadas</summary>
           <div className="journey-editor-form__details">
+            <label>
+              <span>Visibilidade</span>
+              <select
+                value={step.accessScope}
+                onChange={(e) => {
+                  const accessScope = e.target.value as JourneyDraftStep["accessScope"];
+                  setStep((current) => ({
+                    ...current,
+                    accessScope,
+                    cohortId: accessScope === "cohort" ? current.cohortId : null,
+                    menteeId: accessScope === "mentee" ? current.menteeId : null,
+                  }));
+                }}
+              >
+                <option value="general">Geral para mentorados autorizados</option>
+                <option value="cohort">Turma específica</option>
+                <option value="mentee">Mentorado específico</option>
+              </select>
+            </label>
+            {step.accessScope === "cohort" ? (
+              <label>
+                <span>Turma autorizada</span>
+                <select
+                  value={step.cohortId ?? ""}
+                  onChange={(e) => update("cohortId", e.target.value || null)}
+                  required
+                >
+                  <option value="">Selecione a turma</option>
+                  {cohorts.map((cohort) => (
+                    <option key={cohort.id} value={cohort.id}>
+                      {cohort.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+            {step.accessScope === "mentee" ? (
+              <label>
+                <span>Mentorado autorizado</span>
+                <select
+                  value={step.menteeId ?? ""}
+                  onChange={(e) => update("menteeId", e.target.value || null)}
+                  required
+                >
+                  <option value="">Selecione o mentorado</option>
+                  {mentees.map((mentee) => (
+                    <option key={mentee.id} value={mentee.id}>
+                      {mentee.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             <label>
               <span>Liberação a partir de</span>
               <input
@@ -286,6 +609,7 @@ function StepForm({
 
 export function JourneyAdmin() {
   const load = useServerFn(getJourneyEditor);
+  const loadDirectory = useServerFn(getDirectory);
   const save = useServerFn(saveJourneyDraft);
   const publish = useServerFn(publishJourneyDraft);
   const confirm = useServerFn(confirmJourneyStep);
@@ -294,6 +618,10 @@ export function JourneyAdmin() {
   const query = useQuery({
     queryKey: ["journey-editor", pillarId],
     queryFn: () => load({ data: pillarId ? { pillarId } : undefined }),
+  });
+  const directoryQuery = useQuery({
+    queryKey: ["directory", "journey-content"],
+    queryFn: () => loadDirectory(),
   });
   const [localSteps, setLocalSteps] = useState<JourneyDraftStep[] | null>(null);
   const [editing, setEditing] = useState<JourneyDraftStep | null>(null);
@@ -312,7 +640,7 @@ export function JourneyAdmin() {
       preview
         ? {
             state: preview.resourceUrl || preview.resourceId ? "ready" : "waiting_resource",
-            pillarName: data?.selected?.name,
+            ...(data?.selected?.name ? { pillarName: data.selected.name } : {}),
             ...preview,
             stepKey: preview.stableKey,
             actionLabel: formatLabels[preview.format],
@@ -325,6 +653,7 @@ export function JourneyAdmin() {
     if (to < 0 || to >= steps.length || from === to) return;
     const copy = [...steps];
     const [item] = copy.splice(from, 1);
+    if (!item) return;
     copy.splice(to, 0, item);
     setLocalSteps(copy);
   }
@@ -424,8 +753,8 @@ export function JourneyAdmin() {
     <main className="inner-page journey-editor-page">
       <div className="page-intro page-width">
         <span className="eyebrow eyebrow--gold">Administração da jornada</span>
-        <h1>Minha jornada</h1>
-        <p>Organize, revise e publique as etapas do seu pilar sem editar código.</p>
+        <h1>Gestão de conteúdos</h1>
+        <p>Organize etapas, capas, aulas, questionários e públicos sem editar código.</p>
       </div>
       <section className="page-width journey-editor-toolbar">
         <div>
@@ -481,11 +810,33 @@ export function JourneyAdmin() {
                 <strong>{step.title || "Etapa sem título"}</strong>
                 <span>
                   {formatLabels[step.format]} ·{" "}
-                  {step.resourceUrl || step.resourceId ? "Recurso vinculado" : "Aguardando recurso"}
+                  {step.resourceUrl || step.resourceId || step.mediaPath
+                    ? `Mês ${step.monthNumber} · Recurso vinculado`
+                    : `Mês ${step.monthNumber} · Aguardando recurso`}
                 </span>
               </div>
-              <span className="journey-step-row__status">Rascunho</span>
+              <span className="journey-step-row__status">
+                {step.releaseAt && new Date(step.releaseAt).getTime() > Date.now()
+                  ? "Agendado"
+                  : "Rascunho"}
+              </span>
               <div className="journey-step-row__actions">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const copy = {
+                      ...step,
+                      stableKey: crypto.randomUUID(),
+                      title: `${step.title} — cópia`,
+                    };
+                    const next = [...steps];
+                    next.splice(index + 1, 0, copy);
+                    setLocalSteps(next);
+                  }}
+                  aria-label={`Duplicar ${step.title}`}
+                >
+                  <Copy size={17} />
+                </button>
                 <button
                   type="button"
                   onClick={() => move(index, index - 1)}
@@ -580,7 +931,7 @@ export function JourneyAdmin() {
             <p>Somente confirme depois de verificar que a atividade realmente aconteceu.</p>
           </div>
           <div className="journey-confirmations__list">
-            {data.confirmations.map((item) => {
+            {(data?.confirmations ?? []).map((item) => {
               const operation = `confirm:${item.enrollmentId}:${item.stepKey}`;
               return (
                 <article key={operation}>
@@ -609,7 +960,19 @@ export function JourneyAdmin() {
       ) : null}
 
       {editing ? (
-        <StepForm initial={editing} onSave={upsert} onClose={() => setEditing(null)} />
+        <StepForm
+          initial={editing}
+          cohorts={(directoryQuery.data?.cohorts ?? []).map((cohort) => ({
+            id: cohort.id,
+            name: cohort.name,
+          }))}
+          mentees={(directoryQuery.data?.enrollments ?? []).map((enrollment) => ({
+            id: enrollment.menteeId,
+            name: enrollment.name,
+          }))}
+          onSave={upsert}
+          onClose={() => setEditing(null)}
+        />
       ) : null}
       {previewStep ? (
         <div
