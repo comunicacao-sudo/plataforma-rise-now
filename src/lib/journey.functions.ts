@@ -8,6 +8,8 @@ export const journeyFormats = [
   "questionnaire",
   "form",
   "recorded_class",
+  "collective_recording",
+  "cohort_onboarding",
   "live_group",
   "individual_1_1",
 ] as const;
@@ -36,6 +38,25 @@ const stepSchema = z.object({
   releaseAt: z.string().datetime().nullable(),
   completionRule: z.enum(completionRules),
   required: z.boolean(),
+  monthNumber: z.number().int().min(1).max(6),
+  coverPath: z.string().trim().max(500).nullable(),
+  coverUrl: z.string().trim().url().max(2000).nullable().optional(),
+  mediaPath: z.string().trim().max(500).nullable(),
+  summary: z.string().trim().max(4000),
+  topics: z.array(z.string().trim().min(1).max(160)).max(20),
+  materials: z
+    .array(
+      z.object({
+        id: z.string().min(1).max(120),
+        title: z.string().trim().min(1).max(180),
+        url: z.string().trim().url().max(2000).nullable(),
+        filePath: z.string().trim().max(500).nullable(),
+      }),
+    )
+    .max(30),
+  accessScope: z.enum(["general", "cohort", "mentee"]),
+  cohortId: z.string().uuid().nullable(),
+  menteeId: z.string().uuid().nullable(),
 });
 
 export type JourneyDraftStep = z.infer<typeof stepSchema>;
@@ -122,7 +143,7 @@ export const getJourneyEditor = createServerFn({ method: "GET" })
       admin
         .from("journey_steps")
         .select(
-          "stable_key, title, format, impact_lead, impact_highlight, impact_tail, description, responsible_name, duration_minutes, resource_type, resource_id, resource_url, scheduled_at, release_at, completion_rule, required, position",
+          "stable_key, title, format, impact_lead, impact_highlight, impact_tail, description, responsible_name, duration_minutes, resource_type, resource_id, resource_url, scheduled_at, release_at, completion_rule, required, position, month_number, cover_path, media_path, summary, topics, materials, access_scope, cohort_id, mentee_id",
         )
         .eq("version_id", draft.id)
         .order("position"),
@@ -167,6 +188,18 @@ export const getJourneyEditor = createServerFn({ method: "GET" })
         stepTitle: titles.get(item.step_key) ?? "Etapa",
       }));
     }
+    const coverPaths = stepRows
+      .map((step) => step.cover_path as string | null)
+      .filter((path): path is string => !!path);
+    const coverUrls = new Map<string, string>();
+    await Promise.all(
+      coverPaths.map(async (path) => {
+        const { data: signed } = await admin.storage
+          .from("journey-content")
+          .createSignedUrl(path, 60 * 60);
+        if (signed?.signedUrl) coverUrls.set(path, signed.signedUrl);
+      }),
+    );
     return {
       isAdmin: role.isAdmin,
       pillars: available.map((pillar) => ({
@@ -201,6 +234,16 @@ export const getJourneyEditor = createServerFn({ method: "GET" })
         releaseAt: step.release_at,
         completionRule: step.completion_rule,
         required: step.required,
+        monthNumber: step.month_number ?? 1,
+        coverPath: step.cover_path,
+        coverUrl: step.cover_path ? (coverUrls.get(step.cover_path) ?? null) : null,
+        mediaPath: step.media_path,
+        summary: step.summary ?? "",
+        topics: step.topics ?? [],
+        materials: Array.isArray(step.materials) ? step.materials : [],
+        accessScope: step.access_scope ?? "general",
+        cohortId: step.cohort_id,
+        menteeId: step.mentee_id,
       })) as JourneyDraftStep[],
     };
   });

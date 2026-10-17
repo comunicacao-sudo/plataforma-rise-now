@@ -16,7 +16,20 @@ function formatDate(value?: string | null) {
 function metadata(step: NextJourneyStep) {
   if (step.format === "questionnaire" || step.format === "form") return [];
   const items: Array<{ icon: "video" | "clock" | "calendar"; label: string }> = [];
-  if (step.format === "recorded_class") items.push({ icon: "video", label: "Aula gravada" });
+  if (
+    step.format === "recorded_class" ||
+    step.format === "collective_recording" ||
+    step.format === "cohort_onboarding"
+  )
+    items.push({
+      icon: "video",
+      label:
+        step.format === "cohort_onboarding"
+          ? "Onboarding da sua turma"
+          : step.format === "collective_recording"
+            ? "Encontro coletivo gravado"
+            : "Aula gravada",
+    });
   if (step.format === "live_group") {
     const meet = step.resourceUrl?.includes("meet.google.com");
     items.push({
@@ -159,7 +172,9 @@ export function NextStepHero({
               disabled={busy || preview}
             >
               {busy ? "Abrindo…" : step.actionLabel}
-              {step.format === "recorded_class" ? (
+              {["recorded_class", "collective_recording", "cohort_onboarding"].includes(
+                step.format ?? "",
+              ) ? (
                 <Play size={22} fill="currentColor" />
               ) : (
                 <ArrowRight size={25} />
