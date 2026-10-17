@@ -1119,7 +1119,12 @@ hr,
   padding: 0;
   background: linear-gradient(145deg, rgba(71, 28, 38, 0.42), rgba(18, 10, 12, 0.9));
   box-shadow: 0 18px 42px rgba(0, 0, 0, 0.24);
+  cursor: pointer;
   scroll-snap-align: start;
+}
+.journey-card:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 3px;
 }
 .journey-card::after {
   content: "";

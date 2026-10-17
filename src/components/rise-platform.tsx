@@ -707,7 +707,16 @@ function JourneyRail({ trail, onView }: { trail: Trail; onView: () => void }) {
             <article
               key={item.month}
               className={`journey-card journey-card--${status}`}
-              aria-label={`Mês ${item.month}: ${item.title}`}
+              role="link"
+              tabIndex={0}
+              aria-label={`Abrir Minha jornada no mês ${item.month}: ${item.title}`}
+              onClick={onView}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  onView();
+                }
+              }}
             >
               {cover ? (
                 <img
