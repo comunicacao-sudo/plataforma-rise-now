@@ -63,7 +63,8 @@ export type TrailPhase = {
   deliverable: TrailDeliverable | null;
 };
 
-export type SubmissionStatus = "nao_iniciada" | "em_andamento" | "enviada" | "em_revisao" | "concluida";
+export type SubmissionStatus =
+  "nao_iniciada" | "em_andamento" | "enviada" | "em_revisao" | "concluida";
 
 export const statusLabels: Record<SubmissionStatus, string> = {
   nao_iniciada: "Não iniciada",
@@ -138,7 +139,8 @@ async function loadTrail(): Promise<Trail> {
     const { data: program } = await supabase.from("programs").select("id").limit(1).maybeSingle();
     programId = program?.id;
   }
-  if (!programId) return { demo: false, enrollmentId: null, currentMonth: 1, progressPct: 0, phases: [] };
+  if (!programId)
+    return { demo: false, enrollmentId: null, currentMonth: 1, progressPct: 0, phases: [] };
 
   const [phasesRes, progressRes, subsRes] = await Promise.all([
     supabase
@@ -147,7 +149,10 @@ async function loadTrail(): Promise<Trail> {
       .eq("program_id", programId)
       .order("month_number"),
     enrollment
-      ? supabase.from("lesson_progress").select("lesson_id, completed").eq("enrollment_id", enrollment.id)
+      ? supabase
+          .from("lesson_progress")
+          .select("lesson_id, completed")
+          .eq("enrollment_id", enrollment.id)
       : Promise.resolve({ data: [] as { lesson_id: string; completed: boolean }[] }),
     enrollment
       ? supabase.from("submissions").select("*").eq("enrollment_id", enrollment.id)
@@ -157,14 +162,16 @@ async function loadTrail(): Promise<Trail> {
 
   const done = new Set((progressRes.data ?? []).filter((r) => r.completed).map((r) => r.lesson_id));
   const subs = new Map(
-    ((subsRes.data ?? []) as {
-      deliverable_id: string;
-      status: SubmissionStatus;
-      content: string | null;
-      link_url: string | null;
-      file_path: string | null;
-      feedback: string | null;
-    }[]).map((s) => [s.deliverable_id, s]),
+    (
+      (subsRes.data ?? []) as {
+        deliverable_id: string;
+        status: SubmissionStatus;
+        content: string | null;
+        link_url: string | null;
+        file_path: string | null;
+        feedback: string | null;
+      }[]
+    ).map((s) => [s.deliverable_id, s]),
   );
 
   const phases = (phasesRes.data ?? []).map<TrailPhase>((p) => {
@@ -242,16 +249,21 @@ export function formatWhen(iso: string | null) {
 
 function embedFor(url: string) {
   const yt = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([\w-]{6,})/);
-  if (yt) return { type: "youtube" as const, src: `https://www.youtube.com/embed/${yt[1]}?enablejsapi=1&rel=0` };
+  if (yt)
+    return {
+      type: "youtube" as const,
+      src: `https://www.youtube.com/embed/${yt[1]}?enablejsapi=1&rel=0`,
+    };
   const vm = url.match(/vimeo\.com\/(?:video\/)?(\d+)/);
   if (vm) return { type: "vimeo" as const, src: `https://player.vimeo.com/video/${vm[1]}?api=1` };
   const drive = url.match(/drive\.google\.com\/file\/d\/([\w-]+)/);
-  if (drive) return { type: "frame" as const, src: `https://drive.google.com/file/d/${drive[1]}/preview` };
+  if (drive)
+    return { type: "frame" as const, src: `https://drive.google.com/file/d/${drive[1]}/preview` };
   if (/\.(mp4|webm|mov)(\?|$)/i.test(url)) return { type: "video" as const, src: url };
   return { type: "frame" as const, src: url };
 }
 
-function Player({ url, minutes, onEnded }: { url: string; minutes: number; onEnded: () => void }) {
+function Player({ url, onEnded }: { url: string; onEnded: () => void }) {
   const frame = useRef<HTMLIFrameElement>(null);
   const embed = embedFor(url);
   const ended = useRef(onEnded);
@@ -260,11 +272,9 @@ function Player({ url, minutes, onEnded }: { url: string; minutes: number; onEnd
   useEffect(() => {
     if (embed.type === "video") return;
     const fire = () => ended.current();
-    if (embed.type === "frame") {
-      // Embedded recordings without a player API complete after 90% of the duration.
-      const t = window.setTimeout(fire, minutes * 60_000 * 0.9);
-      return () => window.clearTimeout(t);
-    }
+    // Generic embeds cannot prove completion. Only players with a supported
+    // ended event (or a native video element) may confirm the activity.
+    if (embed.type === "frame") return;
     function onMessage(e: MessageEvent) {
       let data: unknown = e.data;
       if (typeof data === "string") {
@@ -278,14 +288,19 @@ function Player({ url, minutes, onEnded }: { url: string; minutes: number; onEnd
       if (embed.type === "youtube" && d.event === "onStateChange" && d.info === 0) fire();
       if (embed.type === "vimeo" && d.event === "ended") fire();
       if (embed.type === "vimeo" && d.event === "ready")
-        frame.current?.contentWindow?.postMessage(JSON.stringify({ method: "addEventListener", value: "ended" }), "*");
+        frame.current?.contentWindow?.postMessage(
+          JSON.stringify({ method: "addEventListener", value: "ended" }),
+          "*",
+        );
     }
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [embed.type, embed.src, minutes]);
+  }, [embed.type, embed.src]);
 
   if (embed.type === "video")
-    return <video className="lesson-player__media" src={embed.src} controls onEnded={() => onEnded()} />;
+    return (
+      <video className="lesson-player__media" src={embed.src} controls onEnded={() => onEnded()} />
+    );
   return (
     <iframe
       ref={frame}
@@ -407,24 +422,23 @@ export function LessonScreen({
     if (completed) return;
     setCompleted(true);
     if (trail.demo || !trail.enrollmentId) return;
-    await supabase
-      .from("lesson_progress")
-      .upsert(
-        { enrollment_id: trail.enrollmentId, lesson_id: lesson.id, completed: true, completed_at: new Date().toISOString() },
-        { onConflict: "enrollment_id,lesson_id" },
-      );
+    await supabase.from("lesson_progress").upsert(
+      {
+        enrollment_id: trail.enrollmentId,
+        lesson_id: lesson.id,
+        completed: true,
+        completed_at: new Date().toISOString(),
+      },
+      { onConflict: "enrollment_id,lesson_id" },
+    );
     void qc.invalidateQueries({ queryKey: ["trail"] });
+    void qc.invalidateQueries({ queryKey: ["next-journey-step"] });
   }
 
   const endsAt = lesson.scheduledAt
     ? new Date(lesson.scheduledAt).getTime() + lesson.duration * 60_000
     : null;
   const meetingPast = endsAt !== null && Date.now() > endsAt;
-
-  useEffect(() => {
-    if (lesson.kind === "encontro" && meetingPast && !lesson.mediaUrl) void complete();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lesson.id]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -442,7 +456,7 @@ export function LessonScreen({
         </button>
         <div className="lesson-player">
           {lesson.mediaUrl ? (
-            <Player url={lesson.mediaUrl} minutes={lesson.duration} onEnded={() => void complete()} />
+            <Player url={lesson.mediaUrl} onEnded={() => void complete()} />
           ) : lesson.kind === "encontro" ? (
             <div className="lesson-wait">
               <span className="lesson-wait__icon">
@@ -460,7 +474,12 @@ export function LessonScreen({
                     : "O link da sala será publicado aqui antes do encontro."}
               </p>
               {lesson.joinUrl && !meetingPast ? (
-                <a className="button button--primary" href={lesson.joinUrl} target="_blank" rel="noreferrer">
+                <a
+                  className="button button--primary"
+                  href={lesson.joinUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                >
                   <Video size={18} /> Entrar no Google Meet
                 </a>
               ) : null}
@@ -547,7 +566,8 @@ function DeliverableEditor({
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
-  const locked = item.status === "enviada" || item.status === "em_revisao" || item.status === "concluida";
+  const locked =
+    item.status === "enviada" || item.status === "em_revisao" || item.status === "concluida";
 
   async function save(status: SubmissionStatus) {
     if (trail.demo || !trail.enrollmentId) {
@@ -589,7 +609,9 @@ function DeliverableEditor({
   }
 
   async function openFile() {
-    const { data } = await supabase.storage.from("rise-private").createSignedUrl(item.filePath, 300);
+    const { data } = await supabase.storage
+      .from("rise-private")
+      .createSignedUrl(item.filePath, 300);
     if (data?.signedUrl) window.open(data.signedUrl, "_blank", "noopener");
   }
 
@@ -599,7 +621,12 @@ function DeliverableEditor({
       role="presentation"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
-      <section className="content-modal deliverable-editor" role="dialog" aria-modal="true" aria-label={item.title}>
+      <section
+        className="content-modal deliverable-editor"
+        role="dialog"
+        aria-modal="true"
+        aria-label={item.title}
+      >
         <button className="modal-close" type="button" onClick={onClose} aria-label="Fechar">
           <X size={21} />
         </button>
@@ -609,7 +636,9 @@ function DeliverableEditor({
           </span>
           <h2>{item.title}</h2>
           <p>{item.description}</p>
-          <div className={`delivery-status delivery-status--${item.status}`}>{statusLabels[item.status]}</div>
+          <div className={`delivery-status delivery-status--${item.status}`}>
+            {statusLabels[item.status]}
+          </div>
           <label className="field">
             <span>Seu texto</span>
             <textarea
@@ -636,7 +665,11 @@ function DeliverableEditor({
             <span>
               <Paperclip size={14} /> Arquivo (opcional)
             </span>
-            <input type="file" disabled={locked} onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+            <input
+              type="file"
+              disabled={locked}
+              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            />
           </label>
           {item.filePath ? (
             <button className="link-button" type="button" onClick={() => void openFile()}>
@@ -657,10 +690,20 @@ function DeliverableEditor({
             </div>
           ) : (
             <div className="content-modal__actions">
-              <button className="button button--primary" type="button" disabled={busy} onClick={() => void save("enviada")}>
+              <button
+                className="button button--primary"
+                type="button"
+                disabled={busy}
+                onClick={() => void save("enviada")}
+              >
                 <Send size={17} /> Enviar entrega
               </button>
-              <button className="button button--glass" type="button" disabled={busy} onClick={() => void save("em_andamento")}>
+              <button
+                className="button button--glass"
+                type="button"
+                disabled={busy}
+                onClick={() => void save("em_andamento")}
+              >
                 Salvar rascunho
               </button>
             </div>
@@ -687,7 +730,9 @@ export function TrailDeliverables({ trail }: { trail: Trail }) {
             </span>
             <h2>{item.title}</h2>
             <p>{item.question}</p>
-            <div className={`delivery-status delivery-status--${item.status}`}>{statusLabels[item.status]}</div>
+            <div className={`delivery-status delivery-status--${item.status}`}>
+              {statusLabels[item.status]}
+            </div>
             <button type="button" onClick={() => setOpen(item)}>
               Abrir entrega <ChevronRight size={17} />
             </button>
@@ -711,7 +756,9 @@ export function TrailAgenda({ trail, onOpen }: { trail: Trail; onOpen: (l: Trail
               {d ? (
                 <>
                   <strong>{String(d.getDate()).padStart(2, "0")}</strong>
-                  <span>{d.toLocaleString("pt-BR", { month: "short" }).replace(".", "").toUpperCase()}</span>
+                  <span>
+                    {d.toLocaleString("pt-BR", { month: "short" }).replace(".", "").toUpperCase()}
+                  </span>
                 </>
               ) : (
                 <>

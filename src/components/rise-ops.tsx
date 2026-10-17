@@ -27,12 +27,23 @@ import {
   startGoogleConnect,
   updateMeeting,
 } from "@/lib/google.functions";
-import { createMember, getDirectory, resetMemberPassword, updateEnrollment } from "@/lib/admin.functions";
-import { CalendarButtons, MaterialsList, MaterialsManager, Rise90StaffDrawer } from "@/components/rise-extras";
+import {
+  createMember,
+  getDirectory,
+  resetMemberPassword,
+  updateEnrollment,
+} from "@/lib/admin.functions";
+import {
+  CalendarButtons,
+  MaterialsList,
+  MaterialsManager,
+  Rise90StaffDrawer,
+} from "@/components/rise-extras";
+import { JourneyAdmin } from "@/components/journey-admin";
 
 /* ---------- shared ---------- */
 
-export type StaffView = "painel" | "agenda" | "entregas" | "alunas";
+export type StaffView = "painel" | "gestao-jornada" | "agenda" | "entregas" | "alunas";
 
 const statusLabels: Record<string, string> = {
   nao_iniciada: "Não iniciada",
@@ -42,7 +53,11 @@ const statusLabels: Record<string, string> = {
   concluida: "Concluída",
 };
 
-const enrollmentLabels: Record<string, string> = { ativa: "Ativa", pausada: "Pausada", desativada: "Desativada" };
+const enrollmentLabels: Record<string, string> = {
+  ativa: "Ativa",
+  pausada: "Pausada",
+  desativada: "Desativada",
+};
 
 type MeetingRow = {
   id: string;
@@ -83,7 +98,9 @@ function useDirectory() {
 }
 
 function endOf(m: MeetingRow) {
-  return m.ends_at ? Date.parse(m.ends_at) : Date.parse(m.scheduled_at) + (m.duration_minutes ?? 60) * 60000;
+  return m.ends_at
+    ? Date.parse(m.ends_at)
+    : Date.parse(m.scheduled_at) + (m.duration_minutes ?? 60) * 60000;
 }
 
 function Intro({ eyebrow, title, copy }: { eyebrow: string; title: string; copy: string }) {
@@ -114,7 +131,15 @@ function tempPassword() {
 
 /* ---------- meeting card (shared mentee + staff) ---------- */
 
-function MeetingCard({ m, actions, showMaterials }: { m: MeetingRow; actions?: ReactNode; showMaterials?: boolean }) {
+function MeetingCard({
+  m,
+  actions,
+  showMaterials,
+}: {
+  m: MeetingRow;
+  actions?: ReactNode;
+  showMaterials?: boolean;
+}) {
   const start = new Date(m.scheduled_at);
   const now = Date.now();
   const live = now >= start.getTime() - 15 * 60000 && now <= endOf(m);
@@ -123,7 +148,9 @@ function MeetingCard({ m, actions, showMaterials }: { m: MeetingRow; actions?: R
     <article className={`ops-meeting ${live ? "is-live" : ""}`}>
       <div className="ops-meeting__date">
         <strong>{String(start.getDate()).padStart(2, "0")}</strong>
-        <span>{start.toLocaleString("pt-BR", { month: "short" }).replace(".", "").toUpperCase()}</span>
+        <span>
+          {start.toLocaleString("pt-BR", { month: "short" }).replace(".", "").toUpperCase()}
+        </span>
       </div>
       <div className="ops-meeting__body">
         <span className="ops-meeting__meta">
@@ -140,14 +167,24 @@ function MeetingCard({ m, actions, showMaterials }: { m: MeetingRow; actions?: R
       <div className="ops-meeting__actions">
         {past ? (
           m.recording_url ? (
-            <a className="button button--glass" href={m.recording_url} target="_blank" rel="noreferrer">
+            <a
+              className="button button--glass"
+              href={m.recording_url}
+              target="_blank"
+              rel="noreferrer"
+            >
               <Video size={16} /> Ver gravação
             </a>
           ) : (
             <span className="ops-muted">Gravação em breve</span>
           )
         ) : m.join_url ? (
-          <a className={`button ${live ? "button--primary x-pulse" : "button--glass"}`} href={m.join_url} target="_blank" rel="noreferrer">
+          <a
+            className={`button ${live ? "button--primary x-pulse" : "button--glass"}`}
+            href={m.join_url}
+            target="_blank"
+            rel="noreferrer"
+          >
             Entrar no Google Meet <ExternalLink size={15} />
           </a>
         ) : (
@@ -195,9 +232,15 @@ export function MenteeMeetings() {
         </div>
       </div>
       {upcoming.length ? (
-        <div className="ops-list">{upcoming.map((m) => <MeetingCard key={m.id} m={m} showMaterials />)}</div>
+        <div className="ops-list">
+          {upcoming.map((m) => (
+            <MeetingCard key={m.id} m={m} showMaterials />
+          ))}
+        </div>
       ) : (
-        <p className="ops-empty">Nenhum encontro agendado ainda. Assim que a sua mentora marcar, ele aparece aqui.</p>
+        <p className="ops-empty">
+          Nenhum encontro agendado ainda. Assim que a sua mentora marcar, ele aparece aqui.
+        </p>
       )}
       {past.length ? (
         <>
@@ -207,7 +250,11 @@ export function MenteeMeetings() {
               <p>Reveja as gravações quando estiverem disponíveis.</p>
             </div>
           </div>
-          <div className="ops-list">{past.map((m) => <MeetingCard key={m.id} m={m} showMaterials />)}</div>
+          <div className="ops-list">
+            {past.map((m) => (
+              <MeetingCard key={m.id} m={m} showMaterials />
+            ))}
+          </div>
         </>
       ) : null}
     </section>
@@ -243,10 +290,16 @@ function waitForOAuth(popup: Window) {
     };
     const onMessage = (e: MessageEvent) => {
       const t = e.data?.type;
-      if (e.origin !== window.location.origin || e.source !== popup || e.data?.connectorId !== "google_calendar") return;
+      if (
+        e.origin !== window.location.origin ||
+        e.source !== popup ||
+        e.data?.connectorId !== "google_calendar"
+      )
+        return;
       if (t !== "appUserConnectorOAuthComplete" && t !== "appUserConnectorOAuthFailed") return;
       cleanup();
-      if (t === "appUserConnectorOAuthComplete") resolve(typeof e.data?.code === "string" ? e.data.code : null);
+      if (t === "appUserConnectorOAuthComplete")
+        resolve(typeof e.data?.code === "string" ? e.data.code : null);
       else reject(new Error("failed"));
     };
     window.addEventListener("message", onMessage);
@@ -281,7 +334,11 @@ function GoogleCard() {
       const code = await done;
       if (code) await completeFn({ data: { code } });
       await qc.invalidateQueries({ queryKey: ["google-status"] });
-      setMsg(data?.reconnectRequired || data?.connected ? "Google reconectado." : "Google Agenda conectado.");
+      setMsg(
+        data?.reconnectRequired || data?.connected
+          ? "Google reconectado."
+          : "Google Agenda conectado.",
+      );
     } catch {
       popup.close();
       setMsg("A conexão não foi concluída. Tente de novo.");
@@ -316,11 +373,21 @@ function GoogleCard() {
       </div>
       <div className="ops-row">
         {data?.connected ? (
-          <button className="button button--glass" type="button" disabled={busy} onClick={() => void disconnect()}>
+          <button
+            className="button button--glass"
+            type="button"
+            disabled={busy}
+            onClick={() => void disconnect()}
+          >
             Desconectar
           </button>
         ) : (
-          <button className="button button--primary" type="button" disabled={busy || isLoading} onClick={() => void connect()}>
+          <button
+            className="button button--primary"
+            type="button"
+            disabled={busy || isLoading}
+            onClick={() => void connect()}
+          >
             {data?.reconnectRequired ? <RefreshCw size={16} /> : <CalendarDays size={16} />}
             {data?.reconnectRequired ? "Reconectar Google" : "Conectar Google Agenda"}
           </button>
@@ -361,7 +428,8 @@ function ScheduleForm({ onDone }: { onDone: () => void }) {
     e.preventDefault();
     if (!f.title || !f.date) return setMsg("Preencha o título e a data.");
     if (f.audience === "cohort" && !f.cohortId) return setMsg("Escolha a turma.");
-    if (f.audience === "selected" && !f.enrollmentIds.length) return setMsg("Escolha pelo menos uma mentorada.");
+    if (f.audience === "selected" && !f.enrollmentIds.length)
+      return setMsg("Escolha pelo menos uma mentorada.");
     const startsAt = new Date(`${f.date}T${f.start}`);
     const endsAt = new Date(`${f.date}T${f.end}`);
     if (endsAt <= startsAt) return setMsg("O horário de término precisa ser depois do início.");
@@ -396,8 +464,17 @@ function ScheduleForm({ onDone }: { onDone: () => void }) {
   }
 
   return (
-    <div className="modal-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onDone()}>
-      <section className="content-modal ops-modal" role="dialog" aria-modal="true" aria-label="Agendar encontro">
+    <div
+      className="modal-backdrop"
+      role="presentation"
+      onMouseDown={(e) => e.target === e.currentTarget && onDone()}
+    >
+      <section
+        className="content-modal ops-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Agendar encontro"
+      >
         <button className="modal-close" type="button" onClick={onDone} aria-label="Fechar">
           <X size={21} />
         </button>
@@ -405,11 +482,18 @@ function ScheduleForm({ onDone }: { onDone: () => void }) {
           <span className="eyebrow eyebrow--gold">Agenda RISE</span>
           <h2>Agendar encontro</h2>
           <Field label="Título do encontro">
-            <input value={f.title} onChange={(e) => set("title", e.target.value)} placeholder="Ex.: RISE Decision Room" />
+            <input
+              value={f.title}
+              onChange={(e) => set("title", e.target.value)}
+              placeholder="Ex.: RISE Decision Room"
+            />
           </Field>
           <div className="ops-grid2">
             <Field label="Mês / pilar">
-              <select value={f.phaseId} onChange={(e) => setF((p) => ({ ...p, phaseId: e.target.value, lessonId: "" }))}>
+              <select
+                value={f.phaseId}
+                onChange={(e) => setF((p) => ({ ...p, phaseId: e.target.value, lessonId: "" }))}
+              >
                 <option value="">Sem vínculo</option>
                 {dir?.phases.map((p: any) => (
                   <option key={p.id} value={p.id}>
@@ -419,10 +503,18 @@ function ScheduleForm({ onDone }: { onDone: () => void }) {
               </select>
             </Field>
             <Field label="Sessão da trilha (opcional)">
-              <select value={f.lessonId} disabled={!phase} onChange={(e) => {
-                const l = phase?.lessons.find((x: any) => x.id === e.target.value);
-                setF((p) => ({ ...p, lessonId: e.target.value, title: p.title || l?.title || "" }));
-              }}>
+              <select
+                value={f.lessonId}
+                disabled={!phase}
+                onChange={(e) => {
+                  const l = phase?.lessons.find((x: any) => x.id === e.target.value);
+                  setF((p) => ({
+                    ...p,
+                    lessonId: e.target.value,
+                    title: p.title || l?.title || "",
+                  }));
+                }}
+              >
                 <option value="">Nenhuma</option>
                 {phase?.lessons.map((l: any) => (
                   <option key={l.id} value={l.id}>
@@ -462,7 +554,12 @@ function ScheduleForm({ onDone }: { onDone: () => void }) {
                   ["selected", "Mentoradas escolhidas"],
                 ] as const
               ).map(([v, l]) => (
-                <button key={v} type="button" className={f.audience === v ? "is-active" : ""} onClick={() => set("audience", v)}>
+                <button
+                  key={v}
+                  type="button"
+                  className={f.audience === v ? "is-active" : ""}
+                  onClick={() => set("audience", v)}
+                >
                   {l}
                 </button>
               ))}
@@ -482,31 +579,53 @@ function ScheduleForm({ onDone }: { onDone: () => void }) {
           ) : null}
           {f.audience === "selected" ? (
             <div className="ops-checks">
-              {dir?.enrollments.filter((e) => e.status === "ativa").map((e) => (
-                <label key={e.id}>
-                  <input
-                    type="checkbox"
-                    checked={f.enrollmentIds.includes(e.id)}
-                    onChange={(ev) =>
-                      set("enrollmentIds", ev.target.checked ? [...f.enrollmentIds, e.id] : f.enrollmentIds.filter((x) => x !== e.id))
-                    }
-                  />
-                  {e.name}
-                </label>
-              ))}
-              {!dir?.enrollments.length ? <span className="ops-muted">Nenhuma mentorada cadastrada.</span> : null}
+              {dir?.enrollments
+                .filter((e) => e.status === "ativa")
+                .map((e) => (
+                  <label key={e.id}>
+                    <input
+                      type="checkbox"
+                      checked={f.enrollmentIds.includes(e.id)}
+                      onChange={(ev) =>
+                        set(
+                          "enrollmentIds",
+                          ev.target.checked
+                            ? [...f.enrollmentIds, e.id]
+                            : f.enrollmentIds.filter((x) => x !== e.id),
+                        )
+                      }
+                    />
+                    {e.name}
+                  </label>
+                ))}
+              {!dir?.enrollments.length ? (
+                <span className="ops-muted">Nenhuma mentorada cadastrada.</span>
+              ) : null}
             </div>
           ) : null}
           <Field label="Descrição (opcional)">
-            <textarea value={f.description} onChange={(e) => set("description", e.target.value)} rows={3} />
+            <textarea
+              value={f.description}
+              onChange={(e) => set("description", e.target.value)}
+              rows={3}
+            />
           </Field>
           <label className="ops-toggle">
-            <input type="checkbox" checked={f.createMeet} onChange={(e) => set("createMeet", e.target.checked)} />
+            <input
+              type="checkbox"
+              checked={f.createMeet}
+              onChange={(e) => set("createMeet", e.target.checked)}
+            />
             Gerar reunião no Google Meet e enviar convite pela minha agenda
           </label>
           {!f.createMeet ? (
             <Field label="Link da reunião (opcional)">
-              <input type="url" value={f.joinUrl} onChange={(e) => set("joinUrl", e.target.value)} placeholder="https://meet.google.com/…" />
+              <input
+                type="url"
+                value={f.joinUrl}
+                onChange={(e) => set("joinUrl", e.target.value)}
+                placeholder="https://meet.google.com/…"
+              />
             </Field>
           ) : null}
           {msg ? <p className="form-message">{msg}</p> : null}
@@ -537,8 +656,17 @@ function RecordingEditor({ m, onDone }: { m: MeetingRow; onDone: () => void }) {
     }
   }
   return (
-    <div className="modal-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onDone()}>
-      <section className="content-modal ops-modal" role="dialog" aria-modal="true" aria-label="Editar links">
+    <div
+      className="modal-backdrop"
+      role="presentation"
+      onMouseDown={(e) => e.target === e.currentTarget && onDone()}
+    >
+      <section
+        className="content-modal ops-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Editar links"
+      >
         <button className="modal-close" type="button" onClick={onDone} aria-label="Fechar">
           <X size={21} />
         </button>
@@ -549,7 +677,12 @@ function RecordingEditor({ m, onDone }: { m: MeetingRow; onDone: () => void }) {
             <input type="url" value={join} onChange={(e) => setJoin(e.target.value)} />
           </Field>
           <Field label="Link da gravação">
-            <input type="url" value={rec} onChange={(e) => setRec(e.target.value)} placeholder="Google Drive, YouTube ou Vimeo" />
+            <input
+              type="url"
+              value={rec}
+              onChange={(e) => setRec(e.target.value)}
+              placeholder="Google Drive, YouTube ou Vimeo"
+            />
           </Field>
           {msg ? <p className="form-message">{msg}</p> : null}
           <div className="content-modal__actions">
@@ -563,15 +696,24 @@ function RecordingEditor({ m, onDone }: { m: MeetingRow; onDone: () => void }) {
   );
 }
 
-function LessonMaterialsSection({ onOpen }: { onOpen: (l: { lessonId: string; label: string }) => void }) {
+function LessonMaterialsSection({
+  onOpen,
+}: {
+  onOpen: (l: { lessonId: string; label: string }) => void;
+}) {
   const { data = [] } = useQuery({
     queryKey: ["staff-lessons"],
     queryFn: async () => {
       const { data } = await supabase
         .from("lessons")
-        .select("id, title, kind, position, phase:phases(month_number, pillar), materials:lesson_materials(count)")
+        .select(
+          "id, title, kind, position, phase:phases(month_number, pillar), materials:lesson_materials(count)",
+        )
         .order("position");
-      return ((data ?? []) as any[]).sort((a, b) => (a.phase?.month_number ?? 0) - (b.phase?.month_number ?? 0) || a.position - b.position);
+      return ((data ?? []) as any[]).sort(
+        (a, b) =>
+          (a.phase?.month_number ?? 0) - (b.phase?.month_number ?? 0) || a.position - b.position,
+      );
     },
   });
   return (
@@ -584,10 +726,21 @@ function LessonMaterialsSection({ onOpen }: { onOpen: (l: { lessonId: string; la
       </div>
       <div className="x-lessons">
         {data.map((l) => (
-          <button key={l.id} type="button" className="x-lesson" onClick={() => onOpen({ lessonId: l.id, label: `Mês ${l.phase?.month_number ?? "—"} · ${l.title}` })}>
-            <small>Mês {l.phase?.month_number ?? "—"} · {l.kind === "aula" ? "Aula" : "Encontro"}</small>
+          <button
+            key={l.id}
+            type="button"
+            className="x-lesson"
+            onClick={() =>
+              onOpen({ lessonId: l.id, label: `Mês ${l.phase?.month_number ?? "—"} · ${l.title}` })
+            }
+          >
+            <small>
+              Mês {l.phase?.month_number ?? "—"} · {l.kind === "aula" ? "Aula" : "Encontro"}
+            </small>
             <strong>{l.title}</strong>
-            <span><Paperclip size={13} /> {l.materials?.[0]?.count ?? 0} material(is)</span>
+            <span>
+              <Paperclip size={13} /> {l.materials?.[0]?.count ?? 0} material(is)
+            </span>
           </button>
         ))}
       </div>
@@ -602,30 +755,56 @@ function StaffAgenda() {
   const cancelFn = useServerFn(cancelMeeting);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<MeetingRow | null>(null);
-  const [mats, setMats] = useState<{ lessonId?: string; meetingId?: string; label: string } | null>(null);
+  const [mats, setMats] = useState<{ lessonId?: string; meetingId?: string; label: string } | null>(
+    null,
+  );
   const now = Date.now();
   const upcoming = data.filter((m) => endOf(m) >= now);
   const past = data.filter((m) => endOf(m) < now).reverse();
   const audienceLabel = (m: MeetingRow) =>
-    m.audience === "all" ? "Todas as turmas" : m.audience === "cohort" ? dir?.cohorts.find((c: any) => c.id === m.cohort_id)?.name ?? "Turma" : "Mentoradas escolhidas";
+    m.audience === "all"
+      ? "Todas as turmas"
+      : m.audience === "cohort"
+        ? (dir?.cohorts.find((c: any) => c.id === m.cohort_id)?.name ?? "Turma")
+        : "Mentoradas escolhidas";
 
   async function cancel(m: MeetingRow) {
-    if (!window.confirm(`Cancelar "${m.title}"? As participantes também deixam de ver o evento.`)) return;
+    if (!window.confirm(`Cancelar "${m.title}"? As participantes também deixam de ver o evento.`))
+      return;
     const r = await cancelFn({ data: { id: m.id } });
-    if (r.googleWarning) window.alert("O encontro saiu da plataforma, mas não consegui remover o evento do Google. Apague-o na agenda manualmente.");
+    if (r.googleWarning)
+      window.alert(
+        "O encontro saiu da plataforma, mas não consegui remover o evento do Google. Apague-o na agenda manualmente.",
+      );
     await qc.invalidateQueries({ queryKey: ["meetings"] });
   }
 
   const actions = (m: MeetingRow) => (
     <>
       <span className="ops-tag">{audienceLabel(m)}</span>
-      <button className="icon-button" type="button" aria-label="Materiais" title="Materiais de apoio" onClick={() => setMats({ meetingId: m.id, label: m.title })}>
+      <button
+        className="icon-button"
+        type="button"
+        aria-label="Materiais"
+        title="Materiais de apoio"
+        onClick={() => setMats({ meetingId: m.id, label: m.title })}
+      >
         <Paperclip size={17} />
       </button>
-      <button className="icon-button" type="button" aria-label="Editar links" onClick={() => setEditing(m)}>
+      <button
+        className="icon-button"
+        type="button"
+        aria-label="Editar links"
+        onClick={() => setEditing(m)}
+      >
         <Video size={17} />
       </button>
-      <button className="icon-button" type="button" aria-label="Cancelar encontro" onClick={() => void cancel(m)}>
+      <button
+        className="icon-button"
+        type="button"
+        aria-label="Cancelar encontro"
+        onClick={() => void cancel(m)}
+      >
         <Trash2 size={17} />
       </button>
     </>
@@ -633,7 +812,11 @@ function StaffAgenda() {
 
   return (
     <main className="inner-page">
-      <Intro eyebrow="Agenda" title="Encontros da mentoria" copy="Marque encontros coletivos ou sessões 1:1. O convite e o link do Meet vão direto para a agenda das participantes." />
+      <Intro
+        eyebrow="Agenda"
+        title="Encontros da mentoria"
+        copy="Marque encontros coletivos ou sessões 1:1. O convite e o link do Meet vão direto para a agenda das participantes."
+      />
       <section className="page-width ops-section">
         <GoogleCard />
         <div className="section-heading ops-gap">
@@ -645,7 +828,11 @@ function StaffAgenda() {
           </button>
         </div>
         {upcoming.length ? (
-          <div className="ops-list">{upcoming.map((m) => <MeetingCard key={m.id} m={m} actions={actions(m)} />)}</div>
+          <div className="ops-list">
+            {upcoming.map((m) => (
+              <MeetingCard key={m.id} m={m} actions={actions(m)} />
+            ))}
+          </div>
         ) : (
           <p className="ops-empty">Nenhum encontro agendado.</p>
         )}
@@ -657,14 +844,25 @@ function StaffAgenda() {
                 <p>Use o ícone de vídeo para colar o link da gravação.</p>
               </div>
             </div>
-            <div className="ops-list">{past.map((m) => <MeetingCard key={m.id} m={m} actions={actions(m)} />)}</div>
+            <div className="ops-list">
+              {past.map((m) => (
+                <MeetingCard key={m.id} m={m} actions={actions(m)} />
+              ))}
+            </div>
           </>
         ) : null}
       </section>
       {open ? <ScheduleForm onDone={() => setOpen(false)} /> : null}
       <LessonMaterialsSection onOpen={(l) => setMats(l)} />
       {editing ? <RecordingEditor m={editing} onDone={() => setEditing(null)} /> : null}
-      {mats ? <MaterialsManager lessonId={mats.lessonId} meetingId={mats.meetingId} label={mats.label} onClose={() => setMats(null)} /> : null}
+      {mats ? (
+        <MaterialsManager
+          lessonId={mats.lessonId}
+          meetingId={mats.meetingId}
+          label={mats.label}
+          onClose={() => setMats(null)}
+        />
+      ) : null}
     </main>
   );
 }
@@ -681,7 +879,11 @@ type SubRow = {
   feedback: string | null;
   submitted_at: string | null;
   updated_at: string;
-  deliverable: { id: string; title: string; phase: { month_number: number; title: string } | null } | null;
+  deliverable: {
+    id: string;
+    title: string;
+    phase: { month_number: number; title: string } | null;
+  } | null;
 };
 
 function useSubmissions() {
@@ -690,7 +892,9 @@ function useSubmissions() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("submissions")
-        .select("id, enrollment_id, status, content, link_url, file_path, feedback, submitted_at, updated_at, deliverable:deliverables(id, title, phase:phases(month_number, title))")
+        .select(
+          "id, enrollment_id, status, content, link_url, file_path, feedback, submitted_at, updated_at, deliverable:deliverables(id, title, phase:phases(month_number, title))",
+        )
         .order("updated_at", { ascending: false });
       if (error) throw error;
       return (data ?? []) as unknown as SubRow[];
@@ -698,7 +902,15 @@ function useSubmissions() {
   });
 }
 
-function ReviewScreen({ sub, menteeName, onClose }: { sub: SubRow; menteeName: string; onClose: () => void }) {
+function ReviewScreen({
+  sub,
+  menteeName,
+  onClose,
+}: {
+  sub: SubRow;
+  menteeName: string;
+  onClose: () => void;
+}) {
   const qc = useQueryClient();
   const [feedback, setFeedback] = useState(sub.feedback ?? "");
   const [note, setNote] = useState("");
@@ -732,7 +944,12 @@ function ReviewScreen({ sub, menteeName, onClose }: { sub: SubRow; menteeName: s
     setBusy(true);
     setMsg("");
     const { data: auth } = await supabase.auth.getUser();
-    const patch: { feedback: string | null; reviewed_by: string | null; reviewed_at: string; status?: "em_andamento" | "concluida" } = {
+    const patch: {
+      feedback: string | null;
+      reviewed_by: string | null;
+      reviewed_at: string;
+      status?: "em_andamento" | "concluida";
+    } = {
       feedback: feedback || null,
       reviewed_by: auth.user?.id ?? null,
       reviewed_at: new Date().toISOString(),
@@ -749,22 +966,36 @@ function ReviewScreen({ sub, menteeName, onClose }: { sub: SubRow; menteeName: s
   async function addNote() {
     if (!note.trim()) return;
     const { data: auth } = await supabase.auth.getUser();
-    const { error } = await supabase
-      .from("notes")
-      .insert({ enrollment_id: sub.enrollment_id, author_id: auth.user!.id, visibility: "mentor_private", content: note.trim() });
+    const { error } = await supabase.from("notes").insert({
+      enrollment_id: sub.enrollment_id,
+      author_id: auth.user!.id,
+      visibility: "mentor_private",
+      content: note.trim(),
+    });
     if (error) return setMsg("Não foi possível salvar a anotação.");
     setNote("");
     await notes.refetch();
   }
 
   async function openFile() {
-    const { data } = await supabase.storage.from("rise-private").createSignedUrl(sub.file_path!, 300);
+    const { data } = await supabase.storage
+      .from("rise-private")
+      .createSignedUrl(sub.file_path!, 300);
     if (data?.signedUrl) window.open(data.signedUrl, "_blank", "noopener");
   }
 
   return (
-    <div className="modal-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <section className="content-modal ops-modal ops-modal--wide" role="dialog" aria-modal="true" aria-label="Revisar entrega">
+    <div
+      className="modal-backdrop"
+      role="presentation"
+      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <section
+        className="content-modal ops-modal ops-modal--wide"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Revisar entrega"
+      >
         <button className="modal-close" type="button" onClick={onClose} aria-label="Fechar">
           <X size={21} />
         </button>
@@ -774,18 +1005,33 @@ function ReviewScreen({ sub, menteeName, onClose }: { sub: SubRow; menteeName: s
           </span>
           <h2>{sub.deliverable?.title}</h2>
           <p className="ops-muted">
-            {sub.submitted_at ? `Enviada em ${new Date(sub.submitted_at).toLocaleString("pt-BR")}` : `Atualizada em ${new Date(sub.updated_at).toLocaleString("pt-BR")}`}
+            {sub.submitted_at
+              ? `Enviada em ${new Date(sub.submitted_at).toLocaleString("pt-BR")}`
+              : `Atualizada em ${new Date(sub.updated_at).toLocaleString("pt-BR")}`}
           </p>
           <div className="ops-review-content">
-            {sub.content ? <p className="ops-pre">{sub.content}</p> : <p className="ops-muted">Sem texto.</p>}
+            {sub.content ? (
+              <p className="ops-pre">{sub.content}</p>
+            ) : (
+              <p className="ops-muted">Sem texto.</p>
+            )}
             <div className="ops-row">
               {sub.link_url ? (
-                <a className="button button--glass" href={sub.link_url} target="_blank" rel="noreferrer">
+                <a
+                  className="button button--glass"
+                  href={sub.link_url}
+                  target="_blank"
+                  rel="noreferrer"
+                >
                   Abrir link <ExternalLink size={15} />
                 </a>
               ) : null}
               {sub.file_path ? (
-                <button className="button button--glass" type="button" onClick={() => void openFile()}>
+                <button
+                  className="button button--glass"
+                  type="button"
+                  onClick={() => void openFile()}
+                >
                   Baixar arquivo
                 </button>
               ) : null}
@@ -795,13 +1041,28 @@ function ReviewScreen({ sub, menteeName, onClose }: { sub: SubRow; menteeName: s
             <textarea rows={4} value={feedback} onChange={(e) => setFeedback(e.target.value)} />
           </Field>
           <div className="content-modal__actions">
-            <button className="button button--primary" type="button" disabled={busy} onClick={() => void save("concluida")}>
+            <button
+              className="button button--primary"
+              type="button"
+              disabled={busy}
+              onClick={() => void save("concluida")}
+            >
               <Check size={17} /> Aprovar entrega
             </button>
-            <button className="button button--glass" type="button" disabled={busy} onClick={() => void save("em_andamento")}>
+            <button
+              className="button button--glass"
+              type="button"
+              disabled={busy}
+              onClick={() => void save("em_andamento")}
+            >
               Solicitar ajustes
             </button>
-            <button className="button button--glass" type="button" disabled={busy} onClick={() => void save()}>
+            <button
+              className="button button--glass"
+              type="button"
+              disabled={busy}
+              onClick={() => void save()}
+            >
               Salvar retorno
             </button>
           </div>
@@ -811,7 +1072,12 @@ function ReviewScreen({ sub, menteeName, onClose }: { sub: SubRow; menteeName: s
               <LockKeyhole size={15} />
               <span>Anotações confidenciais · a mentorada nunca vê</span>
             </div>
-            <textarea rows={3} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Observações sobre a evolução dela…" />
+            <textarea
+              rows={3}
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Observações sobre a evolução dela…"
+            />
             <button className="button button--glass" type="button" onClick={() => void addNote()}>
               Salvar anotação
             </button>
@@ -836,7 +1102,10 @@ function ReviewPanel() {
   const [month, setMonth] = useState("");
   const [status, setStatus] = useState("");
   const [open, setOpen] = useState<SubRow | null>(null);
-  const byEnrollment = useMemo(() => new Map((dir?.enrollments ?? []).map((e) => [e.id, e])), [dir]);
+  const byEnrollment = useMemo(
+    () => new Map((dir?.enrollments ?? []).map((e) => [e.id, e])),
+    [dir],
+  );
   const rows = subs.filter((s) => {
     const e = byEnrollment.get(s.enrollment_id);
     if (cohort && e?.cohortId !== cohort) return false;
@@ -847,24 +1116,44 @@ function ReviewPanel() {
   });
   return (
     <main className="inner-page">
-      <Intro eyebrow="Avaliação" title="Entregas das mentoradas" copy="Revise, deixe o seu retorno e aprove cada marco da jornada." />
+      <Intro
+        eyebrow="Avaliação"
+        title="Entregas das mentoradas"
+        copy="Revise, deixe o seu retorno e aprove cada marco da jornada."
+      />
       <section className="page-width ops-section">
         <div className="ops-filters">
           <select value={cohort} onChange={(e) => setCohort(e.target.value)}>
             <option value="">Todas as turmas</option>
-            {dir?.cohorts.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            {dir?.cohorts.map((c: any) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
           </select>
           <select value={mentee} onChange={(e) => setMentee(e.target.value)}>
             <option value="">Todas as mentoradas</option>
-            {dir?.enrollments.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
+            {dir?.enrollments.map((e) => (
+              <option key={e.id} value={e.id}>
+                {e.name}
+              </option>
+            ))}
           </select>
           <select value={month} onChange={(e) => setMonth(e.target.value)}>
             <option value="">Todos os meses</option>
-            {dir?.phases.map((p: any) => <option key={p.id} value={String(p.month_number)}>Mês {p.month_number} · {p.title}</option>)}
+            {dir?.phases.map((p: any) => (
+              <option key={p.id} value={String(p.month_number)}>
+                Mês {p.month_number} · {p.title}
+              </option>
+            ))}
           </select>
           <select value={status} onChange={(e) => setStatus(e.target.value)}>
             <option value="">Todos os status</option>
-            {Object.entries(statusLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            {Object.entries(statusLabels).map(([k, v]) => (
+              <option key={k} value={k}>
+                {v}
+              </option>
+            ))}
           </select>
         </div>
         {rows.length ? (
@@ -873,13 +1162,25 @@ function ReviewPanel() {
               const e = byEnrollment.get(s.enrollment_id);
               return (
                 <article key={s.id} className="ops-sub-row" onClick={() => setOpen(s)}>
-                  <span className="profile-avatar">{(e?.name ?? "?").split(" ").map((p) => p[0]).slice(0, 2).join("")}</span>
+                  <span className="profile-avatar">
+                    {(e?.name ?? "?")
+                      .split(" ")
+                      .map((p) => p[0])
+                      .slice(0, 2)
+                      .join("")}
+                  </span>
                   <div>
                     <strong>{s.deliverable?.title}</strong>
-                    <small>{e?.name} · Mês {s.deliverable?.phase?.month_number}</small>
+                    <small>
+                      {e?.name} · Mês {s.deliverable?.phase?.month_number}
+                    </small>
                   </div>
-                  <span className={`ops-status ops-status--${s.status}`}>{statusLabels[s.status]}</span>
-                  <small className="ops-muted">{new Date(s.submitted_at ?? s.updated_at).toLocaleDateString("pt-BR")}</small>
+                  <span className={`ops-status ops-status--${s.status}`}>
+                    {statusLabels[s.status]}
+                  </span>
+                  <small className="ops-muted">
+                    {new Date(s.submitted_at ?? s.updated_at).toLocaleDateString("pt-BR")}
+                  </small>
                   <button type="button" aria-label="Revisar">
                     <FileCheck2 size={18} />
                   </button>
@@ -891,7 +1192,13 @@ function ReviewPanel() {
           <p className="ops-empty">Nenhuma entrega com esses filtros ainda.</p>
         )}
       </section>
-      {open ? <ReviewScreen sub={open} menteeName={byEnrollment.get(open.enrollment_id)?.name ?? ""} onClose={() => setOpen(null)} /> : null}
+      {open ? (
+        <ReviewScreen
+          sub={open}
+          menteeName={byEnrollment.get(open.enrollment_id)?.name ?? ""}
+          onClose={() => setOpen(null)}
+        />
+      ) : null}
     </main>
   );
 }
@@ -906,17 +1213,31 @@ function CohortForm({ onDone }: { onDone: () => void }) {
   const [msg, setMsg] = useState("");
   async function save() {
     if (!name.trim()) return setMsg("Dê um nome à turma.");
-    const { error } = await supabase.from("cohorts").insert({ name: name.trim(), starts_on: start || null, ends_on: end || null });
+    const { error } = await supabase
+      .from("cohorts")
+      .insert({ name: name.trim(), starts_on: start || null, ends_on: end || null });
     if (error) return setMsg("Não foi possível criar a turma.");
     await qc.invalidateQueries({ queryKey: ["directory"] });
     onDone();
   }
   return (
     <div className="ops-inline-form">
-      <Field label="Nome da turma"><input value={name} onChange={(e) => setName(e.target.value)} placeholder="Turma 2 — 2027" /></Field>
-      <Field label="Início"><input type="date" value={start} onChange={(e) => setStart(e.target.value)} /></Field>
-      <Field label="Conclusão"><input type="date" value={end} onChange={(e) => setEnd(e.target.value)} /></Field>
-      <button className="button button--primary" type="button" onClick={() => void save()}>Criar turma</button>
+      <Field label="Nome da turma">
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Turma 2 — 2027"
+        />
+      </Field>
+      <Field label="Início">
+        <input type="date" value={start} onChange={(e) => setStart(e.target.value)} />
+      </Field>
+      <Field label="Conclusão">
+        <input type="date" value={end} onChange={(e) => setEnd(e.target.value)} />
+      </Field>
+      <button className="button button--primary" type="button" onClick={() => void save()}>
+        Criar turma
+      </button>
       {msg ? <span className="form-message">{msg}</span> : null}
     </div>
   );
@@ -926,7 +1247,14 @@ function MemberForm({ onDone }: { onDone: () => void }) {
   const qc = useQueryClient();
   const { data: dir } = useDirectory();
   const fn = useServerFn(createMember);
-  const [f, setF] = useState({ fullName: "", email: "", role: "mentee" as "mentee" | "mentor" | "admin", cohortId: "", mentorId: "", password: tempPassword() });
+  const [f, setF] = useState({
+    fullName: "",
+    email: "",
+    role: "mentee" as "mentee" | "mentor" | "admin",
+    cohortId: "",
+    mentorId: "",
+    password: tempPassword(),
+  });
   const [msg, setMsg] = useState("");
   const [done, setDone] = useState<{ email: string; password: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -935,7 +1263,9 @@ function MemberForm({ onDone }: { onDone: () => void }) {
     setBusy(true);
     setMsg("");
     try {
-      const r = await fn({ data: { ...f, cohortId: f.cohortId || null, mentorId: f.mentorId || null } });
+      const r = await fn({
+        data: { ...f, cohortId: f.cohortId || null, mentorId: f.mentorId || null },
+      });
       if (!r.ok) return setMsg(r.error);
       await qc.invalidateQueries({ queryKey: ["directory"] });
       setDone({ email: f.email, password: f.password });
@@ -946,30 +1276,61 @@ function MemberForm({ onDone }: { onDone: () => void }) {
     }
   }
   return (
-    <div className="modal-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onDone()}>
-      <section className="content-modal ops-modal" role="dialog" aria-modal="true" aria-label="Cadastrar pessoa">
-        <button className="modal-close" type="button" onClick={onDone} aria-label="Fechar"><X size={21} /></button>
+    <div
+      className="modal-backdrop"
+      role="presentation"
+      onMouseDown={(e) => e.target === e.currentTarget && onDone()}
+    >
+      <section
+        className="content-modal ops-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Cadastrar pessoa"
+      >
+        <button className="modal-close" type="button" onClick={onDone} aria-label="Fechar">
+          <X size={21} />
+        </button>
         {done ? (
           <div className="content-modal__body ops-form">
             <span className="eyebrow eyebrow--gold">Acesso criado</span>
             <h2>Pronto!</h2>
             <p>Envie estes dados para a pessoa. No primeiro acesso ela cria a própria senha.</p>
             <div className="ops-review-content">
-              <p><strong>E-mail:</strong> {done.email}</p>
-              <p><strong>Senha inicial:</strong> {done.password}</p>
+              <p>
+                <strong>E-mail:</strong> {done.email}
+              </p>
+              <p>
+                <strong>Senha inicial:</strong> {done.password}
+              </p>
             </div>
             <div className="content-modal__actions">
-              <button className="button button--primary" type="button" onClick={onDone}>Concluir</button>
+              <button className="button button--primary" type="button" onClick={onDone}>
+                Concluir
+              </button>
             </div>
           </div>
         ) : (
           <form className="content-modal__body ops-form" onSubmit={(e) => void save(e)}>
             <span className="eyebrow eyebrow--gold">Gestão de acessos</span>
             <h2>Cadastrar pessoa</h2>
-            <Field label="Nome completo"><input value={f.fullName} onChange={(e) => setF({ ...f, fullName: e.target.value })} /></Field>
-            <Field label="E-mail"><input type="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></Field>
+            <Field label="Nome completo">
+              <input
+                value={f.fullName}
+                onChange={(e) => setF({ ...f, fullName: e.target.value })}
+              />
+            </Field>
+            <Field label="E-mail">
+              <input
+                type="email"
+                value={f.email}
+                onChange={(e) => setF({ ...f, email: e.target.value })}
+              />
+            </Field>
             <Field label="Papel">
-              <select value={f.role} onChange={(e) => setF({ ...f, role: e.target.value as typeof f.role })}>
+              <select
+                value={f.role}
+                onChange={(e) => setF({ ...f, role: e.target.value as typeof f.role })}
+              >
                 <option value="mentee">Mentorada</option>
                 <option value="mentor">Mentora</option>
                 <option value="admin">Administradora</option>
@@ -978,23 +1339,44 @@ function MemberForm({ onDone }: { onDone: () => void }) {
             {f.role === "mentee" ? (
               <div className="ops-grid2">
                 <Field label="Turma">
-                  <select value={f.cohortId} onChange={(e) => setF({ ...f, cohortId: e.target.value })}>
+                  <select
+                    value={f.cohortId}
+                    onChange={(e) => setF({ ...f, cohortId: e.target.value })}
+                  >
                     <option value="">Sem turma</option>
-                    {dir?.cohorts.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    {dir?.cohorts.map((c: any) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
                   </select>
                 </Field>
                 <Field label="Mentora responsável">
-                  <select value={f.mentorId} onChange={(e) => setF({ ...f, mentorId: e.target.value })}>
+                  <select
+                    value={f.mentorId}
+                    onChange={(e) => setF({ ...f, mentorId: e.target.value })}
+                  >
                     <option value="">Escolher depois</option>
-                    {dir?.staff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    {dir?.staff.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
                   </select>
                 </Field>
               </div>
             ) : null}
-            <Field label="Senha inicial (ela troca no primeiro acesso)"><input value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} /></Field>
+            <Field label="Senha inicial (ela troca no primeiro acesso)">
+              <input
+                value={f.password}
+                onChange={(e) => setF({ ...f, password: e.target.value })}
+              />
+            </Field>
             {msg ? <p className="form-message">{msg}</p> : null}
             <div className="content-modal__actions">
-              <button className="button button--primary" type="submit" disabled={busy}>{busy ? "Criando…" : "Criar acesso"}</button>
+              <button className="button button--primary" type="submit" disabled={busy}>
+                {busy ? "Criando…" : "Criar acesso"}
+              </button>
             </div>
           </form>
         )}
@@ -1013,7 +1395,14 @@ function MembersPanel() {
   const [memberOpen, setMemberOpen] = useState(false);
   const [goalsOf, setGoalsOf] = useState<{ id: string; name: string } | null>(null);
 
-  async function update(enrollmentId: string, patch: { cohortId?: string | null; mentorId?: string | null; status?: "ativa" | "pausada" | "desativada" }) {
+  async function update(
+    enrollmentId: string,
+    patch: {
+      cohortId?: string | null;
+      mentorId?: string | null;
+      status?: "ativa" | "pausada" | "desativada";
+    },
+  ) {
     await updateFn({ data: { enrollmentId, ...patch } });
     await qc.invalidateQueries({ queryKey: ["directory"] });
   }
@@ -1024,17 +1413,25 @@ function MembersPanel() {
     window.alert(`Nova senha inicial de ${name}: ${pw}\nEla troca no próximo acesso.`);
   }
   const monthStatus = (enrollmentId: string, month: number) =>
-    subs.find((s) => s.enrollment_id === enrollmentId && s.deliverable?.phase?.month_number === month)?.status ?? "nao_iniciada";
+    subs.find(
+      (s) => s.enrollment_id === enrollmentId && s.deliverable?.phase?.month_number === month,
+    )?.status ?? "nao_iniciada";
 
   return (
     <main className="inner-page">
-      <Intro eyebrow="Gestão" title="Alunas e turmas" copy="Cadastre pessoas, organize as turmas e defina quem acompanha cada mentorada." />
+      <Intro
+        eyebrow="Gestão"
+        title="Alunas e turmas"
+        copy="Cadastre pessoas, organize as turmas e defina quem acompanha cada mentorada."
+      />
       <section className="page-width ops-section">
         <div className="section-heading">
           <div>
             <h2>Turmas</h2>
           </div>
-          <button type="button" onClick={() => setCohortOpen(!cohortOpen)}><Plus size={16} /> Nova turma</button>
+          <button type="button" onClick={() => setCohortOpen(!cohortOpen)}>
+            <Plus size={16} /> Nova turma
+          </button>
         </div>
         {cohortOpen ? <CohortForm onDone={() => setCohortOpen(false)} /> : null}
         <div className="ops-cohorts">
@@ -1042,8 +1439,8 @@ function MembersPanel() {
             <article key={c.id} className="admin-card">
               <strong>{c.name}</strong>
               <small className="ops-muted">
-                {c.starts_on ? new Date(`${c.starts_on}T12:00`).toLocaleDateString("pt-BR") : "—"} até{" "}
-                {c.ends_on ? new Date(`${c.ends_on}T12:00`).toLocaleDateString("pt-BR") : "—"}
+                {c.starts_on ? new Date(`${c.starts_on}T12:00`).toLocaleDateString("pt-BR") : "—"}{" "}
+                até {c.ends_on ? new Date(`${c.ends_on}T12:00`).toLocaleDateString("pt-BR") : "—"}
               </small>
               <span>{dir.enrollments.filter((e) => e.cohortId === c.id).length} mentorada(s)</span>
             </article>
@@ -1055,7 +1452,9 @@ function MembersPanel() {
             <h2>Mentoradas</h2>
             <p>Avanço na trilha e status da entrega do mês atual.</p>
           </div>
-          <button type="button" onClick={() => setMemberOpen(true)}><Plus size={16} /> Cadastrar pessoa</button>
+          <button type="button" onClick={() => setMemberOpen(true)}>
+            <Plus size={16} /> Cadastrar pessoa
+          </button>
         </div>
         <div className="ops-table-wrap">
           <table className="ops-table">
@@ -1073,34 +1472,90 @@ function MembersPanel() {
             <tbody>
               {dir?.enrollments.map((e) => (
                 <tr key={e.id}>
-                  <td><button type="button" className="x-namebtn" onClick={() => setGoalsOf({ id: e.id, name: e.name })} title="Ver RISE 90"><strong>{e.name}</strong><small>{e.email || e.profession ? `${e.email || e.profession} · ` : ""}RISE 90</small></button></td>
                   <td>
-                    <select value={e.cohortId ?? ""} onChange={(ev) => void update(e.id, { cohortId: ev.target.value || null })}>
+                    <button
+                      type="button"
+                      className="x-namebtn"
+                      onClick={() => setGoalsOf({ id: e.id, name: e.name })}
+                      title="Ver RISE 90"
+                    >
+                      <strong>{e.name}</strong>
+                      <small>
+                        {e.email || e.profession ? `${e.email || e.profession} · ` : ""}RISE 90
+                      </small>
+                    </button>
+                  </td>
+                  <td>
+                    <select
+                      value={e.cohortId ?? ""}
+                      onChange={(ev) => void update(e.id, { cohortId: ev.target.value || null })}
+                    >
                       <option value="">Sem turma</option>
-                      {dir.cohorts.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      {dir.cohorts.map((c: any) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
                     </select>
                   </td>
                   <td>
-                    <select value={e.mentorId ?? ""} onChange={(ev) => void update(e.id, { mentorId: ev.target.value || null })}>
+                    <select
+                      value={e.mentorId ?? ""}
+                      onChange={(ev) => void update(e.id, { mentorId: ev.target.value || null })}
+                    >
                       <option value="">—</option>
-                      {dir.staff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                      {dir.staff.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
                     </select>
                   </td>
                   <td>
-                    <div className="table-progress"><span><i style={{ width: `${e.progress}%` }} /></span><small>{e.progress}%</small></div>
+                    <div className="table-progress">
+                      <span>
+                        <i style={{ width: `${e.progress}%` }} />
+                      </span>
+                      <small>{e.progress}%</small>
+                    </div>
                   </td>
-                  <td><span className={`ops-status ops-status--${monthStatus(e.id, e.month)}`}>{statusLabels[monthStatus(e.id, e.month)]}</span></td>
-                  <td><span className={`ops-tag ops-tag--${e.status}`}>{enrollmentLabels[e.status]}</span></td>
+                  <td>
+                    <span className={`ops-status ops-status--${monthStatus(e.id, e.month)}`}>
+                      {statusLabels[monthStatus(e.id, e.month)]}
+                    </span>
+                  </td>
+                  <td>
+                    <span className={`ops-tag ops-tag--${e.status}`}>
+                      {enrollmentLabels[e.status]}
+                    </span>
+                  </td>
                   <td className="ops-actions">
                     {e.status === "ativa" ? (
-                      <button type="button" onClick={() => void update(e.id, { status: "pausada" })}>Pausar</button>
+                      <button
+                        type="button"
+                        onClick={() => void update(e.id, { status: "pausada" })}
+                      >
+                        Pausar
+                      </button>
                     ) : (
-                      <button type="button" onClick={() => void update(e.id, { status: "ativa" })}>Reativar</button>
+                      <button type="button" onClick={() => void update(e.id, { status: "ativa" })}>
+                        Reativar
+                      </button>
                     )}
                     {e.status !== "desativada" ? (
-                      <button type="button" onClick={() => window.confirm(`Desativar o acesso de ${e.name}?`) && void update(e.id, { status: "desativada" })}>Desativar</button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          window.confirm(`Desativar o acesso de ${e.name}?`) &&
+                          void update(e.id, { status: "desativada" })
+                        }
+                      >
+                        Desativar
+                      </button>
                     ) : null}
-                    <button type="button" onClick={() => void reset(e.menteeId, e.name)}>Redefinir senha</button>
+                    <button type="button" onClick={() => void reset(e.menteeId, e.name)}>
+                      Redefinir senha
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -1124,7 +1579,13 @@ function MembersPanel() {
         </div>
       </section>
       {memberOpen ? <MemberForm onDone={() => setMemberOpen(false)} /> : null}
-      {goalsOf ? <Rise90StaffDrawer enrollmentId={goalsOf.id} name={goalsOf.name} onClose={() => setGoalsOf(null)} /> : null}
+      {goalsOf ? (
+        <Rise90StaffDrawer
+          enrollmentId={goalsOf.id}
+          name={goalsOf.name}
+          onClose={() => setGoalsOf(null)}
+        />
+      ) : null}
     </main>
   );
 }
@@ -1142,7 +1603,11 @@ function StaffOverview({ isAdmin, onView }: { isAdmin: boolean; onView: (v: Staf
       <Intro
         eyebrow={isAdmin ? "Administração" : "Área da mentora"}
         title={isAdmin ? "Gestão da RISE NOW" : "Acompanhe com profundidade."}
-        copy={isAdmin ? "Agenda, entregas e acessos em um só lugar." : "Você vê somente as mentoradas atribuídas a você."}
+        copy={
+          isAdmin
+            ? "Agenda, entregas e acessos em um só lugar."
+            : "Você vê somente as mentoradas atribuídas a você."
+        }
       />
       <section className="mentor-stats page-width">
         <article onClick={() => isAdmin && onView("alunas")}>
@@ -1163,28 +1628,63 @@ function StaffOverview({ isAdmin, onView }: { isAdmin: boolean; onView: (v: Staf
       </section>
       {upcoming[0] ? (
         <section className="page-width ops-section">
-          <div className="section-heading"><div><h2>Próximo encontro</h2></div></div>
+          <div className="section-heading">
+            <div>
+              <h2>Próximo encontro</h2>
+            </div>
+          </div>
           <MeetingCard m={upcoming[0]} />
         </section>
       ) : null}
       <section className="page-width ops-section">
-        <div className="section-heading"><div><h2>{isAdmin ? "Mentoradas" : "Suas mentoradas"}</h2></div></div>
+        <div className="section-heading">
+          <div>
+            <h2>{isAdmin ? "Mentoradas" : "Suas mentoradas"}</h2>
+          </div>
+        </div>
         <div className="people-table">
           {dir?.enrollments.map((e) => (
             <article key={e.id}>
-              <span className="profile-avatar">{e.name.split(" ").map((p) => p[0]).slice(0, 2).join("")}</span>
-              <div><strong>{e.name}</strong><small>Mês {e.month} · {enrollmentLabels[e.status]}</small></div>
-              <div className="table-progress"><span><i style={{ width: `${e.progress}%` }} /></span><small>{e.progress}%</small></div>
+              <span className="profile-avatar">
+                {e.name
+                  .split(" ")
+                  .map((p) => p[0])
+                  .slice(0, 2)
+                  .join("")}
+              </span>
+              <div>
+                <strong>{e.name}</strong>
+                <small>
+                  Mês {e.month} · {enrollmentLabels[e.status]}
+                </small>
+              </div>
+              <div className="table-progress">
+                <span>
+                  <i style={{ width: `${e.progress}%` }} />
+                </span>
+                <small>{e.progress}%</small>
+              </div>
             </article>
           ))}
-          {dir && !dir.enrollments.length ? <p className="ops-empty">Nenhuma mentorada atribuída ainda.</p> : null}
+          {dir && !dir.enrollments.length ? (
+            <p className="ops-empty">Nenhuma mentorada atribuída ainda.</p>
+          ) : null}
         </div>
       </section>
     </main>
   );
 }
 
-export function StaffArea({ isAdmin, view, onView }: { isAdmin: boolean; view: StaffView; onView: (v: StaffView) => void }) {
+export function StaffArea({
+  isAdmin,
+  view,
+  onView,
+}: {
+  isAdmin: boolean;
+  view: StaffView;
+  onView: (v: StaffView) => void;
+}) {
+  if (view === "gestao-jornada") return <JourneyAdmin />;
   if (view === "agenda") return <StaffAgenda />;
   if (view === "entregas") return <ReviewPanel />;
   if (view === "alunas" && isAdmin) return <MembersPanel />;

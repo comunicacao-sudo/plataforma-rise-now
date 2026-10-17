@@ -57,6 +57,13 @@
       "when": 1792180800000,
       "tag": "0007_profile_preferences_and_privacy",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792202400000,
+      "tag": "0008_editable_journey_and_next_step",
+      "breakpoints": true
     }
   ]
 }

@@ -1,5 +1,7 @@
 import riseLogo from "@/assets/rise-logo-light.png.asset.json";
 import riseIcon from "@/assets/rise-icon-light.png.asset.json";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import {
   ArrowRight,
   Bell,
@@ -29,7 +31,14 @@ import {
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import { demoMentees, mentors } from "@/data/rise-content";
-import { Avatar, MentorsSection, NotificationBell, ProfileModal, Rise90Live, useMyProfile } from "@/components/rise-extras";
+import {
+  Avatar,
+  MentorsSection,
+  NotificationBell,
+  ProfileModal,
+  Rise90Live,
+  useMyProfile,
+} from "@/components/rise-extras";
 import {
   LessonScreen,
   TrailAgenda,
@@ -40,10 +49,22 @@ import {
   type TrailLesson,
 } from "@/components/rise-trail";
 import { supabase } from "@/integrations/supabase/client";
-import { MenteeMeetings, NextMeetingBanner, StaffArea, type StaffView } from "@/components/rise-ops";
+import {
+  MenteeMeetings,
+  NextMeetingBanner,
+  StaffArea,
+  type StaffView,
+} from "@/components/rise-ops";
+import { NextStepHero } from "@/components/journey-next-step";
+import {
+  getNextJourneyStep,
+  startJourneyStep,
+  type NextJourneyStep,
+} from "@/lib/journey.functions";
 
 type Role = "mentee" | "mentor" | "admin";
-type View = "inicio" | "jornada" | "agenda" | "entregas" | "rise90" | "painel" | "alunas";
+type View =
+  "inicio" | "jornada" | "agenda" | "entregas" | "rise90" | "painel" | "gestao-jornada" | "alunas";
 type AuthMode = "checking" | "login" | "authenticated" | "demo" | "change-password";
 
 const roleLabels: Record<Role, string> = {
@@ -200,7 +221,14 @@ function LoginScreen({ onDemo }: { onDemo: () => void }) {
               {busy ? "Verificando…" : method === "password" ? "Entrar" : "Receber acesso seguro"}
               {!busy ? <ArrowRight size={18} /> : null}
             </button>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 12,
+                flexWrap: "wrap",
+              }}
+            >
               <button
                 className="demo-link"
                 type="button"
@@ -269,7 +297,9 @@ export function NewPasswordScreen({
         same_password: "A nova senha precisa ser diferente da atual.",
         session_not_found: "Sua sessão expirou. Saia e entre novamente.",
       };
-      return setError(messages[code ?? ""] ?? `Não foi possível salvar a senha: ${updateError.message}`);
+      return setError(
+        messages[code ?? ""] ?? `Não foi possível salvar a senha: ${updateError.message}`,
+      );
     }
     sessionStorage.removeItem("rise-initial-pw");
     onDone?.();
@@ -293,17 +323,39 @@ export function NewPasswordScreen({
           {!recovery ? (
             <>
               <label htmlFor="rise-current-password">Senha atual</label>
-              <input id="rise-current-password" type="password" required autoComplete="current-password"
-                value={current} onChange={(e) => setCurrent(e.target.value)} />
+              <input
+                id="rise-current-password"
+                type="password"
+                required
+                autoComplete="current-password"
+                value={current}
+                onChange={(e) => setCurrent(e.target.value)}
+              />
             </>
           ) : null}
           <label htmlFor="rise-new-password">Nova senha</label>
-          <input id="rise-new-password" type="password" required autoComplete="new-password"
-            value={password} onChange={(e) => setPassword(e.target.value)} />
+          <input
+            id="rise-new-password"
+            type="password"
+            required
+            autoComplete="new-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
           <label htmlFor="rise-confirm-password">Repita a nova senha</label>
-          <input id="rise-confirm-password" type="password" required autoComplete="new-password"
-            value={confirm} onChange={(e) => setConfirm(e.target.value)} />
-          {error ? <p className="form-error" role="alert">{error}</p> : null}
+          <input
+            id="rise-confirm-password"
+            type="password"
+            required
+            autoComplete="new-password"
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+          />
+          {error ? (
+            <p className="form-error" role="alert">
+              {error}
+            </p>
+          ) : null}
           <button className="button button--primary button--wide" type="submit" disabled={busy}>
             {busy ? "Salvando…" : "Salvar e entrar"}
             {!busy ? <ArrowRight size={18} /> : null}
@@ -360,6 +412,7 @@ function Header({
         ]
       : [
           { label: "Painel", view: "painel" },
+          { label: "Minha jornada", view: "gestao-jornada" },
           { label: "Agenda", view: "agenda" },
           { label: "Entregas", view: "entregas" },
           ...(role === "admin" ? [{ label: "Alunas e turmas", view: "alunas" as View }] : []),
@@ -408,13 +461,21 @@ function Header({
             onNavigate={(link) =>
               onView(
                 (role === "mentee"
-                  ? link.startsWith("lesson:") ? "jornada" : link
-                  : ["agenda", "entregas"].includes(link) ? link : "painel") as View,
+                  ? link.startsWith("lesson:")
+                    ? "jornada"
+                    : link
+                  : ["agenda", "entregas"].includes(link)
+                    ? link
+                    : "painel") as View,
               )
             }
           />
         ) : (
-          <button className="icon-button notification-button" type="button" aria-label="Notificações">
+          <button
+            className="icon-button notification-button"
+            type="button"
+            aria-label="Notificações"
+          >
             <Bell size={20} />
           </button>
         )}
@@ -454,7 +515,13 @@ function Header({
                 </>
               ) : null}
               {!demo ? (
-                <button type="button" onClick={() => { setEditProfile(true); setProfileOpen(false); }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditProfile(true);
+                    setProfileOpen(false);
+                  }}
+                >
                   <UserRound size={16} /> Meu perfil
                 </button>
               ) : null}
@@ -508,9 +575,7 @@ function Hero({
           <span className="eyebrow">
             <span className="eyebrow__dot" /> Mês {phase?.month ?? 1} · {phase?.title ?? "Reflexão"}
           </span>
-          <h1>
-            {phase?.question ?? "Onde estou?"}
-          </h1>
+          <h1>{phase?.question ?? "Onde estou?"}</h1>
           <p>{phase?.description}</p>
           <div className="hero__meta">
             {previous ? (
@@ -524,7 +589,8 @@ function Hero({
           </div>
           <div className="hero__actions">
             <button className="button button--primary" type="button" onClick={onContinue}>
-              <Play size={18} fill="currentColor" /> {trail.progressPct ? "Continuar jornada" : "Começar jornada"}
+              <Play size={18} fill="currentColor" />{" "}
+              {trail.progressPct ? "Continuar jornada" : "Começar jornada"}
             </button>
             <button className="button button--glass" type="button" onClick={onJourney}>
               Ver trilha completa <ArrowRight size={17} />
@@ -549,8 +615,13 @@ function Hero({
 function ContentCard({ item, onOpen }: { item: TrailLesson; onOpen: (item: TrailLesson) => void }) {
   return (
     <button className="content-card" type="button" onClick={() => onOpen(item)}>
-      <div className="content-card__art" style={{ background: accents[(item.month - 1) % accents.length] }}>
-        <span className="content-card__type">{item.kind === "aula" ? "Aula" : item.format ?? "Encontro"}</span>
+      <div
+        className="content-card__art"
+        style={{ background: accents[(item.month - 1) % accents.length] }}
+      >
+        <span className="content-card__type">
+          {item.kind === "aula" ? "Aula" : (item.format ?? "Encontro")}
+        </span>
         <span className="content-card__spark">✦</span>
         <span className="content-card__initial">{item.title.charAt(0)}</span>
         <span className="content-card__play">
@@ -605,7 +676,11 @@ function Rail({
 }
 
 function phaseStatus(trail: Trail, month: number) {
-  return month < trail.currentMonth ? "completed" : month === trail.currentMonth ? "current" : "upcoming";
+  return month < trail.currentMonth
+    ? "completed"
+    : month === trail.currentMonth
+      ? "current"
+      : "upcoming";
 }
 
 function JourneyRail({ trail, onView }: { trail: Trail; onView: () => void }) {
@@ -644,6 +719,58 @@ function JourneyRail({ trail, onView }: { trail: Trail; onView: () => void }) {
   );
 }
 
+function fallbackNextStep(trail: Trail): NextJourneyStep {
+  const lesson = trail.phases.flatMap((phase) => phase.lessons).find((item) => !item.completed);
+  if (!lesson) return { state: "complete" };
+  const onboarding = /onboarding/i.test(lesson.title);
+  const mapa = /mapa de esclarecimento/i.test(lesson.title);
+  const format: NonNullable<NextJourneyStep["format"]> = /question/i.test(lesson.title)
+    ? "questionnaire"
+    : lesson.kind === "aula"
+      ? "recorded_class"
+      : /individual/i.test(lesson.format ?? "")
+        ? "individual_1_1"
+        : "live_group";
+  return {
+    state: "ready",
+    enrollmentId: trail.enrollmentId ?? undefined,
+    pillarName: lesson.phaseTitle,
+    stepKey: lesson.id,
+    title: lesson.title,
+    format,
+    impactHighlight: onboarding
+      ? "Seu próximo nível"
+      : mapa
+        ? "Enxergar com clareza"
+        : lesson.title,
+    impactTail: onboarding
+      ? "começa aqui."
+      : mapa
+        ? "é o primeiro passo para avançar com intenção."
+        : "",
+    description: onboarding
+      ? "O onboarding é o primeiro encontro da sua jornada RISE. Em uma reunião coletiva, você vai entender como a mentoria funciona, alinhar expectativas e se preparar para os próximos passos."
+      : lesson.description,
+    responsibleName: lesson.mentor,
+    durationMinutes: lesson.duration,
+    resourceType: "legacy_lesson",
+    resourceId: lesson.id,
+    resourceUrl: lesson.joinUrl ?? lesson.mediaUrl,
+    scheduledAt: lesson.scheduledAt,
+    progressStatus: "not_started",
+    actionLabel:
+      format === "questionnaire"
+        ? "Responder questionário"
+        : format === "recorded_class"
+          ? "Assistir à aula"
+          : format === "individual_1_1"
+            ? "Ver meu encontro"
+            : lesson.joinUrl
+              ? "Entrar no encontro"
+              : "Ver detalhes do encontro",
+  };
+}
+
 function HomeView({
   trail,
   onView,
@@ -653,16 +780,60 @@ function HomeView({
   onView: (view: View) => void;
   onOpen: (l: TrailLesson) => void;
 }) {
+  const loadNext = useServerFn(getNextJourneyStep);
+  const startNext = useServerFn(startJourneyStep);
+  const queryClient = useQueryClient();
+  const nextStepQuery = useQuery({
+    queryKey: ["next-journey-step", trail.enrollmentId],
+    queryFn: () => loadNext(),
+    enabled: !trail.demo,
+    refetchOnWindowFocus: true,
+  });
   const phase = currentPhase(trail);
   const next = trail.phases.find((p) => p.month === trail.currentMonth + 1);
-  const firstPending = phase?.lessons.find((l) => !l.completed) ?? phase?.lessons[0];
-  const revisit = trail.phases.flatMap((p) => p.lessons).filter((l) => l.completed && l.kind === "aula");
+  const revisit = trail.phases
+    .flatMap((p) => p.lessons)
+    .filter((l) => l.completed && l.kind === "aula");
+  const highlightedStep = trail.demo
+    ? fallbackNextStep(trail)
+    : nextStepQuery.isError
+      ? ({ state: "error" } satisfies NextJourneyStep)
+      : (nextStepQuery.data ?? ({ state: "no_enrollment" } satisfies NextJourneyStep));
+
+  async function openHighlightedStep() {
+    if (highlightedStep.enrollmentId && highlightedStep.stepKey && !trail.demo) {
+      await startNext({
+        data: { enrollmentId: highlightedStep.enrollmentId, stepKey: highlightedStep.stepKey },
+      });
+      void queryClient.invalidateQueries({ queryKey: ["next-journey-step"] });
+    }
+    if (highlightedStep.resourceType === "legacy_lesson" && highlightedStep.resourceId) {
+      const lesson = trail.phases
+        .flatMap((item) => item.lessons)
+        .find((item) => item.id === highlightedStep.resourceId);
+      if (lesson) {
+        onOpen(lesson);
+        return;
+      }
+    }
+    if (highlightedStep.format === "individual_1_1" || highlightedStep.format === "live_group") {
+      if (highlightedStep.resourceUrl) {
+        const url = new URL(highlightedStep.resourceUrl);
+        if (url.protocol === "https:") window.open(url.toString(), "_blank", "noopener,noreferrer");
+      } else onView("agenda");
+      return;
+    }
+    if (highlightedStep.resourceUrl) {
+      const url = new URL(highlightedStep.resourceUrl);
+      if (url.protocol === "https:") window.open(url.toString(), "_blank", "noopener,noreferrer");
+    }
+  }
   return (
     <>
-      <Hero
-        trail={trail}
-        onContinue={() => firstPending && onOpen(firstPending)}
-        onJourney={() => onView("jornada")}
+      <NextStepHero
+        step={highlightedStep}
+        onAction={() => void openHighlightedStep()}
+        busy={nextStepQuery.isFetching}
       />
       <div className="dashboard-body">
         <Rail
@@ -719,7 +890,9 @@ function MentorRail() {
 }
 
 function NextUp({ trail, onAgenda }: { trail: Trail; onAgenda: () => void }) {
-  const meetings = trail.phases.flatMap((p) => p.lessons).filter((l) => l.kind === "encontro" && !l.completed);
+  const meetings = trail.phases
+    .flatMap((p) => p.lessons)
+    .filter((l) => l.kind === "encontro" && !l.completed);
   const upcoming =
     meetings
       .filter((m) => m.scheduledAt && new Date(m.scheduledAt).getTime() > Date.now())
@@ -731,7 +904,9 @@ function NextUp({ trail, onAgenda }: { trail: Trail; onAgenda: () => void }) {
       <div className="next-up__date">
         <strong>{d ? String(d.getDate()).padStart(2, "0") : "✦"}</strong>
         <span>
-          {d ? d.toLocaleString("pt-BR", { month: "short" }).replace(".", "").toUpperCase() : `MÊS ${upcoming.month}`}
+          {d
+            ? d.toLocaleString("pt-BR", { month: "short" }).replace(".", "").toUpperCase()
+            : `MÊS ${upcoming.month}`}
         </span>
       </div>
       <div className="next-up__copy">
@@ -855,14 +1030,26 @@ function DeliverablesView({ trail }: { trail: Trail }) {
   );
 }
 
-function MenteeArea({ demo, view, onView }: { demo: boolean; view: View; onView: (v: View) => void }) {
+function MenteeArea({
+  demo,
+  view,
+  onView,
+}: {
+  demo: boolean;
+  view: View;
+  onView: (v: View) => void;
+}) {
   const { data: trail, isLoading } = useTrail(demo);
   const [lesson, setLesson] = useState<TrailLesson | null>(null);
   if (isLoading) return <main className="inner-page" />;
   if (!trail || !trail.phases.length)
     return (
       <main className="inner-page">
-        <PageIntro eyebrow="RISE NOW" title="Sua jornada está sendo preparada." copy="Em breve sua trilha aparece aqui." />
+        <PageIntro
+          eyebrow="RISE NOW"
+          title="Sua jornada está sendo preparada."
+          copy="Em breve sua trilha aparece aqui."
+        />
       </main>
     );
   return (
@@ -875,10 +1062,14 @@ function MenteeArea({ demo, view, onView }: { demo: boolean; view: View; onView:
         <AgendaView trail={trail} onOpen={setLesson} />
       ) : view === "entregas" ? (
         <DeliverablesView trail={trail} />
+      ) : trail.enrollmentId && !trail.demo ? (
+        <Rise90Live enrollmentId={trail.enrollmentId} />
       ) : (
-        trail.enrollmentId && !trail.demo ? <Rise90Live enrollmentId={trail.enrollmentId} /> : <Rise90View />
+        <Rise90View />
       )}
-      {lesson ? <LessonScreen lesson={lesson} trail={trail} onClose={() => setLesson(null)} /> : null}
+      {lesson ? (
+        <LessonScreen lesson={lesson} trail={trail} onClose={() => setLesson(null)} />
+      ) : null}
     </>
   );
 }
@@ -1131,13 +1322,17 @@ export function RisePlatform() {
           return;
         }
 
-        if (data.session.user.user_metadata?.['must_change_password']) {
+        if (data.session.user.user_metadata?.["must_change_password"]) {
           setAuthMode("change-password");
           return;
         }
         const userId = data.session.user.id;
         const [profileResult, rolesResult] = await Promise.all([
-          supabase.from("profiles").select("display_name, full_name").eq("id", userId).maybeSingle(),
+          supabase
+            .from("profiles")
+            .select("display_name, full_name")
+            .eq("id", userId)
+            .maybeSingle(),
           supabase.from("user_roles").select("role").eq("user_id", userId).limit(1),
         ]);
         if (!mounted) return;
@@ -1162,7 +1357,15 @@ export function RisePlatform() {
             "Participante RISE",
         );
         setRole(resolvedRole);
-        setActiveView((v) => (resolvedRole === "mentee" ? (v === "painel" || v === "alunas" ? "inicio" : v) : v === "inicio" ? "painel" : v));
+        setActiveView((v) =>
+          resolvedRole === "mentee"
+            ? v === "painel" || v === "alunas"
+              ? "inicio"
+              : v
+            : v === "inicio"
+              ? "painel"
+              : v,
+        );
         setAuthMode("authenticated");
       } catch {
         if (mounted) setAuthMode("login");
@@ -1204,7 +1407,13 @@ export function RisePlatform() {
         activeView={activeView}
         onView={setActiveView}
         role={role}
-        name={!demo || role === "mentee" ? name : role === "mentor" ? "Gabriela Ribeiro" : "Camila Mariano"}
+        name={
+          !demo || role === "mentee"
+            ? name
+            : role === "mentor"
+              ? "Gabriela Ribeiro"
+              : "Camila Mariano"
+        }
         demo={demo}
         onRole={(nextRole) => {
           setRole(nextRole);
@@ -1213,11 +1422,19 @@ export function RisePlatform() {
         onExit={() => void exit()}
       />
       {role !== "mentee" && demo ? (
-        role === "mentor" ? <MentorDashboard /> : <AdminDashboard />
+        role === "mentor" ? (
+          <MentorDashboard />
+        ) : (
+          <AdminDashboard />
+        )
       ) : role !== "mentee" ? (
         <StaffArea
           isAdmin={role === "admin"}
-          view={(["painel", "agenda", "entregas", "alunas"].includes(activeView) ? activeView : "painel") as StaffView}
+          view={
+            (["painel", "gestao-jornada", "agenda", "entregas", "alunas"].includes(activeView)
+              ? activeView
+              : "painel") as StaffView
+          }
           onView={setActiveView}
         />
       ) : (
