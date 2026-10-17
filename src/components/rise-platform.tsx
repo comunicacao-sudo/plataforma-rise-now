@@ -59,6 +59,7 @@ import {
   type StaffView,
 } from "@/components/rise-ops";
 import { NextStepHero } from "@/components/journey-next-step";
+import { RecordedLessonPage, RecordedLessonsLibrary } from "@/components/recorded-lessons";
 import {
   getNextJourneyStep,
   startJourneyStep,
@@ -947,7 +948,15 @@ function PageIntro({ eyebrow, title, copy }: { eyebrow: string; title: string; c
   );
 }
 
-function JourneyView({ trail, onOpen }: { trail: Trail; onOpen: (l: TrailLesson) => void }) {
+function JourneyView({
+  trail,
+  onOpen,
+  onOpenLibrary,
+}: {
+  trail: Trail;
+  onOpen: (l: TrailLesson) => void;
+  onOpenLibrary: () => void;
+}) {
   return (
     <main className="inner-page">
       <PageIntro
@@ -955,6 +964,18 @@ function JourneyView({ trail, onOpen }: { trail: Trail; onOpen: (l: TrailLesson)
         title="Sua jornada, em uma única visão."
         copy="Cada etapa transforma clareza em decisão, posicionamento, liderança e execução."
       />
+      <div className="page-width journey-recorded-access">
+        <div>
+          <BookOpen size={24} />
+          <span>
+            <strong>Aulas gravadas</strong>
+            <small>Assista e reveja os conteúdos de cada pilar.</small>
+          </span>
+        </div>
+        <button className="button button--primary" type="button" onClick={onOpenLibrary}>
+          Abrir biblioteca <ArrowRight size={17} />
+        </button>
+      </div>
       <section className="journey-timeline page-width">
         {trail.phases.map((item, index) => {
           const status = phaseStatus(trail, item.month);
@@ -974,7 +995,18 @@ function JourneyView({ trail, onOpen }: { trail: Trail; onOpen: (l: TrailLesson)
                   <ul className="timeline-lessons">
                     {item.lessons.map((l) => (
                       <li key={l.id}>
-                        <button type="button" onClick={() => onOpen(l)}>
+                        <button
+                          type="button"
+                          disabled={
+                            l.kind === "aula" && item.month > trail.currentMonth && !l.completed
+                          }
+                          onClick={() => onOpen(l)}
+                          title={
+                            l.kind === "aula" && item.month > trail.currentMonth && !l.completed
+                              ? "Esta aula ainda não foi liberada"
+                              : undefined
+                          }
+                        >
                           {l.completed ? <CheckCircle2 size={14} /> : <Play size={13} />}
                           {l.title}
                           <small>{l.kind === "aula" ? "Aula" : l.format}</small>
@@ -1055,6 +1087,7 @@ function MenteeArea({
 }) {
   const { data: trail, isLoading } = useTrail(demo);
   const [lesson, setLesson] = useState<TrailLesson | null>(null);
+  const [libraryOpen, setLibraryOpen] = useState(false);
   if (isLoading) return <main className="inner-page" />;
   if (!trail || !trail.phases.length)
     return (
@@ -1068,10 +1101,23 @@ function MenteeArea({
     );
   return (
     <>
-      {view === "inicio" ? (
+      {lesson?.kind === "aula" ? (
+        <RecordedLessonPage
+          lesson={lesson}
+          trail={trail}
+          onBack={() => setLesson(null)}
+          onNavigate={setLesson}
+        />
+      ) : libraryOpen && view === "jornada" ? (
+        <RecordedLessonsLibrary
+          trail={trail}
+          onOpen={setLesson}
+          onBack={() => setLibraryOpen(false)}
+        />
+      ) : view === "inicio" ? (
         <HomeView trail={trail} onView={onView} onOpen={setLesson} />
       ) : view === "jornada" ? (
-        <JourneyView trail={trail} onOpen={setLesson} />
+        <JourneyView trail={trail} onOpen={setLesson} onOpenLibrary={() => setLibraryOpen(true)} />
       ) : view === "agenda" ? (
         <AgendaView trail={trail} onOpen={setLesson} />
       ) : view === "entregas" ? (
@@ -1081,7 +1127,7 @@ function MenteeArea({
       ) : (
         <Rise90View />
       )}
-      {lesson ? (
+      {lesson?.kind === "encontro" ? (
         <LessonScreen lesson={lesson} trail={trail} onClose={() => setLesson(null)} />
       ) : null}
     </>
