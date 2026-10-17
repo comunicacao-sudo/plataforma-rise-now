@@ -7,6 +7,7 @@ import {
   ASSESSMENT_VERSION,
   SCORING_VERSION,
   calculateAssessment,
+  filterAssessmentResultForAudience,
 } from "./assessment";
 
 const answers = (value: number) =>
@@ -62,6 +63,16 @@ test("respostas incompletas ou fora da escala são recusadas", () => {
   assert.throws(() => calculateAssessment(invalid), /escala permitida/);
 });
 
+test("relatório bloqueado omite leitura completa e relatório liberado a preserva", () => {
+  const result = calculateAssessment(answers(4));
+  const locked = filterAssessmentResultForAudience(result, "mentee_summary");
+  const released = filterAssessmentResultForAudience(result, "mentee_full");
+  assert.equal("leadership" in locked, false);
+  assert.equal("development" in locked, false);
+  assert.deepEqual(released.leadership, result.leadership);
+  assert.deepEqual(released.development, result.development);
+});
+
 test("migration protege persistência, histórico e notas privadas no servidor", () => {
   const sql = readFileSync(
     new URL("../../drizzle/migrations/0012_rise_behavioral_assessment.sql", import.meta.url),
@@ -75,4 +86,6 @@ test("migration protege persistência, histórico e notas privadas no servidor",
   assert.match(sql, /assessment_version text not null/i);
   assert.match(sql, /scoring_version text not null/i);
   assert.match(sql, /prompt_version text not null/i);
+  assert.match(sql, /Questionário do perfil comportamental/i);
+  assert.match(sql, /resource_type[^\n]+rise_assessment|rise_assessment[^\n]+resource_type/i);
 });

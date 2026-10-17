@@ -109,9 +109,49 @@ comment on column public.assessment_attempts.calculated_result is
 comment on table public.assessment_ai_outputs is
   'Reserved contract storage for future AI interpretation; never used for scoring.';
 
--- Bind the already-existing journey step to the native module without changing
--- its stable key or destroying legacy external-form history.
+-- Bind a represented legacy step when it exists. Otherwise create the native
+-- step in every Reflexão journey version with the same stable key, preserving
+-- the existing 46 steps and every historical progress record.
 update public.journey_steps
 set resource_type = 'rise_assessment'
 where format in ('questionnaire', 'form')
   and (title ilike '%perfil comportamental%' or title ilike '%mapeamento comportamental%');
+
+insert into public.journey_steps (
+  version_id, stable_key, title, format, impact_lead, impact_highlight, impact_tail,
+  description, responsible_name, duration_minutes, resource_type, completion_rule,
+  required, position, month_number, summary, topics, materials, access_scope
+)
+select
+  v.id,
+  '7d2d3d63-9fc4-4d7a-a1c0-6e32a5c91c50'::uuid,
+  'Questionário do perfil comportamental',
+  'questionnaire',
+  'Conheça suas tendências ',
+  'naturais e profissionais',
+  ' para orientar seu desenvolvimento.',
+  'Mapeamento nativo RISE com Perfil Natural e Perfil Adaptado ao trabalho.',
+  'Equipe RISE',
+  20,
+  'rise_assessment',
+  'final_submission',
+  true,
+  100,
+  1,
+  '50 respostas, cálculo determinístico e devolutiva privada no seu perfil.',
+  array['Perfil Natural', 'Perfil Adaptado', 'Desenvolvimento']::text[],
+  '[]'::jsonb,
+  'general'
+from public.journey_versions v
+join public.journey_pillars p on p.id = v.pillar_id
+where lower(p.name) in (lower('Reflexão'), lower('Reflexao'))
+  and not exists (
+    select 1
+    from public.journey_steps existing
+    where existing.version_id = v.id
+      and (
+        existing.stable_key = '7d2d3d63-9fc4-4d7a-a1c0-6e32a5c91c50'::uuid
+        or existing.title ilike '%perfil comportamental%'
+        or existing.title ilike '%mapeamento comportamental%'
+      )
+  );

@@ -9,6 +9,7 @@ import {
   PROMPT_VERSION,
   SCORING_VERSION,
   calculateAssessment,
+  filterAssessmentResultForAudience,
   type CalculatedAssessmentResult,
 } from "@/lib/assessment";
 
@@ -78,20 +79,7 @@ async function requireOwnAttempt(admin: any, userId: string, attemptId: string) 
 }
 
 function publicResult(result: CalculatedAssessmentResult, full: boolean) {
-  if (full) return result;
-  return {
-    assessmentVersion: result.assessmentVersion,
-    scoringVersion: result.scoringVersion,
-    calculatedAt: result.calculatedAt,
-    responseCount: result.responseCount,
-    indicators: result.indicators,
-    competencies: result.competencies,
-    comparisons: result.comparisons,
-    motivations: result.motivations,
-    strengths: result.strengths,
-    summary: result.summary,
-    limitations: result.limitations,
-  };
+  return filterAssessmentResultForAudience(result, full ? "mentee_full" : "mentee_summary");
 }
 
 async function plansForAttempt(admin: any, attemptId: string, includePrivate: boolean) {

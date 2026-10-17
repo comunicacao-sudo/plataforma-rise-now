@@ -282,6 +282,28 @@ export type CalculatedAssessmentResult = {
   limitations: string[];
 };
 
+export type AssessmentReportAudience = "mentee_summary" | "mentee_full" | "mentor_full";
+
+export function filterAssessmentResultForAudience(
+  result: CalculatedAssessmentResult,
+  audience: AssessmentReportAudience,
+): CalculatedAssessmentResult | Partial<CalculatedAssessmentResult> {
+  if (audience !== "mentee_summary") return result;
+  return {
+    assessmentVersion: result.assessmentVersion,
+    scoringVersion: result.scoringVersion,
+    calculatedAt: result.calculatedAt,
+    responseCount: result.responseCount,
+    indicators: result.indicators,
+    competencies: result.competencies,
+    comparisons: result.comparisons,
+    motivations: result.motivations,
+    strengths: result.strengths,
+    summary: result.summary,
+    limitations: result.limitations,
+  };
+}
+
 type CompetencyDefinition = { id: string; name: string; definition: string; keys: string[] };
 const competencyDefinitions: CompetencyDefinition[] = [
   {
