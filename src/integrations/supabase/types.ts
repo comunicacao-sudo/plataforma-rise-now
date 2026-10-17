@@ -428,6 +428,58 @@ export type Database = {
           },
         ]
       }
+      lesson_markers: {
+        Row: {
+          created_at: string
+          enrollment_id: string
+          id: string
+          lesson_id: string
+          reflection: string
+          timestamp_seconds: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          enrollment_id: string
+          id?: string
+          lesson_id: string
+          reflection: string
+          timestamp_seconds: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          enrollment_id?: string
+          id?: string
+          lesson_id?: string
+          reflection?: string
+          timestamp_seconds?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lesson_markers_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "enrollments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lesson_markers_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "lessons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lesson_markers_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       meeting_attendees: {
         Row: {
           enrollment_id: string
