@@ -68,8 +68,8 @@ async function staffRoles(supabase: any, userId: string) {
     supabase.rpc("has_role", { _user_id: userId, _role: "admin" }),
     supabase.rpc("has_role", { _user_id: userId, _role: "mentor" }),
   ]);
-  if (!isAdmin && !isMentor) throw new Error("Acesso restrito às mentoras e administradoras.");
-  return { isAdmin: !!isAdmin, isMentor: !!isMentor };
+  if (!isAdmin && !isMentor) throw new Error("Acesso restrito à administração RISE NOW.");
+  return { isAdmin: !!isAdmin || !!isMentor };
 }
 
 export const getJourneyEditor = createServerFn({ method: "GET" })

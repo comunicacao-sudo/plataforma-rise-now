@@ -71,6 +71,13 @@
       "when": 1792209600000,
       "tag": "0009_recorded_lesson_markers",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792216800000,
+      "tag": "0010_unify_mentor_admin",
+      "breakpoints": true
     }
   ]
 }

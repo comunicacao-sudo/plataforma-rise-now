@@ -1250,7 +1250,7 @@ function MemberForm({ onDone }: { onDone: () => void }) {
   const [f, setF] = useState({
     fullName: "",
     email: "",
-    role: "mentee" as "mentee" | "mentor" | "admin",
+    role: "mentee" as "mentee" | "admin",
     cohortId: "",
     mentorId: "",
     password: tempPassword(),
@@ -1332,8 +1332,7 @@ function MemberForm({ onDone }: { onDone: () => void }) {
                 onChange={(e) => setF({ ...f, role: e.target.value as typeof f.role })}
               >
                 <option value="mentee">Mentorada</option>
-                <option value="mentor">Mentora</option>
-                <option value="admin">Administradora</option>
+                <option value="admin">Mentora · Administradora</option>
               </select>
             </Field>
             {f.role === "mentee" ? (
@@ -1565,7 +1564,7 @@ function MembersPanel() {
         <div className="section-heading ops-gap">
           <div>
             <h2>Equipe</h2>
-            <p>Mentoras e administradoras.</p>
+            <p>Mentoras com acesso administrativo completo.</p>
           </div>
         </div>
         <div className="ops-cohorts">
@@ -1573,7 +1572,7 @@ function MembersPanel() {
             <article key={s.id} className="admin-card">
               <strong>{s.name}</strong>
               <small className="ops-muted">{s.email}</small>
-              <span>{s.isAdmin ? "Administradora" : "Mentora"}</span>
+              <span>Mentora · Administradora</span>
             </article>
           ))}
         </div>
@@ -1592,7 +1591,7 @@ function MembersPanel() {
 
 /* ---------- overview ---------- */
 
-function StaffOverview({ isAdmin, onView }: { isAdmin: boolean; onView: (v: StaffView) => void }) {
+function StaffOverview({ onView }: { onView: (v: StaffView) => void }) {
   const { data: dir } = useDirectory();
   const { data: subs = [] } = useSubmissions();
   const { data: meetings = [] } = useMeetings();
@@ -1601,16 +1600,12 @@ function StaffOverview({ isAdmin, onView }: { isAdmin: boolean; onView: (v: Staf
   return (
     <main className="inner-page">
       <Intro
-        eyebrow={isAdmin ? "Administração" : "Área da mentora"}
-        title={isAdmin ? "Gestão da RISE NOW" : "Acompanhe com profundidade."}
-        copy={
-          isAdmin
-            ? "Agenda, entregas e acessos em um só lugar."
-            : "Você vê somente as mentoradas atribuídas a você."
-        }
+        eyebrow="Mentoria e administração"
+        title="Gestão da RISE NOW"
+        copy="Jornadas, agenda, entregas e acessos em um só lugar."
       />
       <section className="mentor-stats page-width">
-        <article onClick={() => isAdmin && onView("alunas")}>
+        <article onClick={() => onView("alunas")}>
           <UsersRound size={23} />
           <span>Mentoradas ativas</span>
           <strong>{dir?.enrollments.filter((e) => e.status === "ativa").length ?? "—"}</strong>
@@ -1639,7 +1634,7 @@ function StaffOverview({ isAdmin, onView }: { isAdmin: boolean; onView: (v: Staf
       <section className="page-width ops-section">
         <div className="section-heading">
           <div>
-            <h2>{isAdmin ? "Mentoradas" : "Suas mentoradas"}</h2>
+            <h2>Mentoradas</h2>
           </div>
         </div>
         <div className="people-table">
@@ -1675,18 +1670,10 @@ function StaffOverview({ isAdmin, onView }: { isAdmin: boolean; onView: (v: Staf
   );
 }
 
-export function StaffArea({
-  isAdmin,
-  view,
-  onView,
-}: {
-  isAdmin: boolean;
-  view: StaffView;
-  onView: (v: StaffView) => void;
-}) {
+export function StaffArea({ view, onView }: { view: StaffView; onView: (v: StaffView) => void }) {
   if (view === "gestao-jornada") return <JourneyAdmin />;
   if (view === "agenda") return <StaffAgenda />;
   if (view === "entregas") return <ReviewPanel />;
-  if (view === "alunas" && isAdmin) return <MembersPanel />;
-  return <StaffOverview isAdmin={isAdmin} onView={onView} />;
+  if (view === "alunas") return <MembersPanel />;
+  return <StaffOverview onView={onView} />;
 }
