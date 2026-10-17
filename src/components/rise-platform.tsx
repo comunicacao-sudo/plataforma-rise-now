@@ -86,6 +86,15 @@ const roleLabels: Record<Role, string> = {
   admin: "Mentora · Administradora",
 };
 
+const journeyCoverByMonth: Record<number, string> = {
+  1: "/journey-covers/reflection.jpg",
+  2: "/journey-covers/identity-security.jpg",
+  3: "/journey-covers/direction.jpg",
+  4: "/journey-covers/execution.jpg",
+  5: "/journey-covers/consistency.jpg",
+  6: "/journey-covers/sustentation.jpg",
+};
+
 function RiseMark({ compact = false }: { compact?: boolean }) {
   if (compact) {
     return (
@@ -693,16 +702,33 @@ function JourneyRail({ trail, onView }: { trail: Trail; onView: () => void }) {
       <div className="journey-rail">
         {trail.phases.map((item) => {
           const status = phaseStatus(trail, item.month);
+          const cover = journeyCoverByMonth[item.month];
           return (
-            <article key={item.month} className={`journey-card journey-card--${status}`}>
+            <article
+              key={item.month}
+              className={`journey-card journey-card--${status}`}
+              aria-label={`Mês ${item.month}: ${item.title}`}
+            >
+              {cover ? (
+                <img
+                  className="journey-card__cover"
+                  src={cover}
+                  alt={`${item.title} — mês ${item.month}`}
+                  loading={item.month > 2 ? "lazy" : "eager"}
+                />
+              ) : null}
               <div className="journey-card__top">
                 <span>MÊS {item.month}</span>
                 {status === "completed" ? <CheckCircle2 size={19} /> : null}
                 {status === "current" ? <span className="status-pill">AGORA</span> : null}
               </div>
-              <div className="journey-card__letter">{item.pillar}</div>
-              <h3>{item.title}</h3>
-              <p>{item.question}</p>
+              {!cover ? (
+                <>
+                  <div className="journey-card__letter">{item.pillar}</div>
+                  <h3>{item.title}</h3>
+                  <p>{item.question}</p>
+                </>
+              ) : null}
               <div className="journey-card__delivery">
                 <FileCheck2 size={15} /> {item.deliverable?.title}
               </div>
