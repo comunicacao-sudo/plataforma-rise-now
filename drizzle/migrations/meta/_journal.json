@@ -85,6 +85,20 @@
       "when": 1792236163373,
       "tag": "0011_journey_content_access",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1792250000000,
+      "tag": "0012_rise_behavioral_assessment",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1792257000000,
+      "tag": "0013_assessment_after_clarification_map",
+      "breakpoints": true
     }
   ]
 }

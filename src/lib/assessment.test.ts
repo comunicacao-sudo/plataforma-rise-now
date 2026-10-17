@@ -89,3 +89,16 @@ test("migration protege persistência, histórico e notas privadas no servidor",
   assert.match(sql, /Questionário do perfil comportamental/i);
   assert.match(sql, /resource_type[^\n]+rise_assessment|rise_assessment[^\n]+resource_type/i);
 });
+
+test("etapa do mapeamento permanece logo após o Mapa de Esclarecimento", () => {
+  const sql = readFileSync(
+    new URL(
+      "../../drizzle/migrations/0013_assessment_after_clarification_map.sql",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  assert.match(sql, /Mapa de Esclarecimento/i);
+  assert.match(sql, /assessment_position <> map_position \+ 1/i);
+  assert.match(sql, /set position = map_position \+ 1/i);
+});
