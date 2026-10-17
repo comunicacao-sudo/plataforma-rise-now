@@ -12,7 +12,6 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronRight,
-  CircleUserRound,
   UserRound,
   Clock3,
   Download,
@@ -25,10 +24,8 @@ import {
   Menu,
   Mail,
   Play,
-  Search,
   ShieldCheck,
   Sparkles,
-  Target,
   UsersRound,
   X,
 } from "lucide-react";
@@ -60,7 +57,7 @@ import {
   type StaffView,
 } from "@/components/rise-ops";
 import { NextStepHero } from "@/components/journey-next-step";
-import { RecordedLessonPage, RecordedLessonsLibrary } from "@/components/recorded-lessons";
+import { RecordedLessonPage } from "@/components/recorded-lessons";
 import {
   ContinueJourneySection,
   JourneyContentLessonPage,
@@ -77,11 +74,12 @@ import {
   startJourneyStep,
   type NextJourneyStep,
 } from "@/lib/journey.functions";
+import { resolveAppRole, type AppRole } from "@/lib/access";
 
-type Role = "mentee" | "admin";
+type Role = AppRole;
 type View =
   "inicio" | "jornada" | "agenda" | "entregas" | "rise90" | "painel" | "gestao-jornada" | "alunas";
-type AuthMode = "checking" | "login" | "authenticated" | "demo" | "change-password";
+type AuthMode = "checking" | "login" | "authenticated" | "change-password";
 
 const roleLabels: Record<Role, string> = {
   mentee: "Mentorada",
@@ -107,7 +105,7 @@ function RiseMark({ compact = false }: { compact?: boolean }) {
   );
 }
 
-function LoginScreen({ onDemo }: { onDemo: () => void }) {
+function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -271,9 +269,6 @@ function LoginScreen({ onDemo }: { onDemo: () => void }) {
                 >
                   {method === "password" ? "Entrar com link por e-mail" : "Entrar com senha"}
                 </button>
-                <button className="demo-link" type="button" onClick={onDemo}>
-                  Visualizar demonstração <ChevronRight size={15} />
-                </button>
               </div>
             </form>
           )}
@@ -411,23 +406,19 @@ function Header({
   onView,
   role,
   name,
-  demo,
-  onRole,
   onExit,
 }: {
   activeView: View;
   onView: (view: View) => void;
   role: Role;
   name: string;
-  demo: boolean;
-  onRole: (role: Role) => void;
   onExit: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [editProfile, setEditProfile] = useState(false);
   const [assessmentOpen, setAssessmentOpen] = useState(false);
-  const { data: me } = useMyProfile(!demo);
+  const { data: me } = useMyProfile(true);
   const nav: Array<{ label: string; view: View }> =
     role === "mentee"
       ? [
@@ -444,9 +435,9 @@ function Header({
           { label: "Entregas", view: "entregas" },
           { label: "Alunas e turmas", view: "alunas" },
         ];
-  const visibleName = demo ? name : me?.display_name?.trim() || me?.full_name || name;
+  const visibleName = me?.display_name?.trim() || me?.full_name || name;
   const profileSubtitle =
-    !demo && role === "mentee" && me?.profession_visible && me.profession
+    role === "mentee" && me?.profession_visible && me.profession
       ? me.profession
       : roleLabels[role];
 
@@ -480,39 +471,26 @@ function Header({
         ))}
       </nav>
       <div className="header-actions">
-        <button className="icon-button search-button" type="button" aria-label="Buscar">
-          <Search size={20} />
-        </button>
-        {!demo ? (
-          <NotificationBell
-            onNavigate={(link) =>
-              onView(
-                (role === "mentee"
-                  ? link.startsWith("lesson:")
-                    ? "jornada"
-                    : link
-                  : ["agenda", "entregas"].includes(link)
-                    ? link
-                    : "painel") as View,
-              )
-            }
-          />
-        ) : (
-          <button
-            className="icon-button notification-button"
-            type="button"
-            aria-label="Notificações"
-          >
-            <Bell size={20} />
-          </button>
-        )}
+        <NotificationBell
+          onNavigate={(link) =>
+            onView(
+              (role === "mentee"
+                ? link.startsWith("lesson:")
+                  ? "jornada"
+                  : link
+                : ["agenda", "entregas"].includes(link)
+                  ? link
+                  : "painel") as View,
+            )
+          }
+        />
         <div className="profile-menu">
           <button
             className="profile-trigger"
             type="button"
             onClick={() => setProfileOpen(!profileOpen)}
           >
-            <Avatar name={visibleName} url={demo ? null : me?.avatar_url} size={36} />
+            <Avatar name={visibleName} url={me?.avatar_url} size={36} />
             <span className="profile-trigger__copy">
               <strong>{visibleName}</strong>
               <small>{profileSubtitle}</small>
@@ -521,49 +499,25 @@ function Header({
           </button>
           {profileOpen ? (
             <div className="profile-dropdown">
-              {demo ? (
-                <>
-                  <span className="profile-dropdown__label">Visualizar como</span>
-                  {(["mentee", "admin"] as Role[]).map((option) => (
-                    <button
-                      key={option}
-                      type="button"
-                      className={role === option ? "is-active" : ""}
-                      onClick={() => {
-                        onRole(option);
-                        setProfileOpen(false);
-                      }}
-                    >
-                      {roleLabels[option]}
-                      {role === option ? <Check size={15} /> : null}
-                    </button>
-                  ))}
-                  <div className="dropdown-divider" />
-                </>
-              ) : null}
-              {!demo ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditProfile(true);
-                      setProfileOpen(false);
-                    }}
-                  >
-                    <UserRound size={16} /> Meu perfil
-                  </button>
-                  {role === "mentee" ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAssessmentOpen(true);
-                        setProfileOpen(false);
-                      }}
-                    >
-                      <BrainCircuit size={16} /> Meu mapeamento
-                    </button>
-                  ) : null}
-                </>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditProfile(true);
+                  setProfileOpen(false);
+                }}
+              >
+                <UserRound size={16} /> Meu perfil
+              </button>
+              {role === "mentee" ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAssessmentOpen(true);
+                    setProfileOpen(false);
+                  }}
+                >
+                  <BrainCircuit size={16} /> Meu mapeamento
+                </button>
               ) : null}
               <button type="button" onClick={onExit}>
                 <LogOut size={16} /> Sair
@@ -760,58 +714,6 @@ function JourneyRail({ trail, onView }: { trail: Trail; onView: () => void }) {
   );
 }
 
-function fallbackNextStep(trail: Trail): NextJourneyStep {
-  const lesson = trail.phases.flatMap((phase) => phase.lessons).find((item) => !item.completed);
-  if (!lesson) return { state: "complete" };
-  const onboarding = /onboarding/i.test(lesson.title);
-  const mapa = /mapa de esclarecimento/i.test(lesson.title);
-  const format: NonNullable<NextJourneyStep["format"]> = /question/i.test(lesson.title)
-    ? "questionnaire"
-    : lesson.kind === "aula"
-      ? "recorded_class"
-      : /individual/i.test(lesson.format ?? "")
-        ? "individual_1_1"
-        : "live_group";
-  return {
-    state: "ready",
-    ...(trail.enrollmentId ? { enrollmentId: trail.enrollmentId } : {}),
-    pillarName: lesson.phaseTitle,
-    stepKey: lesson.id,
-    title: lesson.title,
-    format,
-    impactHighlight: onboarding
-      ? "Seu próximo nível"
-      : mapa
-        ? "Enxergar com clareza"
-        : lesson.title,
-    impactTail: onboarding
-      ? "começa aqui."
-      : mapa
-        ? "é o primeiro passo para avançar com intenção."
-        : "",
-    description: onboarding
-      ? "O onboarding é o primeiro encontro da sua jornada RISE. Em uma reunião coletiva, você vai entender como a mentoria funciona, alinhar expectativas e se preparar para os próximos passos."
-      : lesson.description,
-    responsibleName: lesson.mentor,
-    durationMinutes: lesson.duration,
-    resourceType: "legacy_lesson",
-    resourceId: lesson.id,
-    resourceUrl: lesson.joinUrl ?? lesson.mediaUrl,
-    scheduledAt: lesson.scheduledAt,
-    progressStatus: "not_started",
-    actionLabel:
-      format === "questionnaire"
-        ? "Responder questionário"
-        : format === "recorded_class"
-          ? "Assistir à aula"
-          : format === "individual_1_1"
-            ? "Ver meu encontro"
-            : lesson.joinUrl
-              ? "Entrar no encontro"
-              : "Ver detalhes do encontro",
-  };
-}
-
 function HomeView({
   trail,
   onView,
@@ -829,7 +731,7 @@ function HomeView({
   const nextStepQuery = useQuery({
     queryKey: ["next-journey-step", trail.enrollmentId],
     queryFn: () => loadNext(),
-    enabled: !trail.demo,
+    enabled: Boolean(trail.enrollmentId),
     refetchOnWindowFocus: true,
   });
   const phase = currentPhase(trail);
@@ -837,14 +739,12 @@ function HomeView({
   const revisit = trail.phases
     .flatMap((p) => p.lessons)
     .filter((l) => l.completed && l.kind === "aula");
-  const highlightedStep = trail.demo
-    ? fallbackNextStep(trail)
-    : nextStepQuery.isError
-      ? ({ state: "error" } satisfies NextJourneyStep)
-      : (nextStepQuery.data ?? ({ state: "no_enrollment" } satisfies NextJourneyStep));
+  const highlightedStep = nextStepQuery.isError
+    ? ({ state: "error" } satisfies NextJourneyStep)
+    : (nextStepQuery.data ?? ({ state: "no_enrollment" } satisfies NextJourneyStep));
 
   async function openHighlightedStep() {
-    if (highlightedStep.enrollmentId && highlightedStep.stepKey && !trail.demo) {
+    if (highlightedStep.enrollmentId && highlightedStep.stepKey) {
       await startNext({
         data: { enrollmentId: highlightedStep.enrollmentId, stepKey: highlightedStep.stepKey },
       });
@@ -900,7 +800,7 @@ function HomeView({
         busy={nextStepQuery.isFetching}
       />
       <div className="dashboard-body">
-        <ContinueJourneySection demo={trail.demo} onOpen={(item) => onOpenContent(item.stepKey)} />
+        <ContinueJourneySection onOpen={(item) => onOpenContent(item.stepKey)} />
         <Rail
           title={`Mês ${phase?.month ?? 1} · ${phase?.title ?? ""}`}
           subtitle="Encontros, sessões e aulas desta etapa."
@@ -917,7 +817,7 @@ function HomeView({
         <Rail title="Revisite quando quiser" items={revisit} onOpen={onOpen} />
         <MentorRail />
         <NextMeetingBanner onAgenda={() => onView("agenda")} />
-        {!trail.demo ? <MentorsSection /> : null}
+        <MentorsSection />
         <NextUp trail={trail} onAgenda={() => onView("agenda")} />
       </div>
     </>
@@ -1089,7 +989,7 @@ function JourneyView({
           );
         })}
       </section>
-      {!trail.demo ? <MentorsSection /> : null}
+      <MentorsSection />
     </main>
   );
 }
@@ -1126,16 +1026,8 @@ function DeliverablesView({ trail }: { trail: Trail }) {
   );
 }
 
-function MenteeArea({
-  demo,
-  view,
-  onView,
-}: {
-  demo: boolean;
-  view: View;
-  onView: (v: View) => void;
-}) {
-  const { data: trail, isLoading } = useTrail(demo);
+function MenteeArea({ view, onView }: { view: View; onView: (v: View) => void }) {
+  const { data: trail, isLoading } = useTrail();
   const [lesson, setLesson] = useState<TrailLesson | null>(null);
   const [contentStepKey, setContentStepKey] = useState<string | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
@@ -1166,18 +1058,10 @@ function MenteeArea({
           onNavigate={setLesson}
         />
       ) : libraryOpen && view === "jornada" ? (
-        trail.demo ? (
-          <RecordedLessonsLibrary
-            trail={trail}
-            onOpen={setLesson}
-            onBack={() => setLibraryOpen(false)}
-          />
-        ) : (
-          <JourneyContentLibraryPage
-            onOpen={(item: JourneyContentItem) => setContentStepKey(item.stepKey)}
-            onBack={() => setLibraryOpen(false)}
-          />
-        )
+        <JourneyContentLibraryPage
+          onOpen={(item: JourneyContentItem) => setContentStepKey(item.stepKey)}
+          onBack={() => setLibraryOpen(false)}
+        />
       ) : view === "inicio" ? (
         <HomeView
           trail={trail}
@@ -1191,160 +1075,21 @@ function MenteeArea({
         <AgendaView trail={trail} onOpen={setLesson} />
       ) : view === "entregas" ? (
         <DeliverablesView trail={trail} />
-      ) : trail.enrollmentId && !trail.demo ? (
+      ) : trail.enrollmentId ? (
         <Rise90Live enrollmentId={trail.enrollmentId} />
       ) : (
-        <Rise90View />
+        <main className="inner-page">
+          <PageIntro
+            eyebrow="RISE 90"
+            title="Seu ciclo será liberado em breve."
+            copy="A equipe RISE está preparando suas metas e marcos de evolução."
+          />
+        </main>
       )}
       {lesson?.kind === "encontro" ? (
         <LessonScreen lesson={lesson} trail={trail} onClose={() => setLesson(null)} />
       ) : null}
     </>
-  );
-}
-
-function Rise90View() {
-  const goals = [
-    {
-      title: "Aumentar minha presença executiva",
-      metric: "Reuniões estratégicas conduzidas",
-      current: 3,
-      target: 8,
-    },
-    {
-      title: "Aplicar IA à rotina de liderança",
-      metric: "Horas poupadas por semana",
-      current: 2,
-      target: 5,
-    },
-    {
-      title: "Delegar com mais clareza",
-      metric: "Rituais de acompanhamento implantados",
-      current: 1,
-      target: 3,
-    },
-  ];
-  return (
-    <main className="inner-page rise90-page">
-      <PageIntro
-        eyebrow="Execução e evidência"
-        title="RISE 90"
-        copy="Metas que conectam intenção, comportamento e resultado em um ciclo de 90 dias."
-      />
-      <section className="rise90-summary page-width">
-        <div>
-          <Target size={26} />
-          <span>Ciclo atual</span>
-          <strong>START → NOW</strong>
-        </div>
-        <div>
-          <span>Dia</span>
-          <strong>
-            24 <small>de 90</small>
-          </strong>
-        </div>
-        <div>
-          <span>Consistência</span>
-          <strong>82%</strong>
-        </div>
-      </section>
-      <section className="goal-list page-width">
-        {goals.map((goal) => {
-          const pct = Math.round((goal.current / goal.target) * 100);
-          return (
-            <article className="goal-card" key={goal.title}>
-              <div className="goal-card__copy">
-                <span>OBJETIVO</span>
-                <h2>{goal.title}</h2>
-                <p>{goal.metric}</p>
-              </div>
-              <div className="goal-card__number">
-                <strong>{goal.current}</strong>
-                <span>/ {goal.target}</span>
-              </div>
-              <div className="goal-card__progress">
-                <span style={{ width: `${pct}%` }} />
-              </div>
-              <small>{pct}% do alvo</small>
-            </article>
-          );
-        })}
-      </section>
-    </main>
-  );
-}
-
-function AdminDashboard() {
-  const pending = ["paula@empresa.com", "mariana@negocio.com"];
-  return (
-    <main className="inner-page">
-      <PageIntro
-        eyebrow="Administração segura"
-        title="Gestão da RISE NOW"
-        copy="Acessos, papéis, programas e acompanhamento com rastreabilidade."
-      />
-      <section className="mentor-stats page-width">
-        <article>
-          <UsersRound size={23} />
-          <span>Participantes</span>
-          <strong>18</strong>
-        </article>
-        <article>
-          <ShieldCheck size={23} />
-          <span>Acessos aprovados</span>
-          <strong>22</strong>
-        </article>
-        <article>
-          <FileCheck2 size={23} />
-          <span>Entregas no mês</span>
-          <strong>31</strong>
-        </article>
-      </section>
-      <section className="admin-grid page-width">
-        <article className="admin-card">
-          <div className="section-heading">
-            <div>
-              <h2>Solicitações de acesso</h2>
-              <p>Somente e-mails aprovados podem entrar.</p>
-            </div>
-            <span className="count-badge">{pending.length}</span>
-          </div>
-          <div className="access-list">
-            {pending.map((email) => (
-              <div key={email}>
-                <span className="profile-avatar">
-                  <CircleUserRound size={20} />
-                </span>
-                <div>
-                  <strong>{email}</strong>
-                  <small>Aguardando decisão</small>
-                </div>
-                <button className="approve-button" type="button">
-                  Aprovar
-                </button>
-              </div>
-            ))}
-          </div>
-        </article>
-        <article className="admin-card admin-card--security">
-          <ShieldCheck size={30} />
-          <span>Segurança</span>
-          <h2>Proteção por acesso ativa</h2>
-          <p>Mentoradas têm acesso próprio; toda mentora possui o mesmo acesso administrativo.</p>
-          <ul>
-            <li>
-              <Check size={15} /> Cadastro público desativado
-            </li>
-            <li>
-              <Check size={15} /> RLS deny-by-default
-            </li>
-            <li>
-              <Check size={15} /> Auditoria administrativa
-            </li>
-          </ul>
-        </article>
-      </section>
-    </main>
   );
 }
 
@@ -1370,7 +1115,7 @@ function LoadingScreen() {
 export function RisePlatform() {
   const [authMode, setAuthMode] = useState<AuthMode>("checking");
   const [role, setRole] = useState<Role>("mentee");
-  const [name, setName] = useState("Marina Alves");
+  const [name, setName] = useState("Participante RISE");
   const [activeView, setActiveView] = useState<View>("inicio");
   const [assessmentPreview, setAssessmentPreview] = useState<"report" | "questionnaire" | null>(null);
 
@@ -1408,11 +1153,11 @@ export function RisePlatform() {
             .select("display_name, full_name")
             .eq("id", userId)
             .maybeSingle(),
-          supabase.from("user_roles").select("role").eq("user_id", userId).limit(1),
+          supabase.from("user_roles").select("role").eq("user_id", userId),
         ]);
         if (!mounted) return;
 
-        const storedRole = rolesResult.data?.[0]?.role;
+        const storedRole = resolveAppRole((rolesResult.data ?? []).map((item) => item.role));
         if (
           profileResult.error ||
           rolesResult.error ||
@@ -1456,31 +1201,25 @@ export function RisePlatform() {
     };
   }, []);
 
-  const demo = authMode === "demo";
   const { data: currentProfile } = useMyProfile(authMode === "authenticated");
   const theme = currentProfile?.theme_preference === "light" ? "light" : "dark";
   const shellClass = useMemo(() => `platform-shell platform-shell--${role}`, [role]);
 
   async function exit() {
-    if (!demo) await supabase.auth.signOut();
+    await supabase.auth.signOut();
     setRole("mentee");
-    setName("Marina Alves");
+    setName("Participante RISE");
     setAuthMode("login");
   }
 
   if (assessmentPreview)
     return (
       <div className="platform-shell platform-shell--admin" data-theme="dark">
-        <div className="demo-banner">
-          <Sparkles size={14} /> Demonstração visual · os dados abaixo são fictícios
-        </div>
         <Header
           activeView="painel"
           onView={() => undefined}
           role="admin"
           name="Camila Mariano"
-          demo
-          onRole={() => undefined}
           onExit={() => undefined}
         />
         {assessmentPreview === "questionnaire" ? (
@@ -1493,30 +1232,18 @@ export function RisePlatform() {
 
   if (authMode === "checking") return <LoadingScreen />;
   if (authMode === "change-password") return <NewPasswordScreen />;
-  if (authMode === "login") return <LoginScreen onDemo={() => setAuthMode("demo")} />;
+  if (authMode === "login") return <LoginScreen />;
 
   return (
     <div className={shellClass} data-theme={theme}>
-      {demo ? (
-        <div className="demo-banner">
-          <Sparkles size={14} /> Demonstração visual · os dados abaixo são fictícios
-        </div>
-      ) : null}
       <Header
         activeView={activeView}
         onView={setActiveView}
         role={role}
-        name={!demo || role === "mentee" ? name : "Camila Mariano"}
-        demo={demo}
-        onRole={(nextRole) => {
-          setRole(nextRole);
-          setActiveView(nextRole === "mentee" ? "inicio" : "painel");
-        }}
+        name={name}
         onExit={() => void exit()}
       />
-      {role !== "mentee" && demo ? (
-        <AdminDashboard />
-      ) : role !== "mentee" ? (
+      {role !== "mentee" ? (
         <StaffArea
           view={
             (["painel", "gestao-jornada", "agenda", "entregas", "alunas"].includes(activeView)
@@ -1526,7 +1253,7 @@ export function RisePlatform() {
           onView={setActiveView}
         />
       ) : (
-        <MenteeArea demo={demo} view={activeView} onView={setActiveView} />
+        <MenteeArea view={activeView} onView={setActiveView} />
       )}
       <AppFooter />
     </div>

@@ -1182,7 +1182,14 @@ function ReviewPanel() {
                   <small className="ops-muted">
                     {new Date(s.submitted_at ?? s.updated_at).toLocaleDateString("pt-BR")}
                   </small>
-                  <button type="button" aria-label="Revisar">
+                  <button
+                    type="button"
+                    aria-label="Revisar"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setOpen(s);
+                    }}
+                  >
                     <FileCheck2 size={18} />
                   </button>
                 </article>

@@ -101,22 +101,6 @@ input:focus-visible {
   --platform-background: #f2f0ef;
   color-scheme: light;
 }
-.demo-banner {
-  position: relative;
-  z-index: 80;
-  display: flex;
-  height: 28px;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  background: var(--gold);
-  color: #241413;
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
 /* Brand */
 .rise-mark {
   display: inline-grid;
@@ -596,9 +580,6 @@ hr,
   gap: clamp(1.8rem, 4vw, 4rem);
   padding: 0 3.5vw;
   background: linear-gradient(to bottom, rgba(7, 4, 5, 0.92), rgba(7, 4, 5, 0.55), transparent);
-}
-.demo-banner + .app-header {
-  top: 28px;
 }
 .main-nav {
   display: flex;
@@ -1461,9 +1442,6 @@ hr,
   border-color: rgba(27, 9, 9, 0.12);
   color: rgba(27, 9, 9, 0.55);
 }
-.demo-banner ~ .inner-page {
-  padding-top: 173px;
-}
 .page-intro h1 {
   max-width: 900px;
   margin-top: 0.8rem;
@@ -2183,10 +2161,6 @@ hr,
 @media (max-width: 560px) {
   .page-width {
     width: calc(100% - 1.5rem);
-  }
-  .demo-banner {
-    padding: 0 0.75rem;
-    font-size: 0.53rem;
   }
   .rise-mark__text {
     font-size: 0.8rem;

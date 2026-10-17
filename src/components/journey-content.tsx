@@ -114,14 +114,12 @@ function ContentCard({
 
 export function ContinueJourneySection({
   onOpen,
-  demo,
 }: {
   onOpen: (item: JourneyContentItem) => void;
-  demo: boolean;
 }) {
-  const query = useJourneyContentLibrary(!demo);
+  const query = useJourneyContentLibrary(true);
   const items = query.data?.items.slice(0, 4) ?? [];
-  if (demo || query.isError || (!query.isLoading && !items.length)) return null;
+  if (query.isError || (!query.isLoading && !items.length)) return null;
   return (
     <section
       className="content-section page-width continue-journey"

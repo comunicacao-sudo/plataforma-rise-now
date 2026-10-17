@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test src/lib/assessment.test.ts",
+    "test": "tsx --test src/lib/access.test.ts src/lib/assessment.test.ts",
     "format": "prettier --write ."
   },
   "overrides": {

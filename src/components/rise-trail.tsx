@@ -17,7 +17,6 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import { track } from "@/data/rise-track";
 import { supabase } from "@/integrations/supabase/client";
 import { CalendarButtons, MaterialsList } from "@/components/rise-extras";
 
@@ -75,53 +74,11 @@ export const statusLabels: Record<SubmissionStatus, string> = {
 };
 
 export type Trail = {
-  demo: boolean;
   enrollmentId: string | null;
   currentMonth: number;
   progressPct: number;
   phases: TrailPhase[];
 };
-
-function demoTrail(): Trail {
-  let n = 0;
-  const phases = track.map<TrailPhase>((p) => ({
-    month: p.month,
-    title: p.title,
-    pillar: p.pillar,
-    mentor: p.mentor,
-    question: p.question,
-    description: p.description,
-    lessons: p.lessons.map((l) => ({
-      id: `demo-${n++}`,
-      title: l.title,
-      kind: l.kind,
-      format: l.format ?? null,
-      mentor: l.mentor,
-      duration: l.duration,
-      description: l.description,
-      topics: l.topics,
-      mediaUrl: null,
-      joinUrl: null,
-      scheduledAt: null,
-      month: p.month,
-      phaseTitle: p.title,
-      completed: p.month === 1,
-    })),
-    deliverable: {
-      id: `demo-d-${p.month}`,
-      title: p.deliverable.title,
-      description: p.deliverable.description,
-      month: p.month,
-      phaseTitle: p.title,
-      question: p.question,
-      status: p.month === 1 ? "concluida" : p.month === 2 ? "em_andamento" : "nao_iniciada",
-      content: "",
-      linkUrl: "",
-      filePath: "",
-    },
-  }));
-  return { demo: true, enrollmentId: null, currentMonth: 2, progressPct: 28, phases };
-}
 
 async function loadTrail(): Promise<Trail> {
   const { data: auth } = await supabase.auth.getUser();
@@ -134,13 +91,9 @@ async function loadTrail(): Promise<Trail> {
     .limit(1)
     .maybeSingle();
 
-  let programId = enrollment?.program_id;
-  if (!programId) {
-    const { data: program } = await supabase.from("programs").select("id").limit(1).maybeSingle();
-    programId = program?.id;
-  }
+  const programId = enrollment?.program_id;
   if (!programId)
-    return { demo: false, enrollmentId: null, currentMonth: 1, progressPct: 0, phases: [] };
+    return { enrollmentId: null, currentMonth: 1, progressPct: 0, phases: [] };
 
   const [phasesRes, progressRes, subsRes] = await Promise.all([
     supabase
@@ -221,7 +174,6 @@ async function loadTrail(): Promise<Trail> {
   });
 
   return {
-    demo: false,
     enrollmentId: enrollment?.id ?? null,
     currentMonth: enrollment?.current_month ?? 1,
     progressPct: enrollment?.progress_pct ?? 0,
@@ -229,10 +181,10 @@ async function loadTrail(): Promise<Trail> {
   };
 }
 
-export function useTrail(demo: boolean) {
+export function useTrail() {
   return useQuery({
-    queryKey: ["trail", demo],
-    queryFn: () => (demo ? Promise.resolve(demoTrail()) : loadTrail()),
+    queryKey: ["trail"],
+    queryFn: loadTrail,
   });
 }
 
@@ -328,7 +280,7 @@ function Notebook({ lesson, trail }: { lesson: TrailLesson; trail: Trail }) {
     noteId.current = null;
     setText("");
     setState("idle");
-    if (trail.demo || !trail.enrollmentId) {
+    if (!trail.enrollmentId) {
       loaded.current = true;
       return;
     }
@@ -348,10 +300,10 @@ function Notebook({ lesson, trail }: { lesson: TrailLesson; trail: Trail }) {
       }
       loaded.current = true;
     })();
-  }, [lesson.id, trail.demo, trail.enrollmentId]);
+  }, [lesson.id, trail.enrollmentId]);
 
   useEffect(() => {
-    if (!loaded.current || trail.demo || !trail.enrollmentId) return;
+    if (!loaded.current || !trail.enrollmentId) return;
     const enrollmentId = trail.enrollmentId;
     setState("saving");
     const t = window.setTimeout(async () => {
@@ -375,20 +327,18 @@ function Notebook({ lesson, trail }: { lesson: TrailLesson; trail: Trail }) {
       setState("saved");
     }, 1000);
     return () => window.clearTimeout(t);
-  }, [text, lesson.id, trail.demo, trail.enrollmentId]);
+  }, [text, lesson.id, trail.enrollmentId]);
 
   return (
     <section className="lesson-block">
       <div className="lesson-block__head">
         <h3>Caderno de anotações</h3>
         <small>
-          {trail.demo
-            ? "Na demonstração, as anotações não são salvas"
-            : state === "saving"
-              ? "Salvando…"
-              : state === "saved"
-                ? "Salvo"
-                : "Salva sozinho enquanto você escreve"}
+          {state === "saving"
+            ? "Salvando…"
+            : state === "saved"
+              ? "Salvo"
+              : "Salva sozinho enquanto você escreve"}
         </small>
       </div>
       <textarea
@@ -396,7 +346,7 @@ function Notebook({ lesson, trail }: { lesson: TrailLesson; trail: Trail }) {
         value={text}
         onChange={(e) => setText(e.target.value)}
         placeholder="Seus insights, perguntas e decisões sobre este encontro…"
-        disabled={!trail.demo && !trail.enrollmentId}
+        disabled={!trail.enrollmentId}
       />
       <div className="private-note">
         <LockKeyhole size={15} />
@@ -421,7 +371,7 @@ export function LessonScreen({
   async function complete() {
     if (completed) return;
     setCompleted(true);
-    if (trail.demo || !trail.enrollmentId) return;
+    if (!trail.enrollmentId) return;
     await supabase.from("lesson_progress").upsert(
       {
         enrollment_id: trail.enrollmentId,
@@ -570,8 +520,8 @@ function DeliverableEditor({
     item.status === "enviada" || item.status === "em_revisao" || item.status === "concluida";
 
   async function save(status: SubmissionStatus) {
-    if (trail.demo || !trail.enrollmentId) {
-      setMsg("Na demonstração, as entregas não são salvas.");
+    if (!trail.enrollmentId) {
+      setMsg("Sua jornada ainda não está vinculada a uma turma.");
       return;
     }
     setBusy(true);

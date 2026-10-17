@@ -78,7 +78,6 @@ export const journey: JourneyMonth[] = [
     accent: "#321b22",
   },
 ];
-
 export const continueLearning: LearningItem[] = [
   {
     id: "self-brand",
@@ -234,11 +233,4 @@ export const nextEvents = [
     meta: "1:1 com Luiza Mendes · 16h",
     type: "Individual",
   },
-];
-
-export const demoMentees = [
-  { name: "Marina Alves", phase: "Identidade + Segurança", progress: 28, next: "Identity Session" },
-  { name: "Renata Souza", phase: "Reflexão", progress: 14, next: "Consolidação" },
-  { name: "Juliana Freitas", phase: "Direção", progress: 43, next: "RISE Decision Room" },
-  { name: "Carolina Lima", phase: "Execução", progress: 57, next: "RISE 90 START" },
 ];

@@ -6,19 +6,19 @@ Plataforma privada de acompanhamento da jornada RISE NOW. A experiência da ment
 
 - Tela de acesso exclusiva por e-mail aprovado, sem cadastro público.
 - Experiência da mentorada com início cinematográfico, trilha de seis meses, agenda, entregáveis e RISE 90.
-- Visões demonstrativas de mentora e administradora.
+- Área unificada de mentora e administradora com gestão da jornada, agenda, entregas, turmas e acessos.
 - Integração de autenticação com o Supabase/Lovable Cloud.
 - Modelo de dados para conteúdos, progresso, encontros, entregas, notas privadas e plano RISE 90.
 - Regras de acesso por função e armazenamento privado preparadas em migrations SQL.
 - Layout responsivo para computador e celular.
 
-Os dados exibidos ao clicar em **Explorar demonstração** são fictícios e ficam somente no front-end. O modo demonstração não concede acesso ao banco.
+O acesso é restrito a contas aprovadas. Não existe rota pública de demonstração nem dados fictícios na experiência publicada.
 
 ## Fluxo de desenvolvimento
 
 O GitHub é a fonte oficial do código. O repositório está conectado ao projeto no Lovable, portanto todo `push` para a branch `main` sincroniza as alterações com o editor sem consumir créditos de geração.
 
-- Repositório: <https://github.com/comunicacao-sudo/pixel-perfect-clone>
+- Repositório: <https://github.com/comunicacao-sudo/plataforma-rise-now>
 - Projeto Lovable: <https://lovable.dev/projects/8338b475-316e-4d97-83aa-16de6334c11e>
 
 Evite editar a mesma parte do código simultaneamente no Lovable e localmente. Nunca reescreva o histórico publicado da `main`.

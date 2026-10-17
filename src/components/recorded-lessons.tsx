@@ -233,7 +233,7 @@ function LessonNotebook({
     setText("");
     setMarkers([]);
     setSaveState("idle");
-    if (trail.demo || !trail.enrollmentId) {
+    if (!trail.enrollmentId) {
       loaded.current = true;
       return;
     }
@@ -265,10 +265,10 @@ function LessonNotebook({
       if (markerResult.data) setMarkers(markerResult.data);
       loaded.current = true;
     })();
-  }, [lesson.id, trail.demo, trail.enrollmentId]);
+  }, [lesson.id, trail.enrollmentId]);
 
   useEffect(() => {
-    if (!loaded.current || trail.demo || !trail.enrollmentId || !userId.current) return;
+    if (!loaded.current || !trail.enrollmentId || !userId.current) return;
     const enrollmentId = trail.enrollmentId;
     const authorId = userId.current;
     setSaveState("saving");
@@ -299,7 +299,7 @@ function LessonNotebook({
       setSaveState(error ? "error" : "saved");
     }, 800);
     return () => window.clearTimeout(timer);
-  }, [text, lesson.id, trail.demo, trail.enrollmentId]);
+  }, [text, lesson.id, trail.enrollmentId]);
 
   function formatSelection(before: string, after = before) {
     const field = textarea.current;
@@ -328,17 +328,8 @@ function LessonNotebook({
       setMarkerError("Escreva uma reflexão para este momento.");
       return;
     }
-    if (trail.demo || !trail.enrollmentId || !userId.current) {
-      setMarkers((items) => [
-        ...items,
-        {
-          id: `demo-marker-${Date.now()}`,
-          timestamp_seconds: Math.floor(markerTime),
-          reflection: reflection.trim(),
-          created_at: new Date().toISOString(),
-        },
-      ]);
-      setMarking(false);
+    if (!trail.enrollmentId || !userId.current) {
+      setMarkerError("Sua jornada ainda não está vinculada a uma turma.");
       return;
     }
     const result = await supabase
@@ -362,9 +353,8 @@ function LessonNotebook({
     setMarking(false);
   }
 
-  const stateLabel = trail.demo
-    ? "Demonstração: alterações não persistem"
-    : saveState === "saving"
+  const stateLabel =
+    saveState === "saving"
       ? "Salvando…"
       : saveState === "saved"
         ? "Salvo automaticamente"
@@ -398,7 +388,7 @@ function LessonNotebook({
           value={text}
           onChange={(event) => setText(event.target.value)}
           placeholder="Anote seus insights enquanto acompanha a aula…"
-          disabled={!trail.demo && !trail.enrollmentId}
+          disabled={!trail.enrollmentId}
           aria-label="Anotações da aula"
         />
         <div className="notebook-toolbar" aria-label="Formatação das anotações">
@@ -644,7 +634,7 @@ export function RecordedLessonPage({
   async function complete() {
     if (completed) return;
     setCompleted(true);
-    if (trail.demo || !trail.enrollmentId) return;
+    if (!trail.enrollmentId) return;
     const result = await supabase.from("lesson_progress").upsert(
       {
         enrollment_id: trail.enrollmentId,
