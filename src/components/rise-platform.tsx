@@ -15,11 +15,14 @@ import {
   UserRound,
   Clock3,
   Download,
+  Eye,
+  EyeOff,
   FileCheck2,
   LayoutDashboard,
   LockKeyhole,
   LogOut,
   Menu,
+  Mail,
   Play,
   Search,
   ShieldCheck,
@@ -95,6 +98,7 @@ function RiseMark({ compact = false }: { compact?: boolean }) {
 function LoginScreen({ onDemo }: { onDemo: () => void }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [method, setMethod] = useState<"password" | "link">("password");
   const [sent, setSent] = useState<"" | "link" | "reset">("");
   const [busy, setBusy] = useState(false);
@@ -159,101 +163,109 @@ function LoginScreen({ onDemo }: { onDemo: () => void }) {
         <div className="orb orb--three" />
         <span className="login-shell__spark">✦</span>
         <div className="login-shell__line" />
-        <p className="login-shell__mantra">clareza · presença · movimento</p>
+        <p className="login-shell__mantra">REFLEXÃO · IDENTIDADE · SEGURANÇA · EVOLUÇÃO</p>
       </div>
 
       <section className="login-panel">
-        <RiseMark />
-        <div className="login-panel__copy">
-          <span className="eyebrow eyebrow--gold">Plataforma exclusiva</span>
-          <h1>Seu próximo nível começa por dentro.</h1>
-          <p>
-            Entre no ambiente da sua mentoria para acessar a jornada, encontros, materiais e
-            evidências da sua evolução.
-          </p>
-        </div>
-
-        {sent ? (
-          <div className="access-sent" role="status">
-            <div className="access-sent__icon">
-              <Check />
-            </div>
-            <div>
-              <strong>Confira seu e-mail</strong>
-              <p>
-                {sent === "reset"
-                  ? "Enviamos um link para você criar uma nova senha."
-                  : "Enviamos um link seguro e temporário para continuar."}
-              </p>
-            </div>
+        <div className="login-panel__content">
+          <RiseMark />
+          <div className="login-panel__copy">
+            <h1>Seu próximo nível começa por dentro.</h1>
+            <p>Acesse sua mentoria e acompanhe sua jornada de evolução.</p>
           </div>
-        ) : (
-          <form className="login-form" onSubmit={requestAccess}>
-            <label htmlFor="rise-email">E-mail aprovado</label>
-            <input
-              id="rise-email"
-              type="email"
-              required
-              autoComplete="email"
-              placeholder="voce@empresa.com"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-            />
-            {method === "password" ? (
-              <>
-                <label htmlFor="rise-password">Senha</label>
-                <input
-                  id="rise-password"
-                  type="password"
-                  required
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                />
-              </>
-            ) : null}
-            {error ? (
-              <p className="form-error" role="alert">
-                {error}
-              </p>
-            ) : null}
-            <button className="button button--primary button--wide" type="submit" disabled={busy}>
-              {busy ? "Verificando…" : method === "password" ? "Entrar" : "Receber acesso seguro"}
-              {!busy ? <ArrowRight size={18} /> : null}
-            </button>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                gap: 12,
-                flexWrap: "wrap",
-              }}
-            >
-              <button
-                className="demo-link"
-                type="button"
-                onClick={() => setMethod(method === "password" ? "link" : "password")}
-              >
-                {method === "password" ? "Entrar com link por e-mail" : "Entrar com senha"}
-              </button>
-              {method === "password" ? (
-                <button className="demo-link" type="button" onClick={() => void forgotPassword()}>
-                  Esqueci minha senha
-                </button>
-              ) : null}
+
+          {sent ? (
+            <div className="access-sent" role="status">
+              <div className="access-sent__icon">
+                <Check />
+              </div>
+              <div>
+                <strong>Confira seu e-mail</strong>
+                <p>
+                  {sent === "reset"
+                    ? "Enviamos um link para você criar uma nova senha."
+                    : "Enviamos um link seguro e temporário para continuar."}
+                </p>
+              </div>
             </div>
-          </form>
-        )}
-
-        <div className="login-panel__security">
-          <LockKeyhole size={15} />
-          <span>Não existe cadastro público. Apenas e-mails previamente aprovados entram.</span>
+          ) : (
+            <form className="login-form" onSubmit={requestAccess}>
+              <div className="login-form__field">
+                <label htmlFor="rise-email">E-mail</label>
+                <div className="login-form__control">
+                  <Mail size={19} aria-hidden="true" />
+                  <input
+                    id="rise-email"
+                    type="email"
+                    required
+                    autoComplete="email"
+                    placeholder="seuemail@exemplo.com"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                  />
+                </div>
+              </div>
+              {method === "password" ? (
+                <div className="login-form__field">
+                  <label htmlFor="rise-password">Senha</label>
+                  <div className="login-form__control">
+                    <LockKeyhole size={19} aria-hidden="true" />
+                    <input
+                      id="rise-password"
+                      type={showPassword ? "text" : "password"}
+                      required
+                      autoComplete="current-password"
+                      placeholder="Digite sua senha"
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                    />
+                    <button
+                      className="login-form__reveal"
+                      type="button"
+                      onClick={() => setShowPassword((visible) => !visible)}
+                      aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                      aria-pressed={showPassword}
+                    >
+                      {showPassword ? <EyeOff size={21} /> : <Eye size={21} />}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+              <p className="login-form__hint">
+                Acesso seguro. Use o e-mail aprovado pela equipe RISE.
+              </p>
+              {error ? (
+                <p className="form-error" role="alert">
+                  {error}
+                </p>
+              ) : null}
+              <button className="button button--primary button--wide" type="submit" disabled={busy}>
+                {busy ? "Verificando…" : method === "password" ? "Entrar" : "Receber acesso seguro"}
+                {!busy ? <ArrowRight size={21} /> : null}
+              </button>
+              <div className="login-form__links">
+                {method === "password" ? (
+                  <button className="demo-link" type="button" onClick={() => void forgotPassword()}>
+                    Esqueci minha senha
+                  </button>
+                ) : null}
+                <span>Ambiente exclusivo RISE</span>
+              </div>
+              <div className="login-form__secondary">
+                <button
+                  className="demo-link"
+                  type="button"
+                  onClick={() => setMethod(method === "password" ? "link" : "password")}
+                >
+                  {method === "password" ? "Entrar com link por e-mail" : "Entrar com senha"}
+                </button>
+                <button className="demo-link" type="button" onClick={onDemo}>
+                  Visualizar demonstração <ChevronRight size={15} />
+                </button>
+              </div>
+            </form>
+          )}
         </div>
-
-        <button className="demo-link" type="button" onClick={onDemo}>
-          Visualizar demonstração com dados fictícios
-          <ChevronRight size={16} />
-        </button>
       </section>
     </main>
   );
@@ -313,54 +325,56 @@ export function NewPasswordScreen({
         <span className="login-shell__spark">✦</span>
       </div>
       <section className="login-panel">
-        <RiseMark />
-        <div className="login-panel__copy">
-          <span className="eyebrow eyebrow--gold">Primeiro acesso</span>
-          <h1>Crie sua nova senha.</h1>
-          <p>Por segurança, defina uma senha pessoal antes de continuar.</p>
+        <div className="login-panel__content">
+          <RiseMark />
+          <div className="login-panel__copy">
+            <span className="eyebrow eyebrow--gold">Primeiro acesso</span>
+            <h1>Crie sua nova senha.</h1>
+            <p>Por segurança, defina uma senha pessoal antes de continuar.</p>
+          </div>
+          <form className="login-form" onSubmit={save}>
+            {!recovery ? (
+              <>
+                <label htmlFor="rise-current-password">Senha atual</label>
+                <input
+                  id="rise-current-password"
+                  type="password"
+                  required
+                  autoComplete="current-password"
+                  value={current}
+                  onChange={(e) => setCurrent(e.target.value)}
+                />
+              </>
+            ) : null}
+            <label htmlFor="rise-new-password">Nova senha</label>
+            <input
+              id="rise-new-password"
+              type="password"
+              required
+              autoComplete="new-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+            <label htmlFor="rise-confirm-password">Repita a nova senha</label>
+            <input
+              id="rise-confirm-password"
+              type="password"
+              required
+              autoComplete="new-password"
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+            />
+            {error ? (
+              <p className="form-error" role="alert">
+                {error}
+              </p>
+            ) : null}
+            <button className="button button--primary button--wide" type="submit" disabled={busy}>
+              {busy ? "Salvando…" : "Salvar e entrar"}
+              {!busy ? <ArrowRight size={18} /> : null}
+            </button>
+          </form>
         </div>
-        <form className="login-form" onSubmit={save}>
-          {!recovery ? (
-            <>
-              <label htmlFor="rise-current-password">Senha atual</label>
-              <input
-                id="rise-current-password"
-                type="password"
-                required
-                autoComplete="current-password"
-                value={current}
-                onChange={(e) => setCurrent(e.target.value)}
-              />
-            </>
-          ) : null}
-          <label htmlFor="rise-new-password">Nova senha</label>
-          <input
-            id="rise-new-password"
-            type="password"
-            required
-            autoComplete="new-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-          <label htmlFor="rise-confirm-password">Repita a nova senha</label>
-          <input
-            id="rise-confirm-password"
-            type="password"
-            required
-            autoComplete="new-password"
-            value={confirm}
-            onChange={(e) => setConfirm(e.target.value)}
-          />
-          {error ? (
-            <p className="form-error" role="alert">
-              {error}
-            </p>
-          ) : null}
-          <button className="button button--primary button--wide" type="submit" disabled={busy}>
-            {busy ? "Salvando…" : "Salvar e entrar"}
-            {!busy ? <ArrowRight size={18} /> : null}
-          </button>
-        </form>
       </section>
     </main>
   );
