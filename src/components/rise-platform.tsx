@@ -61,6 +61,7 @@ import {
   ContinueJourneySection,
   JourneyContentLessonPage,
   JourneyContentLibraryPage,
+  NextMovementSection,
 } from "@/components/journey-content";
 import type { JourneyContentItem } from "@/lib/content.functions";
 import {
@@ -95,17 +96,17 @@ const journeyCoverByMonth: Record<number, string> = {
   6: "/journey-covers/sustentation.jpg",
 };
 
-function RiseMark({ compact = false }: { compact?: boolean }) {
-  return (
-    <div className={`rise-mark ${compact ? "rise-mark--compact" : ""}`} aria-label="RISE NOW">
+function RiseMark({ compact = false, onActivate }: { compact?: boolean; onActivate?: () => void }) {
+  const content = (
+    <>
       <span className="rise-mark__brand" aria-hidden="true">
         <img
-          src="/brand/rise-logo-white.png"
+          src="/brand/rise-logo-white-app.webp"
           alt=""
           className="rise-mark__logo rise-mark__logo--dark"
         />
         <img
-          src="/brand/rise-logo-marsala.png"
+          src="/brand/rise-logo-marsala-app.webp"
           alt=""
           className="rise-mark__logo rise-mark__logo--light"
         />
@@ -113,6 +114,21 @@ function RiseMark({ compact = false }: { compact?: boolean }) {
       {!compact ? (
         <span className="rise-mark__pillars">Reflexão · Identidade · Segurança · Evolução</span>
       ) : null}
+    </>
+  );
+  const className = `rise-mark ${compact ? "rise-mark--compact" : ""}`;
+  return onActivate ? (
+    <button
+      className={`${className} rise-mark--button`}
+      type="button"
+      onClick={onActivate}
+      aria-label="Voltar para o início"
+    >
+      {content}
+    </button>
+  ) : (
+    <div className={className} aria-label="RISE NOW">
+      {content}
     </div>
   );
 }
@@ -137,13 +153,13 @@ function LoginScreen() {
         password,
       });
       if (authError) {
-        setError("E-mail ou senha incorretos.");
+        setError("Email ou senha incorretos.");
         return;
       }
       sessionStorage.setItem("rise-initial-pw", password);
     } catch {
       setError(
-        "Não foi possível liberar o acesso. Confirme se este é o e-mail aprovado pela equipe RISE.",
+        "Não foi possível liberar o acesso. Confirme se este é o email aprovado pela equipe RISE.",
       );
     } finally {
       setBusy(false);
@@ -154,7 +170,7 @@ function LoginScreen() {
     setError("");
     const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail) {
-      setError("Digite seu e-mail acima para receber o link de nova senha.");
+      setError("Digite seu email acima para receber o link de nova senha.");
       return;
     }
     setBusy(true);
@@ -191,14 +207,14 @@ function LoginScreen() {
                 <Check />
               </div>
               <div>
-                <strong>Confira seu e-mail</strong>
+                <strong>Confira seu email</strong>
                 <p>Enviamos um link para você criar uma nova senha.</p>
               </div>
             </div>
           ) : (
             <form className="login-form" onSubmit={requestAccess}>
               <div className="login-form__field">
-                <label htmlFor="rise-email">E-mail</label>
+                <label htmlFor="rise-email">Email</label>
                 <div className="login-form__control">
                   <Mail size={19} aria-hidden="true" />
                   <input
@@ -237,7 +253,7 @@ function LoginScreen() {
                 </div>
               </div>
               <p className="login-form__hint">
-                Acesso seguro. Use o e-mail aprovado pela equipe RISE.
+                Acesso seguro. Use o email aprovado pela equipe RISE.
               </p>
               {error ? (
                 <p className="form-error" role="alert">
@@ -433,7 +449,7 @@ function Header({
       >
         <Menu size={22} />
       </button>
-      <RiseMark compact />
+      <RiseMark compact onActivate={() => onView(role === "mentee" ? "inicio" : "painel")} />
       <nav
         className={`main-nav ${menuOpen ? "main-nav--open" : ""}`}
         aria-label="Navegação principal"
@@ -578,7 +594,7 @@ function Hero({
           <ProgressRing value={trail.progressPct} />
           <div>
             <span>Próximo marco</span>
-            <strong>{phase?.deliverable?.title ?? "—"}</strong>
+            <strong>{phase?.deliverable?.title ?? "A definir"}</strong>
             <small>
               {pending} {pending === 1 ? "etapa" : "etapas"} para avançar
             </small>
@@ -695,7 +711,7 @@ function JourneyRail({ trail, onView }: { trail: Trail; onView: () => void }) {
                 <img
                   className="journey-card__cover"
                   src={cover}
-                  alt={`${item.title} — mês ${item.month}`}
+                  alt={`${item.title}, mês ${item.month}`}
                   loading={item.month > 2 ? "lazy" : "eager"}
                 />
               ) : null}
@@ -742,8 +758,6 @@ function HomeView({
     enabled: Boolean(trail.enrollmentId),
     refetchOnWindowFocus: true,
   });
-  const phase = currentPhase(trail);
-  const next = trail.phases.find((p) => p.month === trail.currentMonth + 1);
   const revisit = trail.phases
     .flatMap((p) => p.lessons)
     .filter((l) => l.completed && l.kind === "aula");
@@ -809,18 +823,10 @@ function HomeView({
       />
       <div className="dashboard-body">
         <ContinueJourneySection onOpen={(item) => onOpenContent(item.stepKey)} />
-        <Rail
-          title={`Mês ${phase?.month ?? 1} · ${phase?.title ?? ""}`}
-          subtitle="Encontros, sessões e aulas desta etapa."
-          items={phase?.lessons ?? []}
-          onOpen={onOpen}
-        />
         <JourneyRail trail={trail} onView={() => onView("jornada")} />
-        <Rail
-          title="Prepare o seu próximo movimento"
-          subtitle={next ? `Mês ${next.month} · ${next.title}` : undefined}
-          items={next?.lessons ?? []}
-          onOpen={onOpen}
+        <NextMovementSection
+          currentMonth={trail.currentMonth}
+          onOpen={(item) => onOpenContent(item.stepKey)}
         />
         <Rail title="Revisite quando quiser" items={revisit} onOpen={onOpen} />
         <MentorRail />
@@ -1035,7 +1041,13 @@ function MenteeArea({ view, onView }: { view: View; onView: (v: View) => void })
   const [lesson, setLesson] = useState<TrailLesson | null>(null);
   const [contentStepKey, setContentStepKey] = useState<string | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
-  if (isLoading) return <main className="inner-page" />;
+  if (isLoading)
+    return (
+      <main className="inner-page page-loading" aria-live="polite">
+        <RiseMark compact />
+        <span>Carregando sua jornada…</span>
+      </main>
+    );
   if (!trail || !trail.phases.length)
     return (
       <main className="inner-page">
@@ -1097,10 +1109,10 @@ function MenteeArea({ view, onView }: { view: View; onView: (v: View) => void })
   );
 }
 
-function AppFooter() {
+function AppFooter({ role, onView }: { role: Role; onView: (view: View) => void }) {
   return (
     <footer className="app-footer page-width">
-      <RiseMark compact />
+      <RiseMark compact onActivate={() => onView(role === "mentee" ? "inicio" : "painel")} />
       <p>Reflexão, Identidade, Segurança e Evolução</p>
       <span>© 2026 RISE NOW · Ambiente privado</span>
     </footer>
@@ -1261,7 +1273,7 @@ export function RisePlatform() {
       ) : (
         <MenteeArea view={activeView} onView={setActiveView} />
       )}
-      <AppFooter />
+      <AppFooter role={role} onView={setActiveView} />
     </div>
   );
 }

@@ -1,0 +1,28 @@
+Seu acesso à RISE Now está pronto
+
+{{ if .Data.full_name }}Olá, {{ .Data.full_name }}.
+
+{{ end }}{{ if eq .Data.member_type "mentor" }}Seu acesso à RISE Now está pronto.
+
+Você foi convidada para acessar a plataforma RISE Now como mentora.
+
+Por aqui, você poderá acompanhar os mentorados, organizar as etapas da sua jornada, acessar informações da mentoria e utilizar os recursos disponíveis para conduzir o desenvolvimento de cada participante.
+
+Para ativar seu acesso, abra o link seguro abaixo e crie sua senha.
+{{ else }}Sua jornada na RISE Now começa aqui.
+
+Você foi convidada para acessar a plataforma RISE Now.
+
+Por aqui, você poderá acompanhar sua jornada, acessar encontros, conteúdos, atividades, entregas e os recursos da sua mentoria em um só lugar.
+
+Para ativar seu acesso, abra o link seguro abaixo e crie sua senha.
+{{ end }}
+
+{{ .ConfirmationURL }}
+
+Por segurança, utilize o mesmo email em que você recebeu este convite.
+
+Se você não estava esperando este acesso, pode ignorar esta mensagem.
+
+Equipe RISE Now
+Reflexão, Identidade, Segurança e Evolução.

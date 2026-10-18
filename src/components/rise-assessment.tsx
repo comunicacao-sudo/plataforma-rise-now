@@ -68,7 +68,7 @@ const tabs = [
 type ReportTab = (typeof tabs)[number];
 
 function formatDate(value?: string | null) {
-  if (!value) return "—";
+  if (!value) return "Não informado";
   return new Date(value).toLocaleDateString("pt-BR", {
     day: "2-digit",
     month: "long",
@@ -279,7 +279,9 @@ function AssessmentReport({
               <span>Maior diferença</span>
               <strong>{maxDiff?.name ?? "Sem contraste"}</strong>
               <small>
-                {maxDiff ? `${maxDiff.delta > 0 ? "+" : ""}${maxDiff.delta.toFixed(1)}` : "—"}
+                {maxDiff
+                  ? `${maxDiff.delta > 0 ? "+" : ""}${maxDiff.delta.toFixed(1)}`
+                  : "Não informado"}
               </small>
             </article>
           </div>
@@ -645,7 +647,7 @@ function AssessmentIntro({ onStart, busy }: { onStart: () => void; busy: boolean
         <p>Este mapeamento possui duas perspectivas.</p>
         <p>
           Na primeira parte, queremos conhecer a forma como você tende a agir naturalmente. Responda
-          pensando em quem você reconhece ter sido ao longo da sua vida — não somente no momento
+          pensando em quem você reconhece ter sido ao longo da sua vida, não somente no momento
           atual.
         </p>
         <p>
@@ -691,8 +693,8 @@ function AdaptedTransition({ onContinue }: { onContinue: () => void }) {
         situações apresentadas.
       </p>
       <p>
-        Perfil Adaptado descreve como você relata que age no trabalho — não como deveria agir e nem
-        o que acredita que esperam de você.
+        Perfil Adaptado descreve como você relata que age no trabalho, não como deveria agir e nem o
+        que acredita que esperam de você.
       </p>
       <button type="button" onClick={onContinue}>
         Continuar para o Perfil Adaptado <ArrowRight size={18} />

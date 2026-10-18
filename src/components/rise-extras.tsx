@@ -32,10 +32,18 @@ export type CalEvent = {
   mentor?: string | null;
 };
 
-const gcalDate = (iso: string) => new Date(iso).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+const gcalDate = (iso: string) =>
+  new Date(iso)
+    .toISOString()
+    .replace(/[-:]/g, "")
+    .replace(/\.\d{3}/, "");
 
 function details(ev: CalEvent) {
-  return [ev.mentor ? `Mentora: ${ev.mentor}` : "", ev.description ?? "", ev.joinUrl ? `Google Meet: ${ev.joinUrl}` : ""]
+  return [
+    ev.mentor ? `Mentora: ${ev.mentor}` : "",
+    ev.description ?? "",
+    ev.joinUrl ? `Google Meet: ${ev.joinUrl}` : "",
+  ]
     .filter(Boolean)
     .join("\n\n");
 }
@@ -53,7 +61,8 @@ export function googleCalendarUrl(ev: CalEvent) {
 }
 
 function downloadIcs(ev: CalEvent) {
-  const esc = (s: string) => s.replace(/\\/g, "\\\\").replace(/\n/g, "\\n").replace(/,/g, "\\,").replace(/;/g, "\\;");
+  const esc = (s: string) =>
+    s.replace(/\\/g, "\\\\").replace(/\n/g, "\\n").replace(/,/g, "\\,").replace(/;/g, "\\;");
   const ics = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
@@ -108,14 +117,22 @@ type Material = {
   file_path: string | null;
 };
 
-function useMaterials(target: { lessonId?: string | null | undefined; meetingId?: string | null | undefined }) {
+function useMaterials(target: {
+  lessonId?: string | null | undefined;
+  meetingId?: string | null | undefined;
+}) {
   const key = target.lessonId ?? target.meetingId ?? "";
   return useQuery({
     queryKey: ["materials", key],
     enabled: !!key,
     queryFn: async () => {
-      let q = supabase.from("lesson_materials").select("id, kind, title, description, url, file_path").order("created_at");
-      q = target.lessonId ? q.eq("lesson_id", target.lessonId) : q.eq("meeting_id", target.meetingId!);
+      let q = supabase
+        .from("lesson_materials")
+        .select("id, kind, title, description, url, file_path")
+        .order("created_at");
+      q = target.lessonId
+        ? q.eq("lesson_id", target.lessonId)
+        : q.eq("meeting_id", target.meetingId!);
       const { data, error } = await q;
       if (error) throw error;
       return (data ?? []) as Material[];
@@ -133,7 +150,9 @@ async function openMaterial(m: Material) {
 function MaterialCard({ m, action }: { m: Material; action?: ReactNode }) {
   return (
     <article className="x-mat">
-      <span className="x-mat__icon">{m.kind === "link" ? <Link2 size={18} /> : <FileText size={18} />}</span>
+      <span className="x-mat__icon">
+        {m.kind === "link" ? <Link2 size={18} /> : <FileText size={18} />}
+      </span>
       <div className="x-mat__body">
         <strong>{m.title}</strong>
         {m.description ? <p>{m.description}</p> : null}
@@ -154,7 +173,15 @@ function MaterialCard({ m, action }: { m: Material; action?: ReactNode }) {
   );
 }
 
-export function MaterialsList({ lessonId, meetingId, emptyText }: { lessonId?: string | null | undefined; meetingId?: string | null | undefined; emptyText?: boolean }) {
+export function MaterialsList({
+  lessonId,
+  meetingId,
+  emptyText,
+}: {
+  lessonId?: string | null | undefined;
+  meetingId?: string | null | undefined;
+  emptyText?: boolean;
+}) {
   const { data = [], isLoading } = useMaterials({ lessonId, meetingId });
   if (isLoading) return null;
   if (!data.length)
@@ -201,7 +228,8 @@ export function MaterialsManager({
   async function add() {
     setMsg("");
     if (title.trim().length < 2) return setMsg("Dê um título ao material.");
-    if (kind === "link" && !/^https?:\/\//.test(url)) return setMsg("O link precisa começar com https://");
+    if (kind === "link" && !/^https?:\/\//.test(url))
+      return setMsg("O link precisa começar com https://");
     if (kind === "file" && !file) return setMsg("Escolha um arquivo.");
     setBusy(true);
     try {
@@ -242,8 +270,17 @@ export function MaterialsManager({
   }
 
   return (
-    <div className="modal-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <section className="content-modal ops-modal" role="dialog" aria-modal="true" aria-label="Materiais de apoio">
+    <div
+      className="modal-backdrop"
+      role="presentation"
+      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <section
+        className="content-modal ops-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Materiais de apoio"
+      >
         <button className="modal-close" type="button" onClick={onClose} aria-label="Fechar">
           <X size={21} />
         </button>
@@ -257,7 +294,12 @@ export function MaterialsManager({
                   key={m.id}
                   m={m}
                   action={
-                    <button className="icon-button" type="button" aria-label="Remover" onClick={() => void remove(m)}>
+                    <button
+                      className="icon-button"
+                      type="button"
+                      aria-label="Remover"
+                      onClick={() => void remove(m)}
+                    >
                       <Trash2 size={16} />
                     </button>
                   }
@@ -268,16 +310,28 @@ export function MaterialsManager({
             <p className="ops-muted">Nenhum material ainda.</p>
           )}
           <div className="x-seg">
-            <button type="button" className={kind === "link" ? "is-active" : ""} onClick={() => setKind("link")}>
+            <button
+              type="button"
+              className={kind === "link" ? "is-active" : ""}
+              onClick={() => setKind("link")}
+            >
               <Link2 size={15} /> Link
             </button>
-            <button type="button" className={kind === "file" ? "is-active" : ""} onClick={() => setKind("file")}>
+            <button
+              type="button"
+              className={kind === "file" ? "is-active" : ""}
+              onClick={() => setKind("file")}
+            >
               <Paperclip size={15} /> Arquivo
             </button>
           </div>
           <label className="ops-field">
             <span>Título</span>
-            <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ex.: Apresentação do encontro" />
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Ex.: Apresentação do encontro"
+            />
           </label>
           <label className="ops-field">
             <span>Descrição (opcional)</span>
@@ -286,7 +340,12 @@ export function MaterialsManager({
           {kind === "link" ? (
             <label className="ops-field">
               <span>Link</span>
-              <input type="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://drive.google.com/..." />
+              <input
+                type="url"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                placeholder="https://drive.google.com/..."
+              />
             </label>
           ) : (
             <label className="ops-field">
@@ -295,7 +354,12 @@ export function MaterialsManager({
             </label>
           )}
           {msg ? <p className="form-message">{msg}</p> : null}
-          <button className="button button--primary" type="button" disabled={busy} onClick={() => void add()}>
+          <button
+            className="button button--primary"
+            type="button"
+            disabled={busy}
+            onClick={() => void add()}
+          >
             <Plus size={16} /> {busy ? "Salvando..." : "Adicionar material"}
           </button>
         </div>
@@ -325,7 +389,9 @@ function useGoals(enrollmentId: string | null) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("rise90_goals")
-        .select("id, title, description, metric, deadline, progress_pct, position, created_at, milestones:rise90_milestones(id, title, done, position)")
+        .select(
+          "id, title, description, metric, deadline, progress_pct, position, created_at, milestones:rise90_milestones(id, title, done, position)",
+        )
         .eq("enrollment_id", enrollmentId!)
         .order("position")
         .order("created_at");
@@ -355,7 +421,7 @@ function CycleRuler({ goals }: { goals: Goal[] }) {
           <Target size={22} />
           <span>Dia</span>
           <strong>
-            {c.day || "—"} <small>de 90</small>
+            {c.day || "0"} <small>de 90</small>
           </strong>
         </div>
         <div>
@@ -379,7 +445,17 @@ function CycleRuler({ goals }: { goals: Goal[] }) {
   );
 }
 
-function GoalEditor({ enrollmentId, goal, position, onDone }: { enrollmentId: string; goal: Goal | null; position: number; onDone: () => void }) {
+function GoalEditor({
+  enrollmentId,
+  goal,
+  position,
+  onDone,
+}: {
+  enrollmentId: string;
+  goal: Goal | null;
+  position: number;
+  onDone: () => void;
+}) {
   const qc = useQueryClient();
   const [title, setTitle] = useState(goal?.title ?? "");
   const [desc, setDesc] = useState(goal?.description ?? "");
@@ -388,10 +464,17 @@ function GoalEditor({ enrollmentId, goal, position, onDone }: { enrollmentId: st
   const [msg, setMsg] = useState("");
   async function save() {
     if (title.trim().length < 2) return setMsg("Dê um título à meta.");
-    const row = { title: title.trim(), description: desc.trim() || null, metric: metric.trim() || null, deadline: deadline || null };
+    const row = {
+      title: title.trim(),
+      description: desc.trim() || null,
+      metric: metric.trim() || null,
+      deadline: deadline || null,
+    };
     const { error } = goal
       ? await supabase.from("rise90_goals").update(row).eq("id", goal.id)
-      : await supabase.from("rise90_goals").insert({ ...row, enrollment_id: enrollmentId, position });
+      : await supabase
+          .from("rise90_goals")
+          .insert({ ...row, enrollment_id: enrollmentId, position });
     if (error) return setMsg("Não foi possível salvar.");
     await qc.invalidateQueries({ queryKey: ["rise90", enrollmentId] });
     onDone();
@@ -403,17 +486,41 @@ function GoalEditor({ enrollmentId, goal, position, onDone }: { enrollmentId: st
     onDone();
   }
   return (
-    <div className="modal-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onDone()}>
-      <section className="content-modal ops-modal" role="dialog" aria-modal="true" aria-label="Meta">
+    <div
+      className="modal-backdrop"
+      role="presentation"
+      onMouseDown={(e) => e.target === e.currentTarget && onDone()}
+    >
+      <section
+        className="content-modal ops-modal goal-editor-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Meta"
+      >
         <button className="modal-close" type="button" onClick={onDone} aria-label="Fechar">
           <X size={21} />
         </button>
         <div className="content-modal__body ops-form">
-          <span className="eyebrow eyebrow--gold">RISE 90</span>
+          <span className="goal-editor__brand" aria-label="RISE NOW">
+            <img
+              className="goal-editor__logo goal-editor__logo--dark"
+              src="/brand/rise-logo-white-app.webp"
+              alt=""
+            />
+            <img
+              className="goal-editor__logo goal-editor__logo--light"
+              src="/brand/rise-logo-marsala-app.webp"
+              alt=""
+            />
+          </span>
           <h2>{goal ? "Editar meta" : "Nova meta"}</h2>
           <label className="ops-field">
             <span>Título</span>
-            <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ex.: Conduzir reuniões estratégicas" />
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Ex.: Conduzir reuniões estratégicas"
+            />
           </label>
           <label className="ops-field">
             <span>Descrição</span>
@@ -421,7 +528,11 @@ function GoalEditor({ enrollmentId, goal, position, onDone }: { enrollmentId: st
           </label>
           <label className="ops-field">
             <span>Indicador de sucesso</span>
-            <input value={metric} onChange={(e) => setMetric(e.target.value)} placeholder="Como vou saber que cheguei lá?" />
+            <input
+              value={metric}
+              onChange={(e) => setMetric(e.target.value)}
+              placeholder="Como vou saber que cheguei lá?"
+            />
           </label>
           <label className="ops-field">
             <span>Prazo final</span>
@@ -444,7 +555,17 @@ function GoalEditor({ enrollmentId, goal, position, onDone }: { enrollmentId: st
   );
 }
 
-function GoalCard({ goal, enrollmentId, editable, onEdit }: { goal: Goal; enrollmentId: string; editable: boolean; onEdit?: () => void }) {
+function GoalCard({
+  goal,
+  enrollmentId,
+  editable,
+  onEdit,
+}: {
+  goal: Goal;
+  enrollmentId: string;
+  editable: boolean;
+  onEdit?: () => void;
+}) {
   const qc = useQueryClient();
   const [pct, setPct] = useState(goal.progress_pct);
   const [newMs, setNewMs] = useState("");
@@ -462,7 +583,9 @@ function GoalCard({ goal, enrollmentId, editable, onEdit }: { goal: Goal; enroll
   }
   async function addMs() {
     if (!newMs.trim()) return;
-    await supabase.from("rise90_milestones").insert({ goal_id: goal.id, title: newMs.trim(), position: goal.milestones.length });
+    await supabase
+      .from("rise90_milestones")
+      .insert({ goal_id: goal.id, title: newMs.trim(), position: goal.milestones.length });
     setNewMs("");
     void refresh();
   }
@@ -483,7 +606,9 @@ function GoalCard({ goal, enrollmentId, editable, onEdit }: { goal: Goal; enroll
         {goal.description ? <p>{goal.description}</p> : null}
         <div className="x-goal__meta">
           {goal.metric ? <small>Indicador: {goal.metric}</small> : null}
-          {goal.deadline ? <small>Prazo: {new Date(`${goal.deadline}T12:00`).toLocaleDateString("pt-BR")}</small> : null}
+          {goal.deadline ? (
+            <small>Prazo: {new Date(`${goal.deadline}T12:00`).toLocaleDateString("pt-BR")}</small>
+          ) : null}
         </div>
       </div>
       <div className="goal-card__number">
@@ -498,27 +623,53 @@ function GoalCard({ goal, enrollmentId, editable, onEdit }: { goal: Goal; enroll
         <span style={{ width: `${pct}%` }} />
       </div>
       {editable ? (
-        <input className="x-range" type="range" min={0} max={100} step={5} value={pct} onChange={(e) => changePct(Number(e.target.value))} aria-label="Evolução" />
+        <input
+          className="x-range"
+          type="range"
+          min={0}
+          max={100}
+          step={5}
+          value={pct}
+          onChange={(e) => changePct(Number(e.target.value))}
+          aria-label="Evolução"
+        />
       ) : null}
       <div className="x-ms">
         <span className="x-ms__label">Marcos de vitória</span>
         {goal.milestones.map((m) => (
           <div key={m.id} className={`x-ms__item ${m.done ? "is-done" : ""}`}>
-            <button type="button" disabled={!editable} onClick={() => void toggle(m.id, !m.done)} aria-label="Concluir marco">
+            <button
+              type="button"
+              disabled={!editable}
+              onClick={() => void toggle(m.id, !m.done)}
+              aria-label="Concluir marco"
+            >
               {m.done ? <Check size={13} /> : null}
             </button>
             <span>{m.title}</span>
             {editable ? (
-              <button type="button" className="x-ms__del" onClick={() => void removeMs(m.id)} aria-label="Remover marco">
+              <button
+                type="button"
+                className="x-ms__del"
+                onClick={() => void removeMs(m.id)}
+                aria-label="Remover marco"
+              >
                 <X size={13} />
               </button>
             ) : null}
           </div>
         ))}
-        {!goal.milestones.length && !editable ? <small className="ops-muted">Nenhum marco ainda.</small> : null}
+        {!goal.milestones.length && !editable ? (
+          <small className="ops-muted">Nenhum marco ainda.</small>
+        ) : null}
         {editable ? (
           <div className="x-ms__add">
-            <input value={newMs} onChange={(e) => setNewMs(e.target.value)} onKeyDown={(e) => e.key === "Enter" && void addMs()} placeholder="Novo marco..." />
+            <input
+              value={newMs}
+              onChange={(e) => setNewMs(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && void addMs()}
+              placeholder="Novo marco..."
+            />
             <button type="button" onClick={() => void addMs()} aria-label="Adicionar marco">
               <Plus size={15} />
             </button>
@@ -538,7 +689,9 @@ function GuidanceNotes({ enrollmentId }: { enrollmentId: string }) {
     queryFn: async () => {
       const { data } = await supabase
         .from("notes")
-        .select("id, content, visibility, created_at, author:profiles!notes_author_id_fkey(full_name)")
+        .select(
+          "id, content, visibility, created_at, author:profiles!notes_author_id_fkey(full_name)",
+        )
         .eq("enrollment_id", enrollmentId)
         .is("lesson_id", null)
         .in("visibility", ["shared", "mentor_private"])
@@ -562,10 +715,16 @@ function GuidanceNotes({ enrollmentId }: { enrollmentId: string }) {
   return (
     <section className="x-notes">
       <h3>Notas de orientação</h3>
-      <textarea rows={3} value={text} onChange={(e) => setText(e.target.value)} placeholder="Registre uma orientação executiva..." />
+      <textarea
+        rows={3}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder="Registre uma orientação executiva..."
+      />
       <div className="x-row">
         <label className="x-check">
-          <input type="checkbox" checked={shared} onChange={(e) => setShared(e.target.checked)} /> Mostrar para a aluna
+          <input type="checkbox" checked={shared} onChange={(e) => setShared(e.target.checked)} />{" "}
+          Mostrar para a aluna
         </label>
         <button className="button button--primary" type="button" onClick={() => void add()}>
           Salvar nota
@@ -574,8 +733,8 @@ function GuidanceNotes({ enrollmentId }: { enrollmentId: string }) {
       {data.map((n) => (
         <article key={n.id} className="x-note">
           <small>
-            {n.author?.full_name ?? "Equipe"} · {new Date(n.created_at).toLocaleDateString("pt-BR")} ·{" "}
-            {n.visibility === "shared" ? "Visível para a aluna" : "Confidencial"}
+            {n.author?.full_name ?? "Equipe"} · {new Date(n.created_at).toLocaleDateString("pt-BR")}{" "}
+            · {n.visibility === "shared" ? "Visível para a aluna" : "Confidencial"}
           </small>
           <p>{n.content}</p>
         </article>
@@ -605,7 +764,8 @@ function SharedGuidance({ enrollmentId }: { enrollmentId: string }) {
       {data.map((n) => (
         <article key={n.id} className="x-note">
           <small>
-            {n.author?.full_name ?? "Mentora"} · {new Date(n.created_at).toLocaleDateString("pt-BR")}
+            {n.author?.full_name ?? "Mentora"} ·{" "}
+            {new Date(n.created_at).toLocaleDateString("pt-BR")}
           </small>
           <p>{n.content}</p>
         </article>
@@ -626,7 +786,13 @@ export function Rise90Live({ enrollmentId }: { enrollmentId: string }) {
       <CycleRuler goals={goals} />
       <section className="goal-list page-width">
         {goals.map((g) => (
-          <GoalCard key={g.id} goal={g} enrollmentId={enrollmentId} editable onEdit={() => setEditing(g)} />
+          <GoalCard
+            key={g.id}
+            goal={g}
+            enrollmentId={enrollmentId}
+            editable
+            onEdit={() => setEditing(g)}
+          />
         ))}
         {!isLoading && goals.length < 3 ? (
           <button type="button" className="x-goal-add" onClick={() => setEditing("new")}>
@@ -638,17 +804,39 @@ export function Rise90Live({ enrollmentId }: { enrollmentId: string }) {
       </section>
       <SharedGuidance enrollmentId={enrollmentId} />
       {editing ? (
-        <GoalEditor enrollmentId={enrollmentId} goal={editing === "new" ? null : editing} position={goals.length} onDone={() => setEditing(null)} />
+        <GoalEditor
+          enrollmentId={enrollmentId}
+          goal={editing === "new" ? null : editing}
+          position={goals.length}
+          onDone={() => setEditing(null)}
+        />
       ) : null}
     </main>
   );
 }
 
-export function Rise90StaffDrawer({ enrollmentId, name, onClose }: { enrollmentId: string; name: string; onClose: () => void }) {
+export function Rise90StaffDrawer({
+  enrollmentId,
+  name,
+  onClose,
+}: {
+  enrollmentId: string;
+  name: string;
+  onClose: () => void;
+}) {
   const { data: goals = [] } = useGoals(enrollmentId);
   return (
-    <div className="modal-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <section className="content-modal ops-modal x-drawer" role="dialog" aria-modal="true" aria-label={`RISE 90 de ${name}`}>
+    <div
+      className="modal-backdrop"
+      role="presentation"
+      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <section
+        className="content-modal ops-modal x-drawer"
+        role="dialog"
+        aria-modal="true"
+        aria-label={`RISE 90 de ${name}`}
+      >
         <button className="modal-close" type="button" onClick={onClose} aria-label="Fechar">
           <X size={21} />
         </button>
@@ -661,7 +849,9 @@ export function Rise90StaffDrawer({ enrollmentId, name, onClose }: { enrollmentI
             {goals.map((g) => (
               <GoalCard key={g.id} goal={g} enrollmentId={enrollmentId} editable={false} />
             ))}
-            {!goals.length ? <p className="ops-muted">Ela ainda não definiu as metas do ciclo.</p> : null}
+            {!goals.length ? (
+              <p className="ops-muted">Ela ainda não definiu as metas do ciclo.</p>
+            ) : null}
           </div>
           <GuidanceNotes enrollmentId={enrollmentId} />
         </div>
@@ -672,7 +862,15 @@ export function Rise90StaffDrawer({ enrollmentId, name, onClose }: { enrollmentI
 
 /* ================= Notifications ================= */
 
-type Notif = { id: string; type: string; title: string; body: string | null; link: string | null; read_at: string | null; created_at: string };
+type Notif = {
+  id: string;
+  type: string;
+  title: string;
+  body: string | null;
+  link: string | null;
+  read_at: string | null;
+  created_at: string;
+};
 
 export function NotificationBell({ onNavigate }: { onNavigate: (link: string) => void }) {
   const qc = useQueryClient();
@@ -692,18 +890,33 @@ export function NotificationBell({ onNavigate }: { onNavigate: (link: string) =>
   const unread = data.filter((n) => !n.read_at);
   async function markAll() {
     if (!unread.length) return;
-    await supabase.from("notifications").update({ read_at: new Date().toISOString() }).in("id", unread.map((n) => n.id));
+    await supabase
+      .from("notifications")
+      .update({ read_at: new Date().toISOString() })
+      .in(
+        "id",
+        unread.map((n) => n.id),
+      );
     await qc.invalidateQueries({ queryKey: ["notifications"] });
   }
   async function go(n: Notif) {
-    if (!n.read_at) await supabase.from("notifications").update({ read_at: new Date().toISOString() }).eq("id", n.id);
+    if (!n.read_at)
+      await supabase
+        .from("notifications")
+        .update({ read_at: new Date().toISOString() })
+        .eq("id", n.id);
     void qc.invalidateQueries({ queryKey: ["notifications"] });
     setOpen(false);
     if (n.link) onNavigate(n.link);
   }
   return (
     <div className="x-bell">
-      <button className="icon-button notification-button" type="button" aria-label="Notificações" onClick={() => setOpen(!open)}>
+      <button
+        className="icon-button notification-button"
+        type="button"
+        aria-label="Notificações"
+        onClick={() => setOpen(!open)}
+      >
         <Bell size={20} />
         {unread.length ? <span /> : null}
       </button>
@@ -717,10 +930,22 @@ export function NotificationBell({ onNavigate }: { onNavigate: (link: string) =>
           </div>
           {data.length ? (
             data.map((n) => (
-              <button key={n.id} type="button" className={`x-bell__item ${n.read_at ? "" : "is-unread"}`} onClick={() => void go(n)}>
+              <button
+                key={n.id}
+                type="button"
+                className={`x-bell__item ${n.read_at ? "" : "is-unread"}`}
+                onClick={() => void go(n)}
+              >
                 <strong>{n.title}</strong>
                 {n.body ? <span>{n.body}</span> : null}
-                <small>{new Date(n.created_at).toLocaleString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</small>
+                <small>
+                  {new Date(n.created_at).toLocaleString("pt-BR", {
+                    day: "2-digit",
+                    month: "short",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </small>
               </button>
             ))
           ) : (
@@ -759,7 +984,9 @@ export function useMyProfile(enabled = true) {
       if (!u.user) return null;
       const { data } = await supabase
         .from("profiles")
-        .select("id, email, display_name, full_name, title, avatar_url, phone, contact_email, profession, profession_visible, theme_preference")
+        .select(
+          "id, email, display_name, full_name, title, avatar_url, phone, contact_email, profession, profession_visible, theme_preference",
+        )
         .eq("id", u.user.id)
         .maybeSingle();
       return (data as MyProfile | null) ?? null;
@@ -767,30 +994,53 @@ export function useMyProfile(enabled = true) {
   });
 }
 
-export function Avatar({ name, url, size = 40 }: { name: string; url?: string | null | undefined; size?: number }) {
-  const initials = name.split(" ").map((p) => p[0]).slice(0, 2).join("");
+export function Avatar({
+  name,
+  url,
+  size = 40,
+}: {
+  name: string;
+  url?: string | null | undefined;
+  size?: number;
+}) {
+  const initials = name
+    .split(" ")
+    .map((p) => p[0])
+    .slice(0, 2)
+    .join("");
   return url ? (
     <img className="x-avatar" src={url} alt={name} style={{ width: size, height: size }} />
   ) : (
-    <span className="profile-avatar x-avatar" style={{ width: size, height: size }}>{initials}</span>
+    <span className="profile-avatar x-avatar" style={{ width: size, height: size }}>
+      {initials}
+    </span>
   );
 }
 
-const waLink = (phone: string) => `https://wa.me/${phone.replace(/\D/g, "").replace(/^(?!55)(\d{10,11})$/, "55$1")}`;
+const waLink = (phone: string) =>
+  `https://wa.me/${phone.replace(/\D/g, "").replace(/^(?!55)(\d{10,11})$/, "55$1")}`;
 
 export function ContactButtons({ phone, email }: { phone?: string | null; email?: string | null }) {
   if (!phone && !email) return null;
   return (
     <div className="x-contact">
       {phone ? (
-        <a href={waLink(phone)} target="_blank" rel="noreferrer">WhatsApp · {phone}</a>
+        <a href={waLink(phone)} target="_blank" rel="noreferrer">
+          WhatsApp · {phone}
+        </a>
       ) : null}
       {email ? <a href={`mailto:${email}`}>{email}</a> : null}
     </div>
   );
 }
 
-export function ProfileModal({ role, onClose }: { role: "mentee" | "mentor" | "admin"; onClose: () => void }) {
+export function ProfileModal({
+  role,
+  onClose,
+}: {
+  role: "mentee" | "mentor" | "admin";
+  onClose: () => void;
+}) {
   const qc = useQueryClient();
   const { data: p } = useMyProfile();
   const [form, setForm] = useState({
@@ -819,8 +1069,10 @@ export function ProfileModal({ role, onClose }: { role: "mentee" | "mentor" | "a
       });
   }, [p]);
   if (!p) return null;
-  const set = (k: "display_name" | "full_name" | "title" | "phone" | "contact_email" | "profession") =>
-    (e: { target: { value: string } }) => setForm({ ...form, [k]: e.target.value });
+  const set =
+    (k: "display_name" | "full_name" | "title" | "phone" | "contact_email" | "profession") =>
+    (e: { target: { value: string } }) =>
+      setForm({ ...form, [k]: e.target.value });
 
   async function uploadPhoto(file: File) {
     if (!file.type.startsWith("image/")) return setMsg("Escolha uma imagem (JPG ou PNG).");
@@ -840,9 +1092,11 @@ export function ProfileModal({ role, onClose }: { role: "mentee" | "mentor" | "a
   }
   async function save() {
     setMsg("");
-    if (form.display_name.trim().length < 2) return setMsg("Informe o nome que aparecerá na plataforma.");
+    if (form.display_name.trim().length < 2)
+      return setMsg("Informe o nome que aparecerá na plataforma.");
     if (form.full_name.trim().length < 2) return setMsg("Informe seu nome completo.");
-    if (form.contact_email && !/^\S+@\S+\.\S+$/.test(form.contact_email)) return setMsg("E-mail de contato inválido.");
+    if (form.contact_email && !/^\S+@\S+\.\S+$/.test(form.contact_email))
+      return setMsg("Email de contato inválido.");
     setBusy(true);
     const { error } = await supabase
       .from("profiles")
@@ -864,8 +1118,17 @@ export function ProfileModal({ role, onClose }: { role: "mentee" | "mentor" | "a
   }
 
   return (
-    <div className="modal-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <section className="content-modal ops-modal" role="dialog" aria-modal="true" aria-label="Meu perfil">
+    <div
+      className="modal-backdrop"
+      role="presentation"
+      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <section
+        className="content-modal ops-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Meu perfil"
+      >
         <button className="modal-close" type="button" onClick={onClose} aria-label="Fechar">
           <X size={21} />
         </button>
@@ -896,10 +1159,19 @@ export function ProfileModal({ role, onClose }: { role: "mentee" | "mentor" | "a
             </div>
           </fieldset>
           <div className="x-profile-photo">
-            <Avatar name={form.display_name || form.full_name || p.full_name} url={p.avatar_url} size={88} />
+            <Avatar
+              name={form.display_name || form.full_name || p.full_name}
+              url={p.avatar_url}
+              size={88}
+            />
             <label className="button button--glass">
               {busy ? "Enviando..." : p.avatar_url ? "Trocar foto" : "Enviar foto"}
-              <input type="file" accept="image/*" hidden onChange={(e) => e.target.files?.[0] && void uploadPhoto(e.target.files[0])} />
+              <input
+                type="file"
+                accept="image/*"
+                hidden
+                onChange={(e) => e.target.files?.[0] && void uploadPhoto(e.target.files[0])}
+              />
             </label>
           </div>
           <label className="ops-field">
@@ -907,22 +1179,37 @@ export function ProfileModal({ role, onClose }: { role: "mentee" | "mentor" | "a
             <input value={form.display_name} onChange={set("display_name")} />
           </label>
           <label className="ops-field">
-            <span>Nome completo <small>Privado · somente você e a administração</small></span>
+            <span>
+              Nome completo <small>Privado · somente você e a administração</small>
+            </span>
             <input value={form.full_name} onChange={set("full_name")} />
           </label>
           <label className="ops-field">
-            <span>E-mail <small>Privado · somente você e a administração</small></span>
+            <span>
+              Email <small>Privado · somente você e a administração</small>
+            </span>
             <input value={p.email} readOnly disabled />
           </label>
           <label className="ops-field">
-            <span>Telefone <small>{role === "mentee" ? "Privado · somente você e a administração" : "Contato profissional"}</small></span>
+            <span>
+              Telefone{" "}
+              <small>
+                {role === "mentee"
+                  ? "Privado · somente você e a administração"
+                  : "Contato profissional"}
+              </small>
+            </span>
             <input value={form.phone} onChange={set("phone")} placeholder="(11) 99999-9999" />
           </label>
           {role === "mentee" ? (
             <>
               <label className="ops-field">
                 <span>Profissão</span>
-                <input value={form.profession} onChange={set("profession")} placeholder="Ex.: Diretora Comercial" />
+                <input
+                  value={form.profession}
+                  onChange={set("profession")}
+                  placeholder="Ex.: Diretora Comercial"
+                />
               </label>
               <button
                 className={`x-visibility-toggle ${form.profession_visible ? "is-active" : ""}`}
@@ -935,28 +1222,39 @@ export function ProfileModal({ role, onClose }: { role: "mentee" | "mentor" | "a
                   <strong>Mostrar profissão na plataforma</strong>
                   <small>Quando ativada, aparece logo abaixo do seu nome.</small>
                 </span>
-                <i aria-hidden="true"><b /></i>
+                <i aria-hidden="true">
+                  <b />
+                </i>
               </button>
             </>
           ) : (
             <>
               <label className="ops-field">
                 <span>Cargo ou especialidade</span>
-                <input value={form.title} onChange={set("title")} placeholder="Ex.: Mentora de Identidade" />
+                <input
+                  value={form.title}
+                  onChange={set("title")}
+                  placeholder="Ex.: Mentora de Identidade"
+                />
               </label>
               <label className="ops-field">
-                <span>E-mail de contato</span>
+                <span>Email de contato</span>
                 <input type="email" value={form.contact_email} onChange={set("contact_email")} />
               </label>
             </>
           )}
           <p className="x-privacy">
             {role === "mentee"
-              ? "Seu nome completo, e-mail e telefone ficam visíveis somente para você e para a administração da RISE NOW."
+              ? "Seu nome completo, email e telefone ficam visíveis somente para você e para a administração da RISE NOW."
               : "Sua foto, nome, especialidade e contatos ficam visíveis para as mentoradas."}
           </p>
           {msg ? <p className="form-message">{msg}</p> : null}
-          <button className="button button--primary" type="button" disabled={busy} onClick={() => void save()}>
+          <button
+            className="button button--primary"
+            type="button"
+            disabled={busy}
+            onClick={() => void save()}
+          >
             Salvar perfil
           </button>
         </div>
@@ -992,7 +1290,9 @@ export function MenteeContactCard({ enrollmentId }: { enrollmentId: string }) {
   const { data } = useQuery({
     queryKey: ["mentee-public-profile", enrollmentId],
     queryFn: async () => {
-      const { data } = await supabase.rpc("mentee_public_profile", { _enrollment_id: enrollmentId });
+      const { data } = await supabase.rpc("mentee_public_profile", {
+        _enrollment_id: enrollmentId,
+      });
       return data?.[0] ?? null;
     },
   });

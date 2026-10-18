@@ -69,13 +69,19 @@ export function useJourneyContentLibrary(enabled = true) {
     queryFn: () => load(),
     enabled,
     retry: false,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
   });
 }
 
 function ContentCover({ item }: { item: JourneyContentItem }) {
   return (
     <div className="journey-content-cover">
-      {item.coverUrl ? <img src={item.coverUrl} alt="" /> : <div aria-hidden="true" />}
+      {item.coverUrl ? (
+        <img src={item.coverUrl} alt="" loading="lazy" decoding="async" />
+      ) : (
+        <div aria-hidden="true" />
+      )}
       {item.availability !== "available" ? (
         <span>{availabilityLabel(item)}</span>
       ) : isVideo(item) ? (
@@ -112,11 +118,7 @@ function ContentCard({
   );
 }
 
-export function ContinueJourneySection({
-  onOpen,
-}: {
-  onOpen: (item: JourneyContentItem) => void;
-}) {
+export function ContinueJourneySection({ onOpen }: { onOpen: (item: JourneyContentItem) => void }) {
   const query = useJourneyContentLibrary(true);
   const items = query.data?.items.slice(0, 4) ?? [];
   if (query.isError || (!query.isLoading && !items.length)) return null;
@@ -133,6 +135,42 @@ export function ContinueJourneySection({
       </div>
       {query.isLoading ? (
         <div className="journey-content-loading">Carregando suas próximas etapas…</div>
+      ) : (
+        <div className="continue-journey__grid">
+          {items.map((item) => (
+            <ContentCard key={item.stepKey} item={item} onOpen={onOpen} />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+export function NextMovementSection({
+  currentMonth,
+  onOpen,
+}: {
+  currentMonth: number;
+  onOpen: (item: JourneyContentItem) => void;
+}) {
+  const query = useJourneyContentLibrary(true);
+  const nextMonth = currentMonth + 1;
+  const items = (query.data?.items ?? [])
+    .filter((item) => item.monthNumber === nextMonth)
+    .slice(0, 4);
+
+  if (nextMonth > 6 || query.isError || (!query.isLoading && !items.length)) return null;
+
+  return (
+    <section className="content-section page-width" aria-labelledby="next-movement-title">
+      <div className="section-heading">
+        <div>
+          <h2 id="next-movement-title">Prepare o seu próximo movimento</h2>
+          <p>Mês {nextMonth}, conteúdos da próxima etapa da sua jornada.</p>
+        </div>
+      </div>
+      {query.isLoading ? (
+        <div className="journey-content-loading">Carregando a próxima etapa…</div>
       ) : (
         <div className="continue-journey__grid">
           {items.map((item) => (

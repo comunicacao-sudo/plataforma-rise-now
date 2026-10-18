@@ -851,7 +851,7 @@ export function JourneyAdmin() {
                     const copy = {
                       ...step,
                       stableKey: crypto.randomUUID(),
-                      title: `${step.title} — cópia`,
+                      title: `${step.title}, cópia`,
                     };
                     const next = [...steps];
                     next.splice(index + 1, 0, copy);
@@ -880,7 +880,7 @@ export function JourneyAdmin() {
                 <button
                   type="button"
                   onClick={() => setPreview(step)}
-                  aria-label={`Pré-visualizar ${step.title}`}
+                  aria-label={`Visualizar ${step.title}`}
                 >
                   <Eye size={17} />
                 </button>
@@ -923,7 +923,7 @@ export function JourneyAdmin() {
             onClick={() => steps[0] && setPreview(steps[0])}
             disabled={!steps.length}
           >
-            <Eye size={17} /> Pré-visualizar
+            <Eye size={17} /> Visualizar
           </button>
           <button
             className="button button--glass"
@@ -1003,13 +1003,13 @@ export function JourneyAdmin() {
           className="journey-preview"
           role="dialog"
           aria-modal="true"
-          aria-label="Pré-visualização"
+          aria-label="Visualização prévia"
         >
           <button
             className="journey-preview__close"
             type="button"
             onClick={() => setPreview(null)}
-            aria-label="Fechar pré-visualização"
+            aria-label="Fechar visualização"
           >
             <X size={20} />
           </button>

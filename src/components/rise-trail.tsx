@@ -92,8 +92,7 @@ async function loadTrail(): Promise<Trail> {
     .maybeSingle();
 
   const programId = enrollment?.program_id;
-  if (!programId)
-    return { enrollmentId: null, currentMonth: 1, progressPct: 0, phases: [] };
+  if (!programId) return { enrollmentId: null, currentMonth: 1, progressPct: 0, phases: [] };
 
   const [phasesRes, progressRes, subsRes] = await Promise.all([
     supabase
@@ -185,6 +184,8 @@ export function useTrail() {
   return useQuery({
     queryKey: ["trail"],
     queryFn: loadTrail,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
   });
 }
 

@@ -137,13 +137,13 @@ export function NextStepHero({
   return (
     <section
       className="next-step-hero"
-      aria-label={preview ? "Pré-visualização do próximo passo" : "Seu próximo passo"}
+      aria-label={preview ? "Visualização prévia do próximo passo" : "Seu próximo passo"}
     >
       <div className="next-step-hero__art" aria-hidden="true" />
       <div className="next-step-hero__content page-width">
         <div className="next-step-hero__copy">
           <span className="next-step-hero__eyebrow">
-            {preview ? "Pré-visualização" : (step.pillarName ?? "Sua jornada")}
+            {preview ? "Visualização prévia" : (step.pillarName ?? "Sua jornada")}
           </span>
           <h1>
             {step.impactLead ? <span>{step.impactLead} </span> : null}
