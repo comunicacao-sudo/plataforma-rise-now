@@ -187,6 +187,7 @@ export const mentors = [
     initials: "CU",
     copy: "Escuta ativa para transformar dilemas em escolhas mais claras.",
     color: "#8f3544",
+    email: "camilaum@pamarisdigital.com",
   },
   {
     name: "Gabriela Ribeiro",
@@ -194,13 +195,15 @@ export const mentors = [
     initials: "GR",
     copy: "Posicionamento e marca pessoal para tornar valor visível.",
     color: "#a85f70",
+    email: "gabi@pamarisdigital.com",
   },
   {
-    name: "Luiza Mendes",
+    name: "Ana Luiza",
     pillar: "Segurança",
-    initials: "LM",
+    initials: "AL",
     copy: "IA e produtividade traduzidas em ferramentas possíveis.",
     color: "#7c6c8e",
+    email: "ana@pamarisdigital.com",
   },
   {
     name: "Camila Mariano",
@@ -208,6 +211,7 @@ export const mentors = [
     initials: "CM",
     copy: "Direção, liderança e execução para o próximo nível.",
     color: "#b48843",
+    email: "camila@pamarisdigital.com",
   },
 ];
 

@@ -28,9 +28,9 @@ import {
   updateMeeting,
 } from "@/lib/google.functions";
 import {
+  createMentorSpecialty,
   createMember,
   getDirectory,
-  resetMemberPassword,
   updateEnrollment,
 } from "@/lib/admin.functions";
 import {
@@ -121,13 +121,6 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
       {children}
     </label>
   );
-}
-
-function tempPassword() {
-  const chars = "abcdefghjkmnpqrstuvwxyz23456789";
-  let s = "rise@";
-  for (let i = 0; i < 6; i++) s += chars[Math.floor(Math.random() * chars.length)];
-  return s;
 }
 
 /* ---------- meeting card (shared mentee + staff) ---------- */
@@ -313,13 +306,16 @@ function waitForOAuth(popup: Window) {
   });
 }
 
-function GoogleCard() {
+export function GoogleCalendarCard({ audience = "staff" }: { audience?: "staff" | "mentee" }) {
   const qc = useQueryClient();
   const statusFn = useServerFn(googleStatus);
   const startFn = useServerFn(startGoogleConnect);
   const completeFn = useServerFn(completeGoogleConnect);
   const disconnectFn = useServerFn(disconnectGoogle);
-  const { data, isLoading } = useQuery({ queryKey: ["google-status"], queryFn: () => statusFn() });
+  const { data, isLoading } = useQuery({
+    queryKey: ["google-status"],
+    queryFn: () => statusFn(),
+  });
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -365,10 +361,14 @@ function GoogleCard() {
             {isLoading
               ? "Verificando…"
               : data?.connected
-                ? `Conectado${data.email ? ` · ${data.email}` : ""}. Os encontros que você marcar já criam o evento e o link do Meet.`
+                ? audience === "staff"
+                  ? `Conectado${data.email ? ` · ${data.email}` : ""}. Os encontros que você marcar já criam o evento, o link do Meet e enviam os convites.`
+                  : `Conectado${data.email ? ` · ${data.email}` : ""}. Seus encontros RISE podem ser acompanhados na sua agenda pessoal.`
                 : data?.reconnectRequired
                   ? "Sua conexão com o Google precisa ser renovada."
-                  : "Conecte sua conta para criar o evento e o link do Meet automaticamente."}
+                  : audience === "staff"
+                    ? "Conecte sua conta para criar os eventos, os convites e os links do Meet automaticamente."
+                    : "Conecte sua conta pessoal para acompanhar os encontros RISE no Google Agenda."}
           </p>
         </div>
       </div>
@@ -819,7 +819,7 @@ function StaffAgenda() {
         copy="Marque encontros coletivos ou sessões 1:1. O convite e o link do Meet vão direto para a agenda das participantes."
       />
       <section className="page-width ops-section">
-        <GoogleCard />
+        <GoogleCalendarCard />
         <div className="section-heading ops-gap">
           <div>
             <h2>Próximos encontros</h2>
@@ -1258,13 +1258,13 @@ function MemberForm({ onDone }: { onDone: () => void }) {
   const [f, setF] = useState({
     fullName: "",
     email: "",
-    role: "mentee" as "mentee" | "admin",
+    memberType: "mentee" as "mentee" | "mentor",
     cohortId: "",
     mentorId: "",
-    password: tempPassword(),
+    specialtyId: "",
   });
   const [msg, setMsg] = useState("");
-  const [done, setDone] = useState<{ email: string; password: string } | null>(null);
+  const [done, setDone] = useState<{ email: string } | null>(null);
   const [busy, setBusy] = useState(false);
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -1272,13 +1272,18 @@ function MemberForm({ onDone }: { onDone: () => void }) {
     setMsg("");
     try {
       const r = await fn({
-        data: { ...f, cohortId: f.cohortId || null, mentorId: f.mentorId || null },
+        data: {
+          ...f,
+          cohortId: f.memberType === "mentee" ? f.cohortId || null : null,
+          mentorId: f.memberType === "mentee" ? f.mentorId || null : null,
+          specialtyId: f.memberType === "mentee" ? null : f.specialtyId || null,
+        },
       });
       if (!r.ok) return setMsg(r.error);
       await qc.invalidateQueries({ queryKey: ["directory"] });
-      setDone({ email: f.email, password: f.password });
+      setDone({ email: f.email });
     } catch {
-      setMsg("Confira o nome, o e-mail e a senha (mínimo 8 caracteres).");
+      setMsg("Confira o nome, o e-mail e as informações de acesso.");
     } finally {
       setBusy(false);
     }
@@ -1300,15 +1305,14 @@ function MemberForm({ onDone }: { onDone: () => void }) {
         </button>
         {done ? (
           <div className="content-modal__body ops-form">
-            <span className="eyebrow eyebrow--gold">Acesso criado</span>
-            <h2>Pronto!</h2>
-            <p>Envie estes dados para a pessoa. No primeiro acesso ela cria a própria senha.</p>
+            <span className="eyebrow eyebrow--gold">Convite enviado</span>
+            <h2>Pronto</h2>
+            <p>
+              A pessoa recebeu um e-mail da RISE NOW com o link seguro para criar a própria senha.
+            </p>
             <div className="ops-review-content">
               <p>
                 <strong>E-mail:</strong> {done.email}
-              </p>
-              <p>
-                <strong>Senha inicial:</strong> {done.password}
               </p>
             </div>
             <div className="content-modal__actions">
@@ -1334,16 +1338,24 @@ function MemberForm({ onDone }: { onDone: () => void }) {
                 onChange={(e) => setF({ ...f, email: e.target.value })}
               />
             </Field>
-            <Field label="Papel">
+            <Field label="Tipo de acesso">
               <select
-                value={f.role}
-                onChange={(e) => setF({ ...f, role: e.target.value as typeof f.role })}
+                value={f.memberType}
+                onChange={(e) =>
+                  setF({
+                    ...f,
+                    memberType: e.target.value as typeof f.memberType,
+                    cohortId: "",
+                    mentorId: "",
+                    specialtyId: "",
+                  })
+                }
               >
                 <option value="mentee">Mentorada</option>
-                <option value="admin">Mentora · Administradora</option>
+                <option value="mentor">Mentora · Administradora</option>
               </select>
             </Field>
-            {f.role === "mentee" ? (
+            {f.memberType === "mentee" ? (
               <div className="ops-grid2">
                 <Field label="Turma">
                   <select
@@ -1372,17 +1384,30 @@ function MemberForm({ onDone }: { onDone: () => void }) {
                   </select>
                 </Field>
               </div>
-            ) : null}
-            <Field label="Senha inicial (ela troca no primeiro acesso)">
-              <input
-                value={f.password}
-                onChange={(e) => setF({ ...f, password: e.target.value })}
-              />
-            </Field>
+            ) : (
+              <Field label="Pilar ou assunto principal">
+                <select
+                  required
+                  value={f.specialtyId}
+                  onChange={(e) => setF({ ...f, specialtyId: e.target.value })}
+                >
+                  <option value="">Selecione</option>
+                  {dir?.specialties.map((specialty) => (
+                    <option key={specialty.id} value={specialty.id}>
+                      {specialty.name} · {specialty.category === "pillar" ? "Pilar" : "Assunto"}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            )}
+            <p className="ops-muted">
+              O acesso será liberado somente após a pessoa abrir o convite recebido por e-mail e
+              criar a própria senha.
+            </p>
             {msg ? <p className="form-message">{msg}</p> : null}
             <div className="content-modal__actions">
               <button className="button button--primary" type="submit" disabled={busy}>
-                {busy ? "Criando…" : "Criar acesso"}
+                {busy ? "Enviando…" : "Enviar convite"}
               </button>
             </div>
           </form>
@@ -1392,13 +1417,65 @@ function MemberForm({ onDone }: { onDone: () => void }) {
   );
 }
 
+function SpecialtyForm({ onDone }: { onDone: () => void }) {
+  const qc = useQueryClient();
+  const fn = useServerFn(createMentorSpecialty);
+  const [name, setName] = useState("");
+  const [category, setCategory] = useState<"pillar" | "subject">("subject");
+  const [msg, setMsg] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function save(event: React.FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setMsg("");
+    try {
+      const result = await fn({ data: { name, category } });
+      if (!result.ok) return setMsg(result.error);
+      await qc.invalidateQueries({ queryKey: ["directory"] });
+      onDone();
+    } catch {
+      setMsg("Não foi possível cadastrar agora.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form className="ops-inline-form" onSubmit={(event) => void save(event)}>
+      <Field label="Nome">
+        <input
+          required
+          minLength={2}
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          placeholder="Ex.: Liderança executiva"
+        />
+      </Field>
+      <Field label="Classificação">
+        <select
+          value={category}
+          onChange={(event) => setCategory(event.target.value as typeof category)}
+        >
+          <option value="pillar">Pilar</option>
+          <option value="subject">Assunto</option>
+        </select>
+      </Field>
+      <button className="button button--primary" type="submit" disabled={busy}>
+        {busy ? "Salvando…" : "Cadastrar"}
+      </button>
+      {msg ? <span className="form-message">{msg}</span> : null}
+    </form>
+  );
+}
+
 function MembersPanel() {
   const qc = useQueryClient();
   const { data: dir } = useDirectory();
   const updateFn = useServerFn(updateEnrollment);
-  const resetFn = useServerFn(resetMemberPassword);
   const { data: subs = [] } = useSubmissions();
   const [cohortOpen, setCohortOpen] = useState(false);
+  const [specialtyOpen, setSpecialtyOpen] = useState(false);
   const [memberOpen, setMemberOpen] = useState(false);
   const [goalsOf, setGoalsOf] = useState<{ id: string; name: string } | null>(null);
   const [assessmentOf, setAssessmentOf] = useState<{ id: string; name: string } | null>(null);
@@ -1414,11 +1491,16 @@ function MembersPanel() {
     await updateFn({ data: { enrollmentId, ...patch } });
     await qc.invalidateQueries({ queryKey: ["directory"] });
   }
-  async function reset(userId: string, name: string) {
-    const pw = tempPassword();
-    if (!window.confirm(`Redefinir a senha de ${name}?`)) return;
-    await resetFn({ data: { userId, password: pw } });
-    window.alert(`Nova senha inicial de ${name}: ${pw}\nEla troca no próximo acesso.`);
+  async function reset(email: string, name: string) {
+    if (!window.confirm(`Enviar um link de nova senha para ${name}?`)) return;
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    window.alert(
+      error
+        ? "Não foi possível enviar o e-mail agora."
+        : `O link para criar uma nova senha foi enviado para ${email}.`,
+    );
   }
   const monthStatus = (enrollmentId: string, month: number) =>
     subs.find(
@@ -1452,6 +1534,25 @@ function MembersPanel() {
               </small>
               <span>{dir.enrollments.filter((e) => e.cohortId === c.id).length} mentorada(s)</span>
             </article>
+          ))}
+        </div>
+
+        <div className="section-heading ops-gap">
+          <div>
+            <h2>Pilares e assuntos</h2>
+            <p>Opções usadas no cadastro das mentoras.</p>
+          </div>
+          <button type="button" onClick={() => setSpecialtyOpen(!specialtyOpen)}>
+            <Plus size={16} /> Novo pilar ou assunto
+          </button>
+        </div>
+        {specialtyOpen ? <SpecialtyForm onDone={() => setSpecialtyOpen(false)} /> : null}
+        <div className="ops-specialties">
+          {dir?.specialties.map((specialty) => (
+            <span key={specialty.id}>
+              {specialty.name}
+              <small>{specialty.category === "pillar" ? "Pilar" : "Assunto"}</small>
+            </span>
           ))}
         </div>
 
@@ -1561,8 +1662,12 @@ function MembersPanel() {
                         Desativar
                       </button>
                     ) : null}
-                    <button type="button" onClick={() => void reset(e.menteeId, e.name)}>
-                      Redefinir senha
+                    <button
+                      type="button"
+                      disabled={!e.email}
+                      onClick={() => e.email && void reset(e.email, e.name)}
+                    >
+                      Enviar nova senha
                     </button>
                     <button
                       type="button"
@@ -1587,7 +1692,10 @@ function MembersPanel() {
             <article key={s.id} className="admin-card">
               <strong>{s.name}</strong>
               <small className="ops-muted">{s.email}</small>
-              <span>Mentora · Administradora</span>
+              <span>
+                Mentora
+                {s.specialty ? ` de ${s.specialty}` : ""} · Administradora
+              </span>
             </article>
           ))}
         </div>

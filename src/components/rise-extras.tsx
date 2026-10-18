@@ -18,6 +18,8 @@ import {
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { supabase } from "@/integrations/supabase/client";
+import { mentors } from "@/data/rise-content";
+import { SectionHero } from "@/components/section-hero";
 
 /* ================= Calendar ================= */
 
@@ -616,12 +618,11 @@ export function Rise90Live({ enrollmentId }: { enrollmentId: string }) {
   const { data: goals = [], isLoading } = useGoals(enrollmentId);
   const [editing, setEditing] = useState<Goal | "new" | null>(null);
   return (
-    <main className="inner-page rise90-page">
-      <div className="page-intro page-width">
-        <span className="eyebrow eyebrow--gold">Execução e evidência</span>
-        <h1>RISE 90</h1>
-        <p>Três metas que conectam intenção, comportamento e resultado em um ciclo de 90 dias.</p>
-      </div>
+    <main className="inner-page inner-page--section-hero rise90-page">
+      <SectionHero
+        section="RISE 90"
+        phrase="Noventa dias de intenção consistente transformam o seu próximo nível"
+      />
       <CycleRuler goals={goals} />
       <section className="goal-list page-width">
         {goals.map((g) => (
@@ -964,17 +965,7 @@ export function ProfileModal({ role, onClose }: { role: "mentee" | "mentor" | "a
   );
 }
 
-type StaffCard = { id: string; full_name: string; title: string | null; avatar_url: string | null; phone: string | null; contact_email: string | null };
-
 export function MentorsSection() {
-  const { data = [] } = useQuery({
-    queryKey: ["staff-directory"],
-    queryFn: async () => {
-      const { data } = await supabase.rpc("staff_directory");
-      return (data ?? []) as StaffCard[];
-    },
-  });
-  if (!data.length) return null;
   return (
     <section className="page-width ops-section">
       <div className="section-heading">
@@ -984,12 +975,12 @@ export function MentorsSection() {
         </div>
       </div>
       <div className="x-mentors">
-        {data.map((m) => (
-          <article key={m.id} className="x-mentor">
-            <Avatar name={m.full_name} url={m.avatar_url} size={64} />
-            <strong>{m.full_name}</strong>
-            {m.title ? <small>{m.title}</small> : null}
-            <ContactButtons phone={m.phone} email={m.contact_email} />
+        {mentors.map((mentor) => (
+          <article key={mentor.email} className="x-mentor">
+            <Avatar name={mentor.name} size={64} />
+            <strong>{mentor.name}</strong>
+            <small>Mentora de {mentor.pillar}</small>
+            <ContactButtons phone={null} email={mentor.email} />
           </article>
         ))}
       </div>

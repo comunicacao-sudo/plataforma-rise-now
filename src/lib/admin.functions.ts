@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
@@ -15,7 +16,13 @@ async function requireAdmin(supabase: any, userId: string) {
   if (!r.isAdmin) throw new Error("Acesso restrito à administração.");
 }
 
-async function audit(admin: any, actor: string, action: string, target: string, payload: unknown = null) {
+async function audit(
+  admin: any,
+  actor: string,
+  action: string,
+  target: string,
+  payload: unknown = null,
+) {
   await admin.from("audit_log").insert({ actor_id: actor, action, target, payload });
 }
 
@@ -26,10 +33,23 @@ export const getDirectory = createServerFn({ method: "GET" })
     const r = await roles(context.supabase, context.userId);
     if (!r.isAdmin) throw new Error("Acesso restrito.");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const [mentorRoles, cohorts, phases] = await Promise.all([
-      supabaseAdmin.from("user_roles").select("role, profile:profiles(id, full_name, email)").in("role", ["mentor", "admin"]),
+    const [mentorRoles, cohorts, phases, specialties] = await Promise.all([
+      supabaseAdmin
+        .from("user_roles")
+        .select(
+          "role, profile:profiles(id, full_name, email, title, staff_type, primary_specialty_id)",
+        )
+        .in("role", ["mentor", "admin"]),
       supabaseAdmin.from("cohorts").select("*").order("created_at"),
-      supabaseAdmin.from("phases").select("id, month_number, title, pillar, lessons(id, title, kind, position)").order("month_number"),
+      supabaseAdmin
+        .from("phases")
+        .select("id, month_number, title, pillar, lessons(id, title, kind, position)")
+        .order("month_number"),
+      supabaseAdmin
+        .from("mentor_specialties")
+        .select("id, name, category")
+        .order("category")
+        .order("name"),
     ]);
     const eq = supabaseAdmin
       .from("enrollments")
@@ -38,7 +58,21 @@ export const getDirectory = createServerFn({ method: "GET" })
       )
       .order("created_at");
     const { data: enrollments } = await eq;
-    const seen = new Map<string, { id: string; name: string; email: string; isAdmin: boolean }>();
+    const specialtyById = new Map<string, string>(
+      (specialties.data ?? []).map((item) => [item.id, item.name]),
+    );
+    const seen = new Map<
+      string,
+      {
+        id: string;
+        name: string;
+        email: string;
+        isAdmin: boolean;
+        staffType: "mentor" | null;
+        specialtyId: string | null;
+        specialty: string | null;
+      }
+    >();
     for (const row of (mentorRoles.data ?? []) as any[]) {
       if (!row.profile) continue;
       seen.set(row.profile.id, {
@@ -46,12 +80,16 @@ export const getDirectory = createServerFn({ method: "GET" })
         name: row.profile.full_name,
         email: row.profile.email,
         isAdmin: true,
+        staffType: row.profile.staff_type,
+        specialtyId: row.profile.primary_specialty_id,
+        specialty: specialtyById.get(row.profile.primary_specialty_id) ?? row.profile.title ?? null,
       });
     }
     return {
       isAdmin: r.isAdmin,
       me: context.userId,
       staff: [...seen.values()].sort((a, b) => a.name.localeCompare(b.name)),
+      specialties: specialties.data ?? [],
       cohorts: cohorts.data ?? [],
       phases: (phases.data ?? []).map((p: any) => ({
         ...p,
@@ -68,8 +106,8 @@ export const getDirectory = createServerFn({ method: "GET" })
           mentorId: e.mentor_id as string | null,
           menteeId: e.mentee?.id as string,
           name: (r.isAdmin ? e.mentee?.full_name || publicName : publicName) as string,
-          email: (r.isAdmin ? e.mentee?.email ?? "" : "") as string,
-          profession: (e.mentee?.profession_visible ? e.mentee?.profession ?? "" : "") as string,
+          email: (r.isAdmin ? (e.mentee?.email ?? "") : "") as string,
+          profession: (e.mentee?.profession_visible ? (e.mentee?.profession ?? "") : "") as string,
         };
       }),
     };
@@ -82,34 +120,66 @@ export const createMember = createServerFn({ method: "POST" })
       .object({
         fullName: z.string().trim().min(2).max(120),
         email: z.string().trim().toLowerCase().email().max(200),
-        role: z.enum(["mentee", "admin"]),
+        memberType: z.enum(["mentee", "mentor"]),
         cohortId: z.string().uuid().nullable(),
         mentorId: z.string().uuid().nullable(),
-        password: z.string().min(8).max(72),
+        specialtyId: z.string().uuid().nullable(),
       })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase, context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: existing } = await supabaseAdmin.from("profiles").select("id").eq("email", data.email).maybeSingle();
+    const { data: existing } = await supabaseAdmin
+      .from("profiles")
+      .select("id")
+      .eq("email", data.email)
+      .maybeSingle();
     if (existing) return { ok: false as const, error: "Este e-mail já tem acesso à plataforma." };
-    const { error: invErr } = await supabaseAdmin
-      .from("allowed_emails")
-      .upsert({ email: data.email, full_name: data.fullName, role: data.role, status: "approved", invited_by: context.userId }, { onConflict: "email" });
+    const role = data.memberType === "mentee" ? "mentee" : "admin";
+    const { error: invErr } = await supabaseAdmin.from("allowed_emails").upsert(
+      {
+        email: data.email,
+        full_name: data.fullName,
+        role,
+        status: "approved",
+        invited_by: context.userId,
+      },
+      { onConflict: "email" },
+    );
     if (invErr) {
       // allowed_emails may not have a unique constraint on email; fall back to insert
-      await supabaseAdmin.from("allowed_emails").insert({ email: data.email, full_name: data.fullName, role: data.role, status: "approved", invited_by: context.userId });
+      await supabaseAdmin.from("allowed_emails").insert({
+        email: data.email,
+        full_name: data.fullName,
+        role,
+        status: "approved",
+        invited_by: context.userId,
+      });
     }
-    const { data: created, error } = await supabaseAdmin.auth.admin.createUser({
-      email: data.email,
-      password: data.password,
-      email_confirm: true,
-      user_metadata: { full_name: data.fullName, must_change_password: true },
+    const request = getRequest();
+    const url = new URL(request.url);
+    const forwardedHost = request.headers.get("x-forwarded-host");
+    const forwardedProto = request.headers.get("x-forwarded-proto") ?? "https";
+    const origin = forwardedHost ? `${forwardedProto}://${forwardedHost}` : url.origin;
+    const { data: created, error } = await supabaseAdmin.auth.admin.inviteUserByEmail(data.email, {
+      redirectTo: new URL("/reset-password", origin).toString(),
+      data: {
+        full_name: data.fullName,
+        staff_type: data.memberType === "mentee" ? null : data.memberType,
+      },
     });
-    if (error || !created.user) return { ok: false as const, error: error?.message ?? "Não foi possível criar o acesso." };
-    if (data.role === "mentee") {
-      const { data: program } = await supabaseAdmin.from("programs").select("id").limit(1).maybeSingle();
+    if (error || !created.user)
+      return {
+        ok: false as const,
+        error: error?.message ?? "Não foi possível enviar o convite.",
+      };
+    if (data.memberType === "mentee") {
+      const { data: program } = await supabaseAdmin
+        .from("programs")
+        .select("id")
+        .limit(1)
+        .maybeSingle();
       if (program) {
         await supabaseAdmin.from("enrollments").insert({
           mentee_id: created.user.id,
@@ -118,9 +188,62 @@ export const createMember = createServerFn({ method: "POST" })
           mentor_id: data.mentorId,
         });
       }
+    } else {
+      let specialtyName: string | null = null;
+      if (data.specialtyId) {
+        const { data: specialty } = await supabaseAdmin
+          .from("mentor_specialties")
+          .select("name")
+          .eq("id", data.specialtyId)
+          .maybeSingle();
+        specialtyName = specialty?.name ?? null;
+      }
+      await supabaseAdmin
+        .from("profiles")
+        .update({
+          staff_type: data.memberType,
+          primary_specialty_id: data.specialtyId,
+          pillar: specialtyName,
+          title: specialtyName
+            ? `Mentora de ${specialtyName}`
+            : "Mentora",
+        })
+        .eq("id", created.user.id);
     }
-    await audit(supabaseAdmin, context.userId, "member_created", data.email, { role: data.role });
+    await audit(supabaseAdmin, context.userId, "member_invited", data.email, {
+      memberType: data.memberType,
+      specialtyId: data.specialtyId,
+    });
     return { ok: true as const };
+  });
+
+export const createMentorSpecialty = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        name: z.string().trim().min(2).max(80),
+        category: z.enum(["pillar", "subject"]),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase, context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: specialty, error } = await supabaseAdmin
+      .from("mentor_specialties")
+      .insert({ ...data, created_by: context.userId })
+      .select("id, name, category")
+      .single();
+    if (error) {
+      const duplicate = error.code === "23505";
+      return {
+        ok: false as const,
+        error: duplicate ? "Este pilar ou assunto já está cadastrado." : error.message,
+      };
+    }
+    await audit(supabaseAdmin, context.userId, "mentor_specialty_created", specialty.id, data);
+    return { ok: true as const, specialty };
   });
 
 export const updateEnrollment = createServerFn({ method: "POST" })
@@ -160,7 +283,9 @@ export const updateEnrollment = createServerFn({ method: "POST" })
 
 export const resetMemberPassword = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ userId: z.string().uuid(), password: z.string().min(8).max(72) }).parse(d))
+  .inputValidator((d: unknown) =>
+    z.object({ userId: z.string().uuid(), password: z.string().min(8).max(72) }).parse(d),
+  )
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase, context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");

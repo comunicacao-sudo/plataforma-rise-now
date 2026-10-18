@@ -35,7 +35,6 @@ async function assertStaff(supabase: any, userId: string) {
 export const googleStatus = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    await assertStaff(context.supabase, context.userId);
     const key = await getConnectionKeyForUser(context.userId, CONNECTOR);
     if (!key) return { connected: false, reconnectRequired: false, email: null as string | null };
     const res = await callAsAppUser({
@@ -57,7 +56,6 @@ export const googleStatus = createServerFn({ method: "GET" })
 export const startGoogleConnect = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    await assertStaff(context.supabase, context.userId);
     const clientKey = process.env["GOOGLE_CALENDAR_APP_USER_CONNECTOR_CLIENT_API_KEY"];
     if (!clientKey) throw new Error("Conexão com o Google ainda não configurada.");
     const request = getRequest();
@@ -81,7 +79,6 @@ export const completeGoogleConnect = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ code: z.string().min(1) }).parse(d))
   .handler(async ({ data, context }) => {
-    await assertStaff(context.supabase, context.userId);
     const { connectionAPIKey, connectorId } = await exchangeAppUserOAuthCode(GATEWAY, data.code);
     if (connectorId !== CONNECTOR) throw new Error("Conector inesperado");
     await saveConnectionKeyForUser(context.userId, connectorId, connectionAPIKey);

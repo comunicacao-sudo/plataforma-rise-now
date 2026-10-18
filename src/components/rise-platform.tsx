@@ -1,5 +1,3 @@
-import riseLogo from "@/assets/rise-logo-light.png.asset.json";
-import riseIcon from "@/assets/rise-icon-light.png.asset.json";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -51,6 +49,7 @@ import {
 } from "@/components/rise-trail";
 import { supabase } from "@/integrations/supabase/client";
 import {
+  GoogleCalendarCard,
   MenteeMeetings,
   NextMeetingBanner,
   StaffArea,
@@ -75,6 +74,7 @@ import {
   type NextJourneyStep,
 } from "@/lib/journey.functions";
 import { resolveAppRole, type AppRole } from "@/lib/access";
+import { SectionHero } from "@/components/section-hero";
 
 type Role = AppRole;
 type View =
@@ -96,20 +96,23 @@ const journeyCoverByMonth: Record<number, string> = {
 };
 
 function RiseMark({ compact = false }: { compact?: boolean }) {
-  if (compact) {
-    return (
-      <div className="rise-mark rise-mark--compact" aria-label="RISE NOW">
-        <img src={riseIcon.url} alt="" className="rise-mark__icon" />
-        <span className="rise-mark__text">
-          RISE <em>now</em>
-        </span>
-      </div>
-    );
-  }
   return (
-    <div className="rise-mark" aria-label="RISE NOW">
-      <img src={riseLogo.url} alt="RISE NOW" className="rise-mark__logo" />
-      <span className="rise-mark__pillars">Reflexão · Identidade · Segurança · Evolução</span>
+    <div className={`rise-mark ${compact ? "rise-mark--compact" : ""}`} aria-label="RISE NOW">
+      <span className="rise-mark__brand" aria-hidden="true">
+        <img
+          src="/brand/rise-logo-white.png"
+          alt=""
+          className="rise-mark__logo rise-mark__logo--dark"
+        />
+        <img
+          src="/brand/rise-logo-marsala.png"
+          alt=""
+          className="rise-mark__logo rise-mark__logo--light"
+        />
+      </span>
+      {!compact ? (
+        <span className="rise-mark__pillars">Reflexão · Identidade · Segurança · Evolução</span>
+      ) : null}
     </div>
   );
 }
@@ -118,8 +121,7 @@ function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [method, setMethod] = useState<"password" | "link">("password");
-  const [sent, setSent] = useState<"" | "link" | "reset">("");
+  const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -130,25 +132,15 @@ function LoginScreen() {
     const cleanEmail = email.trim().toLowerCase();
 
     try {
-      if (method === "password") {
-        const { error: authError } = await supabase.auth.signInWithPassword({
-          email: cleanEmail,
-          password,
-        });
-        if (authError) {
-          setError("E-mail ou senha incorretos.");
-          return;
-        }
-        sessionStorage.setItem("rise-initial-pw", password);
+      const { error: authError } = await supabase.auth.signInWithPassword({
+        email: cleanEmail,
+        password,
+      });
+      if (authError) {
+        setError("E-mail ou senha incorretos.");
         return;
       }
-      const { error: authError } = await supabase.auth.signInWithOtp({
-        email: cleanEmail,
-        // Unapproved emails are rejected by the database trigger on signup.
-        options: { shouldCreateUser: true, emailRedirectTo: window.location.origin },
-      });
-      if (authError) throw authError;
-      setSent("link");
+      sessionStorage.setItem("rise-initial-pw", password);
     } catch {
       setError(
         "Não foi possível liberar o acesso. Confirme se este é o e-mail aprovado pela equipe RISE.",
@@ -171,7 +163,7 @@ function LoginScreen() {
     });
     setBusy(false);
     if (resetError) setError("Não foi possível enviar o link agora. Tente novamente.");
-    else setSent("reset");
+    else setSent(true);
   }
 
   return (
@@ -200,11 +192,7 @@ function LoginScreen() {
               </div>
               <div>
                 <strong>Confira seu e-mail</strong>
-                <p>
-                  {sent === "reset"
-                    ? "Enviamos um link para você criar uma nova senha."
-                    : "Enviamos um link seguro e temporário para continuar."}
-                </p>
+                <p>Enviamos um link para você criar uma nova senha.</p>
               </div>
             </div>
           ) : (
@@ -224,32 +212,30 @@ function LoginScreen() {
                   />
                 </div>
               </div>
-              {method === "password" ? (
-                <div className="login-form__field">
-                  <label htmlFor="rise-password">Senha</label>
-                  <div className="login-form__control">
-                    <LockKeyhole size={19} aria-hidden="true" />
-                    <input
-                      id="rise-password"
-                      type={showPassword ? "text" : "password"}
-                      required
-                      autoComplete="current-password"
-                      placeholder="Digite sua senha"
-                      value={password}
-                      onChange={(event) => setPassword(event.target.value)}
-                    />
-                    <button
-                      className="login-form__reveal"
-                      type="button"
-                      onClick={() => setShowPassword((visible) => !visible)}
-                      aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
-                      aria-pressed={showPassword}
-                    >
-                      {showPassword ? <EyeOff size={21} /> : <Eye size={21} />}
-                    </button>
-                  </div>
+              <div className="login-form__field">
+                <label htmlFor="rise-password">Senha</label>
+                <div className="login-form__control">
+                  <LockKeyhole size={19} aria-hidden="true" />
+                  <input
+                    id="rise-password"
+                    type={showPassword ? "text" : "password"}
+                    required
+                    autoComplete="current-password"
+                    placeholder="Digite sua senha"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                  />
+                  <button
+                    className="login-form__reveal"
+                    type="button"
+                    onClick={() => setShowPassword((visible) => !visible)}
+                    aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                    aria-pressed={showPassword}
+                  >
+                    {showPassword ? <EyeOff size={21} /> : <Eye size={21} />}
+                  </button>
                 </div>
-              ) : null}
+              </div>
               <p className="login-form__hint">
                 Acesso seguro. Use o e-mail aprovado pela equipe RISE.
               </p>
@@ -259,25 +245,14 @@ function LoginScreen() {
                 </p>
               ) : null}
               <button className="button button--primary button--wide" type="submit" disabled={busy}>
-                {busy ? "Verificando…" : method === "password" ? "Entrar" : "Receber acesso seguro"}
+                {busy ? "Verificando…" : "Entrar"}
                 {!busy ? <ArrowRight size={21} /> : null}
               </button>
               <div className="login-form__links">
-                {method === "password" ? (
-                  <button className="demo-link" type="button" onClick={() => void forgotPassword()}>
-                    Esqueci minha senha
-                  </button>
-                ) : null}
-                <span>Ambiente exclusivo RISE</span>
-              </div>
-              <div className="login-form__secondary">
-                <button
-                  className="demo-link"
-                  type="button"
-                  onClick={() => setMethod(method === "password" ? "link" : "password")}
-                >
-                  {method === "password" ? "Entrar com link por e-mail" : "Entrar com senha"}
+                <button className="demo-link" type="button" onClick={() => void forgotPassword()}>
+                  Esqueci minha senha
                 </button>
+                <span>Ambiente exclusivo RISE</span>
               </div>
             </form>
           )}
@@ -446,9 +421,7 @@ function Header({
         ];
   const visibleName = me?.display_name?.trim() || me?.full_name || name;
   const profileSubtitle =
-    role === "mentee" && me?.profession_visible && me.profession
-      ? me.profession
-      : roleLabels[role];
+    role === "mentee" && me?.profession_visible && me.profession ? me.profession : roleLabels[role];
 
   return (
     <header className="app-header">
@@ -942,11 +915,10 @@ function JourneyView({
   onOpenLibrary: () => void;
 }) {
   return (
-    <main className="inner-page">
-      <PageIntro
-        eyebrow="RISE NOW · 6 meses"
-        title="Sua jornada, em uma única visão."
-        copy="Cada etapa transforma clareza em decisão, posicionamento, liderança e execução."
+    <main className="inner-page inner-page--section-hero">
+      <SectionHero
+        section="Minha jornada"
+        phrase="Cada etapa revela a força que sustenta a sua evolução"
       />
       <div className="page-width journey-recorded-access">
         <div>
@@ -1030,12 +1002,11 @@ function JourneyView({
 
 function AgendaView({ trail, onOpen }: { trail: Trail; onOpen: (l: TrailLesson) => void }) {
   return (
-    <main className="inner-page">
-      <PageIntro
-        eyebrow="Encontros"
-        title="Agenda RISE"
-        copy="Sessões individuais e encontros coletivos reunidos em um só lugar."
-      />
+    <main className="inner-page inner-page--section-hero">
+      <SectionHero section="Agenda" phrase="Os encontros certos dão ritmo à sua evolução" />
+      <section className="page-width agenda-calendar-connect">
+        <GoogleCalendarCard audience="mentee" />
+      </section>
       <MenteeMeetings />
       <div className="page-width section-heading ops-gap">
         <div>
@@ -1049,11 +1020,10 @@ function AgendaView({ trail, onOpen }: { trail: Trail; onOpen: (l: TrailLesson) 
 
 function DeliverablesView({ trail }: { trail: Trail }) {
   return (
-    <main className="inner-page">
-      <PageIntro
-        eyebrow="Evidências de evolução"
-        title="Suas entregas"
-        copy="Envie texto, arquivo ou link. A mentora acompanha cada etapa."
+    <main className="inner-page inner-page--section-hero">
+      <SectionHero
+        section="Entregas"
+        phrase="Cada entrega torna visível a evolução que você está construindo"
       />
       <TrailDeliverables trail={trail} />
     </main>
@@ -1131,7 +1101,7 @@ function AppFooter() {
   return (
     <footer className="app-footer page-width">
       <RiseMark compact />
-      <p>Complementares. Simples. Possíveis.</p>
+      <p>Reflexão, Identidade, Segurança e Evolução</p>
       <span>© 2026 RISE NOW · Ambiente privado</span>
     </footer>
   );
@@ -1151,7 +1121,9 @@ export function RisePlatform() {
   const [role, setRole] = useState<Role>("mentee");
   const [name, setName] = useState("Participante RISE");
   const [activeView, setActiveView] = useState<View>("inicio");
-  const [assessmentPreview, setAssessmentPreview] = useState<"report" | "questionnaire" | null>(null);
+  const [assessmentPreview, setAssessmentPreview] = useState<"report" | "questionnaire" | null>(
+    null,
+  );
 
   useEffect(() => {
     const preview = new URLSearchParams(window.location.search).get("assessment-preview");

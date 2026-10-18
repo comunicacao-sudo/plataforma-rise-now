@@ -95,11 +95,19 @@ input:focus-visible {
   --platform-background: #1b0909;
   min-height: 100vh;
   overflow: hidden;
-  background: var(--platform-background);
+  background-color: var(--platform-background);
+  background-image:
+    linear-gradient(rgba(27, 9, 9, 0.42), rgba(27, 9, 9, 0.5)), url("/brand/platform-dark.png");
+  background-position: top center;
+  background-size: cover;
+  background-attachment: fixed;
 }
 .platform-shell[data-theme="light"] {
   --platform-background: #f2f0ef;
   color-scheme: light;
+  background-image:
+    linear-gradient(rgba(242, 240, 239, 0.32), rgba(242, 240, 239, 0.38)),
+    url("/brand/platform-light.png");
 }
 /* Brand */
 .rise-mark {
@@ -110,9 +118,26 @@ input:focus-visible {
   color: var(--cream);
   line-height: 1;
 }
-.rise-mark__logo {
+.rise-mark__brand {
+  display: grid;
   width: 150px;
-  height: auto;
+  height: 108px;
+  place-items: center;
+}
+.rise-mark__logo {
+  grid-area: 1 / 1;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.rise-mark__logo--light {
+  display: none;
+}
+.platform-shell[data-theme="light"] .rise-mark__logo--dark {
+  display: none;
+}
+.platform-shell[data-theme="light"] .rise-mark__logo--light {
+  display: block;
 }
 .rise-mark__pillars {
   font-family: var(--font-display);
@@ -124,7 +149,11 @@ input:focus-visible {
 .rise-mark--compact {
   display: inline-flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: 0;
+}
+.rise-mark--compact .rise-mark__brand {
+  width: 108px;
+  height: 58px;
 }
 .rise-mark__icon {
   height: 36px;
@@ -277,8 +306,9 @@ hr,
 .login-panel .rise-mark {
   gap: 0;
 }
-.login-panel .rise-mark__logo {
+.login-panel .rise-mark__brand {
   width: clamp(6.4rem, 8vw, 8.3rem);
+  height: clamp(6rem, 7.4vw, 7.7rem);
 }
 .login-panel .rise-mark__pillars {
   display: none;
@@ -581,6 +611,26 @@ hr,
   padding: 0 3.5vw;
   background: linear-gradient(to bottom, rgba(7, 4, 5, 0.92), rgba(7, 4, 5, 0.55), transparent);
 }
+.platform-shell[data-theme="light"] .app-header {
+  background: linear-gradient(
+    to bottom,
+    rgba(242, 240, 239, 0.96),
+    rgba(242, 240, 239, 0.82),
+    transparent
+  );
+}
+.platform-shell[data-theme="light"] .main-nav button,
+.platform-shell[data-theme="light"] .icon-button,
+.platform-shell[data-theme="light"] .profile-trigger {
+  color: rgba(27, 9, 9, 0.68);
+}
+.platform-shell[data-theme="light"] .main-nav button:hover,
+.platform-shell[data-theme="light"] .main-nav button.is-active {
+  color: #1b0909;
+}
+.platform-shell[data-theme="light"] .profile-trigger__copy small {
+  color: rgba(27, 9, 9, 0.5);
+}
 .main-nav {
   display: flex;
   align-items: center;
@@ -744,7 +794,7 @@ hr,
   min-height: 720px;
   align-items: flex-end;
   overflow: hidden;
-  background: var(--platform-background);
+  background: transparent;
 }
 .hero::after {
   content: "";
@@ -919,7 +969,7 @@ hr,
   z-index: 5;
   margin-top: -2.3rem;
   padding-bottom: 5rem;
-  background: var(--platform-background);
+  background: transparent;
 }
 .platform-shell[data-theme="light"] .hero,
 .platform-shell[data-theme="light"] .dashboard-body {
@@ -1477,7 +1527,7 @@ hr,
 .inner-page {
   min-height: calc(100vh - 120px);
   padding: 145px 0 5rem;
-  background: var(--platform-background);
+  background: transparent;
 }
 .platform-shell[data-theme="light"] .inner-page {
   color: #1b0909;
@@ -1501,6 +1551,100 @@ hr,
   color: rgba(244, 232, 221, 0.56);
   font-size: 0.82rem;
   line-height: 1.7;
+}
+.inner-page--section-hero {
+  padding-top: 78px;
+}
+.section-hero {
+  position: relative;
+  display: grid;
+  min-height: clamp(230px, 28vw, 360px);
+  place-items: center;
+  overflow: hidden;
+  color: #f6ddb0;
+  background-color: #260507;
+  background-image:
+    linear-gradient(rgba(38, 5, 7, 0.08), rgba(38, 5, 7, 0.16)), url("/brand/section-top-dark.png");
+  background-position: center;
+  background-size: cover;
+  box-shadow: inset 0 -1px rgba(208, 172, 92, 0.18);
+}
+.section-hero__content {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  justify-items: center;
+  gap: 0.8rem;
+  padding-block: 3rem;
+  text-align: center;
+}
+.section-hero__content > span {
+  font-family: var(--font-display);
+  font-size: clamp(1.65rem, 2.7vw, 2.7rem);
+  font-weight: 500;
+}
+.section-hero__content > i {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: #e3b85e;
+  font-style: normal;
+}
+.section-hero__content > i b {
+  width: clamp(3.5rem, 7vw, 7rem);
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(238, 195, 104, 0.9));
+}
+.section-hero__content > i b:last-child {
+  background: linear-gradient(90deg, rgba(238, 195, 104, 0.9), transparent);
+}
+.section-hero__content > i em {
+  font-size: 0.55rem;
+  font-style: normal;
+}
+.section-hero h1 {
+  max-width: 1150px;
+  margin: 0;
+  color: #f1cf8f;
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 4vw, 4.25rem);
+  font-weight: 500;
+  line-height: 1.05;
+  text-wrap: balance;
+  text-shadow: 0 0 28px rgba(227, 158, 63, 0.18);
+}
+.inner-page--section-hero > .x-ruler {
+  margin-top: 2.3rem;
+}
+.agenda-calendar-connect {
+  margin-top: 2.3rem;
+}
+.agenda-calendar-connect .ops-google {
+  margin-bottom: 0;
+}
+.ops-specialties {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+}
+.ops-specialties > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  border: 1px solid rgba(208, 172, 92, 0.24);
+  border-radius: 999px;
+  padding: 0.55rem 0.8rem;
+  background: rgba(208, 172, 92, 0.07);
+  color: var(--ivory);
+}
+.ops-specialties small {
+  color: var(--gold);
+  font-size: 0.58rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.platform-shell[data-theme="light"] .ops-specialties > span {
+  color: #1b0909;
 }
 .journey-timeline {
   margin-top: 4rem;
@@ -2028,7 +2172,6 @@ hr,
 .app-footer p {
   font-family: "Montserrat", sans-serif;
   font-size: 0.85rem;
-  font-style: italic;
 }
 .app-footer > span {
   margin-left: auto;
@@ -2092,6 +2235,13 @@ hr,
     gap: 0.75rem;
     padding: 0 1.25rem;
   }
+  .platform-shell {
+    background-attachment: scroll;
+  }
+  .rise-mark--compact .rise-mark__brand {
+    width: 78px;
+    height: 48px;
+  }
   .mobile-menu {
     display: grid;
     width: 2rem;
@@ -2112,6 +2262,10 @@ hr,
     padding: 0.6rem;
     background: rgba(17, 9, 11, 0.98);
     box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
+  }
+  .platform-shell[data-theme="light"] .main-nav {
+    border-color: rgba(27, 9, 9, 0.12);
+    background: rgba(242, 240, 239, 0.98);
   }
   .main-nav--open {
     display: flex;
@@ -2134,6 +2288,12 @@ hr,
   }
   .dashboard-body {
     margin-top: -1.5rem;
+  }
+  .inner-page--section-hero {
+    padding-top: 68px;
+  }
+  .section-hero {
+    min-height: 240px;
   }
   .content-section {
     padding-top: 3rem;
@@ -2280,8 +2440,9 @@ hr,
     padding-top: 1.15rem;
     padding-bottom: 1.15rem;
   }
-  .login-panel .rise-mark__logo {
+  .login-panel .rise-mark__brand {
     width: 5.8rem;
+    height: 5.5rem;
   }
   .login-panel__copy {
     margin-top: 0.85rem;
@@ -2310,8 +2471,9 @@ hr,
     align-items: start;
     padding: 1.6rem 1.25rem 2rem;
   }
-  .login-panel .rise-mark__logo {
+  .login-panel .rise-mark__brand {
     width: 5.8rem;
+    height: 5.5rem;
   }
   .login-panel__copy h1 {
     font-size: clamp(2.45rem, 13vw, 3.3rem);

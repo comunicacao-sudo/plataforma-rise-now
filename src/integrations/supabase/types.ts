@@ -619,6 +619,38 @@ export type Database = {
           },
         ]
       }
+      mentor_specialties: {
+        Row: {
+          category: string
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mentor_specialties_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notes: {
         Row: {
           author_id: string
@@ -765,8 +797,10 @@ export type Database = {
           id: string
           phone: string | null
           pillar: string | null
+          primary_specialty_id: string | null
           profession: string | null
           profession_visible: boolean
+          staff_type: string | null
           theme_preference: string
           title: string | null
         }
@@ -781,8 +815,10 @@ export type Database = {
           id?: string
           phone?: string | null
           pillar?: string | null
+          primary_specialty_id?: string | null
           profession?: string | null
           profession_visible?: boolean
+          staff_type?: string | null
           theme_preference?: string
           title?: string | null
         }
@@ -797,12 +833,22 @@ export type Database = {
           id?: string
           phone?: string | null
           pillar?: string | null
+          primary_specialty_id?: string | null
           profession?: string | null
           profession_visible?: boolean
+          staff_type?: string | null
           theme_preference?: string
           title?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_primary_specialty_id_fkey"
+            columns: ["primary_specialty_id"]
+            isOneToOne: false
+            referencedRelation: "mentor_specialties"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       programs: {
         Row: {
@@ -1066,6 +1112,8 @@ export type Database = {
           id: string
           is_admin: boolean
           phone: string
+          specialty: string
+          staff_type: string
           title: string
         }[]
       }
