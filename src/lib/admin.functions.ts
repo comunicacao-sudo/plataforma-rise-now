@@ -3,6 +3,13 @@ import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
+const OFFICIAL_MENTOR_EMAILS = new Set([
+  "camilaum@pamarisdigital.com",
+  "gabi@pamarisdigital.com",
+  "ana@pamarisdigital.com",
+  "camila@pamarisdigital.com",
+]);
+
 async function roles(supabase: any, userId: string) {
   const [{ data: a }, { data: m }] = await Promise.all([
     supabase.rpc("has_role", { _user_id: userId, _role: "admin" }),
@@ -75,6 +82,7 @@ export const getDirectory = createServerFn({ method: "GET" })
     >();
     for (const row of (mentorRoles.data ?? []) as any[]) {
       if (!row.profile) continue;
+      if (!OFFICIAL_MENTOR_EMAILS.has(String(row.profile.email).toLowerCase())) continue;
       seen.set(row.profile.id, {
         id: row.profile.id,
         name: row.profile.full_name,
@@ -129,13 +137,20 @@ export const createMember = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase, context.userId);
+    if (data.memberType === "mentor" && !OFFICIAL_MENTOR_EMAILS.has(data.email)) {
+      return {
+        ok: false as const,
+        error: "Por enquanto, somente as quatro mentoras oficiais podem receber acesso.",
+      };
+    }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: existing } = await supabaseAdmin
       .from("profiles")
-      .select("id")
+      .select("id, claimed")
       .eq("email", data.email)
       .maybeSingle();
-    if (existing) return { ok: false as const, error: "Este e-mail já tem acesso à plataforma." };
+    if (existing?.claimed)
+      return { ok: false as const, error: "Este email já tem acesso à plataforma." };
     const role = data.memberType === "mentee" ? "mentee" : "admin";
     const { error: invErr } = await supabaseAdmin.from("allowed_emails").upsert(
       {
@@ -166,6 +181,7 @@ export const createMember = createServerFn({ method: "POST" })
       redirectTo: new URL("/reset-password", origin).toString(),
       data: {
         full_name: data.fullName,
+        member_type: data.memberType,
         staff_type: data.memberType === "mentee" ? null : data.memberType,
       },
     });
@@ -204,9 +220,7 @@ export const createMember = createServerFn({ method: "POST" })
           staff_type: data.memberType,
           primary_specialty_id: data.specialtyId,
           pillar: specialtyName,
-          title: specialtyName
-            ? `Mentora de ${specialtyName}`
-            : "Mentora",
+          title: specialtyName ? `Mentora de ${specialtyName}` : "Mentora",
         })
         .eq("id", created.user.id);
     }

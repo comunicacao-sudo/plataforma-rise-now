@@ -732,11 +732,14 @@ function LessonMaterialsSection({
             type="button"
             className="x-lesson"
             onClick={() =>
-              onOpen({ lessonId: l.id, label: `Mês ${l.phase?.month_number ?? "—"} · ${l.title}` })
+              onOpen({
+                lessonId: l.id,
+                label: `Mês ${l.phase?.month_number ?? "a definir"} · ${l.title}`,
+              })
             }
           >
             <small>
-              Mês {l.phase?.month_number ?? "—"} · {l.kind === "aula" ? "Aula" : "Encontro"}
+              Mês {l.phase?.month_number ?? "a definir"} · {l.kind === "aula" ? "Aula" : "Encontro"}
             </small>
             <strong>{l.title}</strong>
             <span>
@@ -1231,11 +1234,7 @@ function CohortForm({ onDone }: { onDone: () => void }) {
   return (
     <div className="ops-inline-form">
       <Field label="Nome da turma">
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Turma 2 — 2027"
-        />
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Turma 2, 2027" />
       </Field>
       <Field label="Início">
         <input type="date" value={start} onChange={(e) => setStart(e.target.value)} />
@@ -1283,7 +1282,7 @@ function MemberForm({ onDone }: { onDone: () => void }) {
       await qc.invalidateQueries({ queryKey: ["directory"] });
       setDone({ email: f.email });
     } catch {
-      setMsg("Confira o nome, o e-mail e as informações de acesso.");
+      setMsg("Confira o nome, o email e as informações de acesso.");
     } finally {
       setBusy(false);
     }
@@ -1308,11 +1307,11 @@ function MemberForm({ onDone }: { onDone: () => void }) {
             <span className="eyebrow eyebrow--gold">Convite enviado</span>
             <h2>Pronto</h2>
             <p>
-              A pessoa recebeu um e-mail da RISE NOW com o link seguro para criar a própria senha.
+              A pessoa recebeu um email da RISE NOW com o link seguro para criar a própria senha.
             </p>
             <div className="ops-review-content">
               <p>
-                <strong>E-mail:</strong> {done.email}
+                <strong>Email:</strong> {done.email}
               </p>
             </div>
             <div className="content-modal__actions">
@@ -1331,7 +1330,7 @@ function MemberForm({ onDone }: { onDone: () => void }) {
                 onChange={(e) => setF({ ...f, fullName: e.target.value })}
               />
             </Field>
-            <Field label="E-mail">
+            <Field label="Email">
               <input
                 type="email"
                 value={f.email}
@@ -1401,7 +1400,7 @@ function MemberForm({ onDone }: { onDone: () => void }) {
               </Field>
             )}
             <p className="ops-muted">
-              O acesso será liberado somente após a pessoa abrir o convite recebido por e-mail e
+              O acesso será liberado somente após a pessoa abrir o convite recebido por email e
               criar a própria senha.
             </p>
             {msg ? <p className="form-message">{msg}</p> : null}
@@ -1498,7 +1497,7 @@ function MembersPanel() {
     });
     window.alert(
       error
-        ? "Não foi possível enviar o e-mail agora."
+        ? "Não foi possível enviar o email agora."
         : `O link para criar uma nova senha foi enviado para ${email}.`,
     );
   }
@@ -1529,8 +1528,13 @@ function MembersPanel() {
             <article key={c.id} className="admin-card">
               <strong>{c.name}</strong>
               <small className="ops-muted">
-                {c.starts_on ? new Date(`${c.starts_on}T12:00`).toLocaleDateString("pt-BR") : "—"}{" "}
-                até {c.ends_on ? new Date(`${c.ends_on}T12:00`).toLocaleDateString("pt-BR") : "—"}
+                {c.starts_on
+                  ? new Date(`${c.starts_on}T12:00`).toLocaleDateString("pt-BR")
+                  : "A definir"}{" "}
+                até{" "}
+                {c.ends_on
+                  ? new Date(`${c.ends_on}T12:00`).toLocaleDateString("pt-BR")
+                  : "A definir"}
               </small>
               <span>{dir.enrollments.filter((e) => e.cohortId === c.id).length} mentorada(s)</span>
             </article>
@@ -1612,7 +1616,7 @@ function MembersPanel() {
                       value={e.mentorId ?? ""}
                       onChange={(ev) => void update(e.id, { mentorId: ev.target.value || null })}
                     >
-                      <option value="">—</option>
+                      <option value="">Não definida</option>
                       {dir.staff.map((s) => (
                         <option key={s.id} value={s.id}>
                           {s.name}
@@ -1738,7 +1742,9 @@ function StaffOverview({ onView }: { onView: (v: StaffView) => void }) {
         <article onClick={() => onView("alunas")}>
           <UsersRound size={23} />
           <span>Mentoradas ativas</span>
-          <strong>{dir?.enrollments.filter((e) => e.status === "ativa").length ?? "—"}</strong>
+          <strong>
+            {dir?.enrollments.filter((e) => e.status === "ativa").length ?? "A definir"}
+          </strong>
         </article>
         <article onClick={() => onView("agenda")}>
           <CalendarDays size={23} />

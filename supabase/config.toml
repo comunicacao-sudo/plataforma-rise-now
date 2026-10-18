@@ -1,1 +1,5 @@
 project_id = "vfkvdkqjwnmhxhlfrqba"
+
+[auth.email.template.invite]
+subject = "Seu acesso à RISE Now está pronto"
+content_path = "./supabase/templates/invite.html"
