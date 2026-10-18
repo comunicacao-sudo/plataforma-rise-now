@@ -852,7 +852,6 @@ function HomeView({
         <Rail title="Revisite quando quiser" items={revisit} onOpen={onOpen} />
         <MentorRail />
         <NextMeetingBanner onAgenda={() => onView("agenda")} />
-        <MentorsSection />
         <NextUp trail={trail} onAgenda={() => onView("agenda")} />
       </div>
     </>
