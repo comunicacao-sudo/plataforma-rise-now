@@ -4412,6 +4412,16 @@ hr,
   gap: 10px;
 }
 
+.journey-editor-page,
+.journey-editor-modal {
+  color-scheme: dark;
+  --text: #ffffff;
+  --muted: rgba(255, 255, 255, 0.72);
+  --line: rgba(255, 255, 255, 0.16);
+  --surface: rgba(35, 10, 14, 0.96);
+  --bg: #120507;
+}
+
 .journey-editor-modal,
 .journey-preview {
   position: fixed;
@@ -4422,16 +4432,26 @@ hr,
   background: rgba(8, 2, 3, 0.82);
   backdrop-filter: blur(10px);
 }
+.journey-editor-modal {
+  background:
+    radial-gradient(circle at 78% 12%, rgba(208, 172, 92, 0.12), transparent 34rem),
+    rgba(5, 1, 2, 0.92);
+  backdrop-filter: blur(14px);
+}
 .journey-editor-form,
 .journey-publish-card {
   width: min(780px, 100%);
   margin: 0 auto;
   padding: 28px;
-  border: 1px solid var(--line);
+  border: 1px solid rgba(208, 172, 92, 0.32);
   border-radius: 24px;
   color: var(--text);
-  background: var(--surface);
-  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.35);
+  background:
+    radial-gradient(circle at 100% 0, rgba(208, 172, 92, 0.09), transparent 26rem),
+    linear-gradient(180deg, #260b0f 0%, #160609 100%);
+  box-shadow:
+    0 30px 90px rgba(0, 0, 0, 0.58),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 .journey-editor-form__head {
   display: flex;
@@ -4449,6 +4469,7 @@ hr,
 .journey-editor-form__head h2,
 .journey-publish-card h2 {
   margin: 5px 0 0;
+  color: #ffffff;
 }
 .journey-editor-form fieldset {
   display: grid;
@@ -4458,6 +4479,7 @@ hr,
   padding: 20px;
   border: 1px solid var(--line);
   border-radius: 16px;
+  background: rgba(255, 255, 255, 0.025);
 }
 .journey-editor-form legend {
   padding: 0 8px;
@@ -4468,7 +4490,7 @@ hr,
 .journey-editor-form__details label {
   display: grid;
   gap: 7px;
-  color: var(--muted);
+  color: rgba(255, 255, 255, 0.82);
   font-size: 0.85rem;
 }
 .journey-editor-form label:has(textarea),
@@ -4482,16 +4504,34 @@ hr,
   padding: 12px 13px;
   border: 1px solid var(--line);
   border-radius: 10px;
-  color: var(--text);
-  background: var(--bg);
+  color: #ffffff;
+  background: rgba(7, 2, 3, 0.68);
   font: inherit;
+  caret-color: var(--gold);
+}
+.journey-editor-form input::placeholder,
+.journey-editor-form textarea::placeholder {
+  color: rgba(255, 255, 255, 0.44);
+}
+.journey-editor-form input:focus,
+.journey-editor-form select:focus,
+.journey-editor-form textarea:focus {
+  border-color: rgba(208, 172, 92, 0.78);
+  outline: 2px solid rgba(208, 172, 92, 0.2);
+  outline-offset: 1px;
+}
+.journey-editor-form select,
+.journey-editor-form option {
+  color-scheme: dark;
+  color: #ffffff;
+  background: #170709;
 }
 .journey-editor-form textarea {
   resize: vertical;
 }
 .journey-field-help {
   margin: 0;
-  color: var(--muted);
+  color: rgba(255, 255, 255, 0.62);
   font-size: 0.8rem;
   line-height: 1.45;
 }
@@ -4499,6 +4539,7 @@ hr,
   margin-bottom: 20px;
   border: 1px solid var(--line);
   border-radius: 14px;
+  background: rgba(255, 255, 255, 0.02);
 }
 .journey-editor-form summary {
   padding: 16px 18px;
