@@ -84,6 +84,40 @@ export type NextJourneyStep = {
   actionLabel?: string | null;
 };
 
+const journeyStepSelect =
+  "stable_key, title, format, impact_lead, impact_highlight, impact_tail, description, responsible_name, duration_minutes, resource_type, resource_id, resource_url, scheduled_at, release_at, completion_rule, required, position, month_number, cover_path, media_path, summary, topics, materials, access_scope, cohort_id, mentee_id";
+
+function journeyStepSignature(step: any) {
+  return JSON.stringify({
+    stable_key: step.stable_key,
+    title: step.title,
+    format: step.format,
+    impact_lead: step.impact_lead,
+    impact_highlight: step.impact_highlight,
+    impact_tail: step.impact_tail,
+    description: step.description,
+    responsible_name: step.responsible_name,
+    duration_minutes: step.duration_minutes,
+    resource_type: step.resource_type,
+    resource_id: step.resource_id,
+    resource_url: step.resource_url,
+    scheduled_at: step.scheduled_at,
+    release_at: step.release_at,
+    completion_rule: step.completion_rule,
+    required: step.required,
+    position: step.position,
+    month_number: step.month_number,
+    cover_path: step.cover_path,
+    media_path: step.media_path,
+    summary: step.summary ?? "",
+    topics: step.topics ?? [],
+    materials: step.materials ?? [],
+    access_scope: step.access_scope ?? "general",
+    cohort_id: step.cohort_id,
+    mentee_id: step.mentee_id,
+  });
+}
+
 async function staffRoles(supabase: any, userId: string) {
   const [{ data: isAdmin }, { data: isMentor }] = await Promise.all([
     supabase.rpc("has_role", { _user_id: userId, _role: "admin" }),
@@ -139,14 +173,23 @@ export const getJourneyEditor = createServerFn({ method: "GET" })
       .eq("status", "draft")
       .single();
     if (draftError) throw new Error(draftError.message);
-    const [{ data: steps, error: stepsError }, { count: affectedActive }] = await Promise.all([
+    const [
+      { data: steps, error: stepsError },
+      { data: publishedSteps, error: publishedStepsError },
+      { count: affectedActive },
+    ] = await Promise.all([
       admin
         .from("journey_steps")
-        .select(
-          "stable_key, title, format, impact_lead, impact_highlight, impact_tail, description, responsible_name, duration_minutes, resource_type, resource_id, resource_url, scheduled_at, release_at, completion_rule, required, position, month_number, cover_path, media_path, summary, topics, materials, access_scope, cohort_id, mentee_id",
-        )
+        .select(journeyStepSelect)
         .eq("version_id", draft.id)
         .order("position"),
+      selected.current_published_version_id
+        ? admin
+            .from("journey_steps")
+            .select(journeyStepSelect)
+            .eq("version_id", selected.current_published_version_id)
+            .order("position")
+        : Promise.resolve({ data: [], error: null }),
       admin
         .from("enrollments")
         .select("id", { count: "exact", head: true })
@@ -154,7 +197,19 @@ export const getJourneyEditor = createServerFn({ method: "GET" })
         .eq("status", "ativa"),
     ]);
     if (stepsError) throw new Error(stepsError.message);
+    if (publishedStepsError) throw new Error(publishedStepsError.message);
     const stepRows = (steps ?? []) as any[];
+    const publishedByKey = new Map(
+      ((publishedSteps ?? []) as any[]).map((step) => [
+        step.stable_key as string,
+        journeyStepSignature(step),
+      ]),
+    );
+    const publishedStepKeys = stepRows
+      .filter(
+        (step) => publishedByKey.get(step.stable_key as string) === journeyStepSignature(step),
+      )
+      .map((step) => step.stable_key as string);
     const confirmableKeys = stepRows
       .filter((step) => step.completion_rule === "mentor_confirmation")
       .map((step) => step.stable_key as string);
@@ -216,6 +271,7 @@ export const getJourneyEditor = createServerFn({ method: "GET" })
       revision: draft.revision as number,
       updatedAt: draft.updated_at as string,
       affectedActive: affectedActive ?? 0,
+      publishedStepKeys,
       confirmations,
       steps: stepRows.map((step) => ({
         stableKey: step.stable_key,

@@ -86,6 +86,11 @@ function toIso(value: string) {
   return value ? new Date(value).toISOString() : null;
 }
 
+function draftStepSignature(step: JourneyDraftStep) {
+  const { coverUrl: _coverUrl, ...stableFields } = step;
+  return JSON.stringify(stableFields);
+}
+
 function StepForm({
   initial,
   cohorts,
@@ -627,7 +632,7 @@ export function JourneyAdmin() {
   const [editing, setEditing] = useState<JourneyDraftStep | null>(null);
   const [preview, setPreview] = useState<JourneyDraftStep | null>(null);
   const [publishOpen, setPublishOpen] = useState(false);
-  const [applyActive, setApplyActive] = useState(false);
+  const [applyActive, setApplyActive] = useState(true);
   const [busy, setBusy] = useState<"" | "save" | "publish" | string>("");
   const [message, setMessage] = useState("");
   const data = query.data;
@@ -667,6 +672,15 @@ export function JourneyAdmin() {
     setEditing(null);
   }
 
+  function getStepStatus(step: JourneyDraftStep) {
+    if (step.releaseAt && new Date(step.releaseAt).getTime() > Date.now()) return "Agendado";
+    const original = data?.steps.find((item) => item.stableKey === step.stableKey);
+    const unchangedLocally = !original || draftStepSignature(original) === draftStepSignature(step);
+    return unchangedLocally && (data?.publishedStepKeys ?? []).includes(step.stableKey)
+      ? "Publicado"
+      : "Rascunho";
+  }
+
   async function saveNow() {
     if (!selectedPillarId || !data) return;
     setBusy("save");
@@ -700,7 +714,7 @@ export function JourneyAdmin() {
       });
       setLocalSteps(null);
       setPublishOpen(false);
-      setApplyActive(false);
+      setApplyActive(true);
       await Promise.all([
         qc.invalidateQueries({ queryKey: ["journey-editor"] }),
         qc.invalidateQueries({ queryKey: ["next-journey-step"] }),
@@ -778,14 +792,24 @@ export function JourneyAdmin() {
           )}
           <small>{data?.selected?.mentorName}</small>
         </div>
-        <button
-          className="button button--primary"
-          type="button"
-          onClick={() => setEditing(emptyStep())}
-          disabled={!data?.selected}
-        >
-          <Plus size={18} /> Adicionar etapa
-        </button>
+        <div className="journey-editor-toolbar__actions">
+          <button
+            className="button button--glass"
+            type="button"
+            onClick={() => setEditing(emptyStep())}
+            disabled={!data?.selected}
+          >
+            <Plus size={18} /> Adicionar etapa
+          </button>
+          <button
+            className="button button--primary"
+            type="button"
+            onClick={() => setPublishOpen(true)}
+            disabled={busy !== "" || !steps.length}
+          >
+            <Send size={17} /> Publicar este pilar
+          </button>
+        </div>
       </section>
 
       <section className="page-width journey-editor-list" aria-label="Etapas do rascunho">
@@ -815,10 +839,10 @@ export function JourneyAdmin() {
                     : `Mês ${step.monthNumber} · Aguardando recurso`}
                 </span>
               </div>
-              <span className="journey-step-row__status">
-                {step.releaseAt && new Date(step.releaseAt).getTime() > Date.now()
-                  ? "Agendado"
-                  : "Rascunho"}
+              <span
+                className={`journey-step-row__status journey-step-row__status--${getStepStatus(step).toLowerCase()}`}
+              >
+                {getStepStatus(step)}
               </span>
               <div className="journey-step-row__actions">
                 <button

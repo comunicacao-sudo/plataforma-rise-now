@@ -3400,6 +3400,12 @@ hr,
   color: var(--text);
   background: var(--surface);
 }
+.journey-editor-toolbar__actions {
+  display: flex !important;
+  grid-auto-flow: column;
+  align-items: center;
+  gap: 10px !important;
+}
 .journey-editor-list {
   display: grid;
   gap: 12px;
@@ -4195,6 +4201,10 @@ hr,
   font-size: 0.75rem;
   font-weight: 750;
 }
+.journey-step-row__status--publicado {
+  color: #9ecb72;
+  background: rgba(124, 166, 81, 0.16);
+}
 .journey-step-row__actions {
   display: flex;
   gap: 5px;
@@ -4521,6 +4531,14 @@ hr,
   }
   .journey-editor-toolbar select {
     min-width: 0;
+    width: 100%;
+  }
+  .journey-editor-toolbar__actions {
+    grid-auto-flow: row;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .journey-editor-toolbar__actions .button {
     width: 100%;
   }
   .journey-step-row {
