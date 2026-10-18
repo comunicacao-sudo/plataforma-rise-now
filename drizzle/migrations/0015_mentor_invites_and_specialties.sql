@@ -69,7 +69,11 @@ WHERE (lower(p.email), s.name) IN (
   ('camila@pamarisdigital.com', 'Evolução')
 );
 
-CREATE OR REPLACE FUNCTION public.staff_directory()
+-- The function existed before this migration with a smaller RETURNS TABLE
+-- contract. PostgreSQL cannot change that return shape with CREATE OR REPLACE.
+DROP FUNCTION IF EXISTS public.staff_directory();
+
+CREATE FUNCTION public.staff_directory()
 RETURNS TABLE (
   id uuid,
   full_name text,
