@@ -375,6 +375,21 @@ export const saveJourneyContentProgress = createServerFn({ method: "POST" })
       { onConflict: "enrollment_id,step_key" },
     );
     if (error) throw new Error(error.message);
+    if (!existing?.completed && isComplete) {
+      try {
+        const { notifyStageCompleted } = await import("@/lib/whatsapp.server");
+        await notifyStageCompleted({
+          enrollmentId: library.enrollmentId,
+          menteeId: context.userId,
+          stepKey: data.stepKey,
+        });
+      } catch (notificationError) {
+        console.error(
+          "[WhatsApp] Stage completion notification did not interrupt progress",
+          notificationError,
+        );
+      }
+    }
     return { completed: isComplete };
   });
 

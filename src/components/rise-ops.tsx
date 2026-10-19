@@ -41,10 +41,11 @@ import {
 } from "@/components/rise-extras";
 import { JourneyAdmin } from "@/components/journey-admin";
 import { AssessmentMentorDrawer } from "@/components/rise-assessment";
+import { WhatsAppAdmin } from "@/components/whatsapp-admin";
 
 /* ---------- shared ---------- */
 
-export type StaffView = "painel" | "gestao-jornada" | "agenda" | "entregas" | "alunas";
+export type StaffView = "painel" | "gestao-jornada" | "agenda" | "entregas" | "alunas" | "whatsapp";
 
 const statusLabels: Record<string, string> = {
   nao_iniciada: "Não iniciada",
@@ -1257,6 +1258,7 @@ function MemberForm({ onDone }: { onDone: () => void }) {
   const [f, setF] = useState({
     fullName: "",
     email: "",
+    phone: "",
     memberType: "mentee" as "mentee" | "mentor",
     cohortId: "",
     mentorId: "",
@@ -1273,6 +1275,7 @@ function MemberForm({ onDone }: { onDone: () => void }) {
       const r = await fn({
         data: {
           ...f,
+          phone: f.phone.trim() || null,
           cohortId: f.memberType === "mentee" ? f.cohortId || null : null,
           mentorId: f.memberType === "mentee" ? f.mentorId || null : null,
           specialtyId: f.memberType === "mentee" ? null : f.specialtyId || null,
@@ -1335,6 +1338,15 @@ function MemberForm({ onDone }: { onDone: () => void }) {
                 type="email"
                 value={f.email}
                 onChange={(e) => setF({ ...f, email: e.target.value })}
+              />
+            </Field>
+            <Field label="WhatsApp com DDD">
+              <input
+                type="tel"
+                inputMode="tel"
+                value={f.phone}
+                onChange={(e) => setF({ ...f, phone: e.target.value })}
+                placeholder="(11) 99999 9999"
               />
             </Field>
             <Field label="Tipo de acesso">
@@ -1811,5 +1823,6 @@ export function StaffArea({ view, onView }: { view: StaffView; onView: (v: Staff
   if (view === "agenda") return <StaffAgenda />;
   if (view === "entregas") return <ReviewPanel />;
   if (view === "alunas") return <MembersPanel />;
+  if (view === "whatsapp") return <WhatsAppAdmin />;
   return <StaffOverview onView={onView} />;
 }

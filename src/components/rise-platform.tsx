@@ -79,7 +79,15 @@ import { SectionHero } from "@/components/section-hero";
 
 type Role = AppRole;
 type View =
-  "inicio" | "jornada" | "agenda" | "entregas" | "rise90" | "painel" | "gestao-jornada" | "alunas";
+  | "inicio"
+  | "jornada"
+  | "agenda"
+  | "entregas"
+  | "rise90"
+  | "painel"
+  | "gestao-jornada"
+  | "alunas"
+  | "whatsapp";
 type AuthMode = "checking" | "login" | "authenticated" | "change-password";
 
 const roleLabels: Record<Role, string> = {
@@ -434,6 +442,7 @@ function Header({
           { label: "Agenda", view: "agenda" },
           { label: "Entregas", view: "entregas" },
           { label: "Alunas e turmas", view: "alunas" },
+          { label: "WhatsApp", view: "whatsapp" },
         ];
   const visibleName = me?.display_name?.trim() || me?.full_name || name;
   const profileSubtitle =
@@ -1041,6 +1050,20 @@ function MenteeArea({ view, onView }: { view: View; onView: (v: View) => void })
   const [lesson, setLesson] = useState<TrailLesson | null>(null);
   const [contentStepKey, setContentStepKey] = useState<string | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
+  useEffect(() => {
+    if (view !== "jornada") {
+      setContentStepKey(null);
+      setLibraryOpen(false);
+      return;
+    }
+    const step = new URLSearchParams(window.location.search).get("step");
+    if (
+      step &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(step)
+    ) {
+      setContentStepKey(step);
+    }
+  }, [view]);
   if (isLoading)
     return (
       <main className="inner-page page-loading" aria-live="polite">
@@ -1196,14 +1219,24 @@ export function RisePlatform() {
         );
         const resolvedRole: Role = storedRole === "mentee" ? "mentee" : "admin";
         setRole(resolvedRole);
-        setActiveView((v) =>
+        const requested = new URLSearchParams(window.location.search).get("view") as View | null;
+        const menteeViews: View[] = ["inicio", "jornada", "agenda", "entregas", "rise90"];
+        const staffViews: View[] = [
+          "painel",
+          "gestao-jornada",
+          "agenda",
+          "entregas",
+          "alunas",
+          "whatsapp",
+        ];
+        setActiveView(
           resolvedRole === "mentee"
-            ? v === "painel" || v === "alunas"
-              ? "inicio"
-              : v
-            : v === "inicio"
-              ? "painel"
-              : v,
+            ? requested && menteeViews.includes(requested)
+              ? requested
+              : "inicio"
+            : requested && staffViews.includes(requested)
+              ? requested
+              : "painel",
         );
         setAuthMode("authenticated");
       } catch {
@@ -1264,7 +1297,9 @@ export function RisePlatform() {
       {role !== "mentee" ? (
         <StaffArea
           view={
-            (["painel", "gestao-jornada", "agenda", "entregas", "alunas"].includes(activeView)
+            (["painel", "gestao-jornada", "agenda", "entregas", "alunas", "whatsapp"].includes(
+              activeView,
+            )
               ? activeView
               : "painel") as StaffView
           }

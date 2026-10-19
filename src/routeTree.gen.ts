@@ -11,6 +11,8 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as ApiCronWhatsappRouteImport } from './routes/api/cron/whatsapp'
+import { Route as ApiWebhooksWahaRouteImport } from './routes/api/webhooks/waha'
 import { Route as OauthGoogleReturnRouteImport } from './routes/oauth/google/return'
 
 const IndexRoute = IndexRouteImport.update({
@@ -23,6 +25,16 @@ const ResetPasswordRoute = ResetPasswordRouteImport.update({
   path: '/reset-password',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCronWhatsappRoute = ApiCronWhatsappRouteImport.update({
+  id: '/api/cron/whatsapp',
+  path: '/api/cron/whatsapp',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiWebhooksWahaRoute = ApiWebhooksWahaRouteImport.update({
+  id: '/api/webhooks/waha',
+  path: '/api/webhooks/waha',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OauthGoogleReturnRoute = OauthGoogleReturnRouteImport.update({
   id: '/oauth/google/return',
   path: '/oauth/google/return',
@@ -32,30 +44,54 @@ const OauthGoogleReturnRoute = OauthGoogleReturnRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/api/cron/whatsapp': typeof ApiCronWhatsappRoute
+  '/api/webhooks/waha': typeof ApiWebhooksWahaRoute
   '/oauth/google/return': typeof OauthGoogleReturnRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/api/cron/whatsapp': typeof ApiCronWhatsappRoute
+  '/api/webhooks/waha': typeof ApiWebhooksWahaRoute
   '/oauth/google/return': typeof OauthGoogleReturnRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/api/cron/whatsapp': typeof ApiCronWhatsappRoute
+  '/api/webhooks/waha': typeof ApiWebhooksWahaRoute
   '/oauth/google/return': typeof OauthGoogleReturnRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/reset-password' | '/oauth/google/return'
+  fullPaths:
+    | '/'
+    | '/reset-password'
+    | '/api/cron/whatsapp'
+    | '/api/webhooks/waha'
+    | '/oauth/google/return'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/reset-password' | '/oauth/google/return'
-  id: '__root__' | '/' | '/reset-password' | '/oauth/google/return'
+  to:
+    | '/'
+    | '/reset-password'
+    | '/api/cron/whatsapp'
+    | '/api/webhooks/waha'
+    | '/oauth/google/return'
+  id:
+    | '__root__'
+    | '/'
+    | '/reset-password'
+    | '/api/cron/whatsapp'
+    | '/api/webhooks/waha'
+    | '/oauth/google/return'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
+  ApiCronWhatsappRoute: typeof ApiCronWhatsappRoute
+  ApiWebhooksWahaRoute: typeof ApiWebhooksWahaRoute
   OauthGoogleReturnRoute: typeof OauthGoogleReturnRoute
 }
 
@@ -75,6 +111,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/cron/whatsapp': {
+      id: '/api/cron/whatsapp'
+      path: '/api/cron/whatsapp'
+      fullPath: '/api/cron/whatsapp'
+      preLoaderRoute: typeof ApiCronWhatsappRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/webhooks/waha': {
+      id: '/api/webhooks/waha'
+      path: '/api/webhooks/waha'
+      fullPath: '/api/webhooks/waha'
+      preLoaderRoute: typeof ApiWebhooksWahaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/oauth/google/return': {
       id: '/oauth/google/return'
       path: '/oauth/google/return'
@@ -88,6 +138,8 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ResetPasswordRoute: ResetPasswordRoute,
+  ApiCronWhatsappRoute: ApiCronWhatsappRoute,
+  ApiWebhooksWahaRoute: ApiWebhooksWahaRoute,
   OauthGoogleReturnRoute: OauthGoogleReturnRoute,
 }
 export const routeTree = rootRouteImport
