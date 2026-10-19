@@ -255,6 +255,19 @@ export const completeAssessment = createServerFn({ method: "POST" })
           { onConflict: "enrollment_id,step_key" },
         ),
       ]);
+      try {
+        const { notifyStageCompleted } = await import("@/lib/whatsapp.server");
+        await notifyStageCompleted({
+          enrollmentId: attempt.enrollment_id,
+          menteeId: context.userId,
+          stepKey: data.stepKey,
+        });
+      } catch (notificationError) {
+        console.error(
+          "[WhatsApp] Assessment completion notification did not interrupt completion",
+          notificationError,
+        );
+      }
     }
     return publicResult(result, false);
   });
