@@ -1,4 +1,12 @@
-project_id = "vfkvdkqjwnmhxhlfrqba"
+project_id = "riakceytqrlvdcgcwfdx"
+
+[auth]
+site_url = "https://mentoriarisenow.lovable.app"
+additional_redirect_urls = [
+  "https://mentoriarisenow.lovable.app/reset-password",
+  "http://localhost:3000/reset-password",
+  "http://localhost:8080/reset-password",
+]
 
 [auth.email.template.invite]
 subject = "Seu acesso à RISE Now está pronto"

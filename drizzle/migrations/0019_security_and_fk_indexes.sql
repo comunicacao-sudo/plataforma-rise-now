@@ -1,0 +1,96 @@
+-- Harden SECURITY DEFINER entry points and complete foreign-key indexing.
+-- Client callable functions are explicitly granted only to authenticated users;
+-- trigger helpers remain executable only by the service role.
+
+REVOKE EXECUTE ON FUNCTION public.has_role(uuid, public.app_role) FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.is_admin() FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.is_staff() FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.can_access_enrollment(uuid) FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.is_enrollment_mentee(uuid) FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.can_see_meeting(uuid) FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.can_manage_journey_pillar(uuid) FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.can_access_journey_step(uuid) FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.get_next_journey_step() FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.save_journey_draft(uuid, integer, jsonb) FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.publish_journey_draft(uuid, integer, boolean) FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.mentee_public_profile(uuid) FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.staff_directory() FROM PUBLIC, anon;
+
+GRANT EXECUTE ON FUNCTION public.has_role(uuid, public.app_role) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.is_admin() TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.is_staff() TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.can_access_enrollment(uuid) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.is_enrollment_mentee(uuid) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.can_see_meeting(uuid) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.can_manage_journey_pillar(uuid) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.can_access_journey_step(uuid) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.get_next_journey_step() TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.save_journey_draft(uuid, integer, jsonb) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.publish_journey_draft(uuid, integer, boolean) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.mentee_public_profile(uuid) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.staff_directory() TO authenticated, service_role;
+
+REVOKE EXECUTE ON FUNCTION public.guard_profile_update() FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.on_attendee_added() FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.on_material_added() FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.on_meeting_created() FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.on_meeting_mentor() FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.on_submission_reviewed() FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.on_submission_sent() FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.reassign_official_mentor_links() FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.sync_legacy_lesson_journey_progress() FROM PUBLIC, anon, authenticated;
+
+GRANT EXECUTE ON FUNCTION public.guard_profile_update() TO service_role;
+GRANT EXECUTE ON FUNCTION public.on_attendee_added() TO service_role;
+GRANT EXECUTE ON FUNCTION public.on_material_added() TO service_role;
+GRANT EXECUTE ON FUNCTION public.on_meeting_created() TO service_role;
+GRANT EXECUTE ON FUNCTION public.on_meeting_mentor() TO service_role;
+GRANT EXECUTE ON FUNCTION public.on_submission_reviewed() TO service_role;
+GRANT EXECUTE ON FUNCTION public.on_submission_sent() TO service_role;
+GRANT EXECUTE ON FUNCTION public.reassign_official_mentor_links() TO service_role;
+GRANT EXECUTE ON FUNCTION public.sync_legacy_lesson_journey_progress() TO service_role;
+
+DROP INDEX IF EXISTS public.lesson_progress_enrollment_lesson_uidx;
+DROP INDEX IF EXISTS public.submissions_enrollment_deliverable_uidx;
+
+CREATE INDEX IF NOT EXISTS allowed_emails_invited_by_idx ON public.allowed_emails(invited_by);
+CREATE INDEX IF NOT EXISTS assessment_ai_outputs_attempt_id_idx ON public.assessment_ai_outputs(attempt_id);
+CREATE INDEX IF NOT EXISTS assessment_attempts_mentee_id_idx ON public.assessment_attempts(mentee_id);
+CREATE INDEX IF NOT EXISTS assessment_attempts_released_by_idx ON public.assessment_attempts(released_by);
+CREATE INDEX IF NOT EXISTS assessment_attempts_reviewed_by_idx ON public.assessment_attempts(reviewed_by);
+CREATE INDEX IF NOT EXISTS assessment_development_plans_attempt_id_idx ON public.assessment_development_plans(attempt_id);
+CREATE INDEX IF NOT EXISTS assessment_development_plans_created_by_idx ON public.assessment_development_plans(created_by);
+CREATE INDEX IF NOT EXISTS assessment_development_plans_enrollment_id_idx ON public.assessment_development_plans(enrollment_id);
+CREATE INDEX IF NOT EXISTS assessment_development_private_notes_author_id_idx ON public.assessment_development_private_notes(author_id);
+CREATE INDEX IF NOT EXISTS assessment_development_private_notes_plan_id_idx ON public.assessment_development_private_notes(plan_id);
+CREATE INDEX IF NOT EXISTS audit_log_actor_id_idx ON public.audit_log(actor_id);
+CREATE INDEX IF NOT EXISTS deliverables_phase_id_idx ON public.deliverables(phase_id);
+CREATE INDEX IF NOT EXISTS enrollment_journey_versions_version_id_idx ON public.enrollment_journey_versions(version_id);
+CREATE INDEX IF NOT EXISTS enrollments_cohort_id_idx ON public.enrollments(cohort_id);
+CREATE INDEX IF NOT EXISTS enrollments_mentor_id_idx ON public.enrollments(mentor_id);
+CREATE INDEX IF NOT EXISTS journey_content_markers_enrollment_id_idx ON public.journey_content_markers(enrollment_id);
+CREATE INDEX IF NOT EXISTS journey_content_notes_enrollment_id_idx ON public.journey_content_notes(enrollment_id);
+CREATE INDEX IF NOT EXISTS journey_content_progress_user_id_idx ON public.journey_content_progress(user_id);
+CREATE INDEX IF NOT EXISTS journey_pillars_current_published_version_id_idx ON public.journey_pillars(current_published_version_id);
+CREATE INDEX IF NOT EXISTS journey_pillars_mentor_id_idx ON public.journey_pillars(mentor_id);
+CREATE INDEX IF NOT EXISTS journey_step_progress_confirmed_by_idx ON public.journey_step_progress(confirmed_by);
+CREATE INDEX IF NOT EXISTS journey_versions_created_by_idx ON public.journey_versions(created_by);
+CREATE INDEX IF NOT EXISTS lesson_markers_enrollment_id_idx ON public.lesson_markers(enrollment_id);
+CREATE INDEX IF NOT EXISTS lesson_materials_lesson_id_idx ON public.lesson_materials(lesson_id);
+CREATE INDEX IF NOT EXISTS lesson_materials_meeting_id_idx ON public.lesson_materials(meeting_id);
+CREATE INDEX IF NOT EXISTS lessons_phase_id_idx ON public.lessons(phase_id);
+CREATE INDEX IF NOT EXISTS meetings_cohort_id_idx ON public.meetings(cohort_id);
+CREATE INDEX IF NOT EXISTS meetings_created_by_idx ON public.meetings(created_by);
+CREATE INDEX IF NOT EXISTS meetings_enrollment_id_idx ON public.meetings(enrollment_id);
+CREATE INDEX IF NOT EXISTS meetings_lesson_id_idx ON public.meetings(lesson_id);
+CREATE INDEX IF NOT EXISTS meetings_mentor_id_idx ON public.meetings(mentor_id);
+CREATE INDEX IF NOT EXISTS meetings_phase_id_idx ON public.meetings(phase_id);
+CREATE INDEX IF NOT EXISTS mentor_specialties_created_by_idx ON public.mentor_specialties(created_by);
+CREATE INDEX IF NOT EXISTS notes_author_id_idx ON public.notes(author_id);
+CREATE INDEX IF NOT EXISTS notes_enrollment_id_idx ON public.notes(enrollment_id);
+CREATE INDEX IF NOT EXISTS notes_lesson_id_idx ON public.notes(lesson_id);
+CREATE INDEX IF NOT EXISTS profiles_primary_specialty_id_idx ON public.profiles(primary_specialty_id);
+CREATE INDEX IF NOT EXISTS rise90_goals_enrollment_id_idx ON public.rise90_goals(enrollment_id);
+CREATE INDEX IF NOT EXISTS rise90_milestones_goal_id_idx ON public.rise90_milestones(goal_id);
+CREATE INDEX IF NOT EXISTS submissions_reviewed_by_idx ON public.submissions(reviewed_by);
+CREATE INDEX IF NOT EXISTS whatsapp_settings_updated_by_idx ON public.whatsapp_settings(updated_by);
