@@ -339,6 +339,12 @@ export const publishJourneyDraft = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await staffRoles(context.supabase, context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: previousPillar } = await (supabaseAdmin as any)
+      .from("journey_pillars")
+      .select("current_published_version_id")
+      .eq("id", data.pillarId)
+      .maybeSingle();
     const { data: versionId, error } = await (context.supabase as any).rpc(
       "publish_journey_draft",
       {
@@ -348,6 +354,20 @@ export const publishJourneyDraft = createServerFn({ method: "POST" })
       },
     );
     if (error) throw new Error(error.message);
+    try {
+      const { notifyNewlyReleasedSteps } = await import("@/lib/whatsapp.server");
+      await notifyNewlyReleasedSteps({
+        previousVersionId: previousPillar?.current_published_version_id ?? null,
+        newVersionId: versionId as string,
+        pillarId: data.pillarId,
+        applyActive: data.applyActive,
+      });
+    } catch (notificationError) {
+      console.error(
+        "[WhatsApp] Stage release notifications did not interrupt publication",
+        notificationError,
+      );
+    }
     return { versionId: versionId as string };
   });
 
@@ -403,6 +423,15 @@ export const confirmJourneyStep = createServerFn({ method: "POST" })
     const mentorId = step?.version?.pillar?.mentor_id;
     if (!role.isAdmin && mentorId !== context.userId)
       throw new Error("Você não pode confirmar esta etapa.");
+    const [{ data: previousProgress }, { data: enrollment }] = await Promise.all([
+      admin
+        .from("journey_step_progress")
+        .select("status")
+        .eq("enrollment_id", data.enrollmentId)
+        .eq("step_key", data.stepKey)
+        .maybeSingle(),
+      admin.from("enrollments").select("mentee_id").eq("id", data.enrollmentId).single(),
+    ]);
     const { error } = await admin.from("journey_step_progress").upsert(
       {
         enrollment_id: data.enrollmentId,
@@ -422,5 +451,20 @@ export const confirmJourneyStep = createServerFn({ method: "POST" })
       target: data.enrollmentId,
       payload: { stepKey: data.stepKey },
     });
+    if (previousProgress?.status !== "completed" && enrollment?.mentee_id) {
+      try {
+        const { notifyStageCompleted } = await import("@/lib/whatsapp.server");
+        await notifyStageCompleted({
+          enrollmentId: data.enrollmentId,
+          menteeId: enrollment.mentee_id,
+          stepKey: data.stepKey,
+        });
+      } catch (notificationError) {
+        console.error(
+          "[WhatsApp] Stage completion notification did not interrupt confirmation",
+          notificationError,
+        );
+      }
+    }
     return { ok: true };
   });

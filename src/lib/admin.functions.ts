@@ -128,6 +128,7 @@ export const createMember = createServerFn({ method: "POST" })
       .object({
         fullName: z.string().trim().min(2).max(120),
         email: z.string().trim().toLowerCase().email().max(200),
+        phone: z.string().trim().max(40).nullable(),
         memberType: z.enum(["mentee", "mentor"]),
         cohortId: z.string().uuid().nullable(),
         mentorId: z.string().uuid().nullable(),
@@ -181,6 +182,7 @@ export const createMember = createServerFn({ method: "POST" })
       redirectTo: new URL("/reset-password", origin).toString(),
       data: {
         full_name: data.fullName,
+        phone: data.phone,
         member_type: data.memberType,
         staff_type: data.memberType === "mentee" ? null : data.memberType,
       },
@@ -190,6 +192,7 @@ export const createMember = createServerFn({ method: "POST" })
         ok: false as const,
         error: error?.message ?? "Não foi possível enviar o convite.",
       };
+    await supabaseAdmin.from("profiles").update({ phone: data.phone }).eq("id", created.user.id);
     if (data.memberType === "mentee") {
       const { data: program } = await supabaseAdmin
         .from("programs")
@@ -228,6 +231,48 @@ export const createMember = createServerFn({ method: "POST" })
       memberType: data.memberType,
       specialtyId: data.specialtyId,
     });
+    try {
+      const whatsapp = await import("@/lib/whatsapp.server");
+      const settings = await whatsapp.getWhatsAppSettings();
+      if (settings.accountCreated) {
+        const fallbackUrl = new URL("/reset-password", origin).toString();
+        if (!data.phone) {
+          await whatsapp.notifyAccountCreated({
+            userId: created.user.id,
+            fullName: data.fullName,
+            phone: null,
+            role: data.memberType === "mentee" ? "mentee" : "admin",
+            secureActionUrl: fallbackUrl,
+          });
+        } else {
+          const { data: recovery, error: recoveryError } =
+            await supabaseAdmin.auth.admin.generateLink({
+              type: "recovery",
+              email: data.email,
+              options: { redirectTo: fallbackUrl },
+            });
+          if (recoveryError || !recovery.properties?.action_link) {
+            console.error(
+              "[WhatsApp] Could not generate secure account activation link",
+              recoveryError?.message,
+            );
+          } else {
+            await whatsapp.notifyAccountCreated({
+              userId: created.user.id,
+              fullName: data.fullName,
+              phone: data.phone,
+              role: data.memberType === "mentee" ? "mentee" : "admin",
+              secureActionUrl: recovery.properties.action_link,
+            });
+          }
+        }
+      }
+    } catch (notificationError) {
+      console.error(
+        "[WhatsApp] Account notification did not interrupt registration",
+        notificationError,
+      );
+    }
     return { ok: true as const };
   });
 
