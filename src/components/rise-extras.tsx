@@ -681,6 +681,13 @@ function GoalCard({
 }
 
 function GuidanceNotes({ enrollmentId }: { enrollmentId: string }) {
+  type GuidanceNote = {
+    id: string;
+    content: string;
+    visibility: "shared" | "mentor_private";
+    created_at: string;
+    author: { full_name: string | null } | null;
+  };
   const qc = useQueryClient();
   const [text, setText] = useState("");
   const [shared, setShared] = useState(true);
@@ -696,7 +703,7 @@ function GuidanceNotes({ enrollmentId }: { enrollmentId: string }) {
         .is("lesson_id", null)
         .in("visibility", ["shared", "mentor_private"])
         .order("created_at", { ascending: false });
-      return (data ?? []) as any[];
+      return (data ?? []) as unknown as GuidanceNote[];
     },
   });
   async function add() {
@@ -744,6 +751,12 @@ function GuidanceNotes({ enrollmentId }: { enrollmentId: string }) {
 }
 
 function SharedGuidance({ enrollmentId }: { enrollmentId: string }) {
+  type SharedGuidanceNote = {
+    id: string;
+    content: string;
+    created_at: string;
+    author: { full_name: string | null } | null;
+  };
   const { data = [] } = useQuery({
     queryKey: ["rise90-shared", enrollmentId],
     queryFn: async () => {
@@ -754,7 +767,7 @@ function SharedGuidance({ enrollmentId }: { enrollmentId: string }) {
         .is("lesson_id", null)
         .eq("visibility", "shared")
         .order("created_at", { ascending: false });
-      return (data ?? []) as any[];
+      return (data ?? []) as unknown as SharedGuidanceNote[];
     },
   });
   if (!data.length) return null;

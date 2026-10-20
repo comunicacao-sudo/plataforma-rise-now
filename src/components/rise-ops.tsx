@@ -20,7 +20,6 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   cancelMeeting,
-  completeGoogleConnect,
   createMeeting,
   disconnectGoogle,
   googleStatus,
@@ -291,9 +290,9 @@ function waitForOAuth(popup: Window) {
         e.data?.connectorId !== "google_calendar"
       )
         return;
-      if (t !== "appUserConnectorOAuthComplete" && t !== "appUserConnectorOAuthFailed") return;
+      if (t !== "riseGoogleOAuthComplete" && t !== "riseGoogleOAuthFailed") return;
       cleanup();
-      if (t === "appUserConnectorOAuthComplete")
+      if (t === "riseGoogleOAuthComplete")
         resolve(typeof e.data?.code === "string" ? e.data.code : null);
       else reject(new Error("failed"));
     };
@@ -311,7 +310,6 @@ export function GoogleCalendarCard({ audience = "staff" }: { audience?: "staff" 
   const qc = useQueryClient();
   const statusFn = useServerFn(googleStatus);
   const startFn = useServerFn(startGoogleConnect);
-  const completeFn = useServerFn(completeGoogleConnect);
   const disconnectFn = useServerFn(disconnectGoogle);
   const { data, isLoading } = useQuery({
     queryKey: ["google-status"],
@@ -329,8 +327,7 @@ export function GoogleCalendarCard({ audience = "staff" }: { audience?: "staff" 
       const { authorizationUrl } = await startFn();
       const done = waitForOAuth(popup);
       popup.location.href = authorizationUrl;
-      const code = await done;
-      if (code) await completeFn({ data: { code } });
+      await done;
       await qc.invalidateQueries({ queryKey: ["google-status"] });
       setMsg(
         data?.reconnectRequired || data?.connected
@@ -424,7 +421,7 @@ function ScheduleForm({ onDone }: { onDone: () => void }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((p) => ({ ...p, [k]: v }));
-  const phase = dir?.phases.find((p: any) => p.id === f.phaseId);
+  const phase = dir?.phases.find((p) => p.id === f.phaseId);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -497,7 +494,7 @@ function ScheduleForm({ onDone }: { onDone: () => void }) {
                 onChange={(e) => setF((p) => ({ ...p, phaseId: e.target.value, lessonId: "" }))}
               >
                 <option value="">Sem vínculo</option>
-                {dir?.phases.map((p: any) => (
+                {dir?.phases.map((p) => (
                   <option key={p.id} value={p.id}>
                     Mês {p.month_number} · {p.title}
                   </option>
@@ -509,7 +506,7 @@ function ScheduleForm({ onDone }: { onDone: () => void }) {
                 value={f.lessonId}
                 disabled={!phase}
                 onChange={(e) => {
-                  const l = phase?.lessons.find((x: any) => x.id === e.target.value);
+                  const l = phase?.lessons.find((x) => x.id === e.target.value);
                   setF((p) => ({
                     ...p,
                     lessonId: e.target.value,
@@ -518,7 +515,7 @@ function ScheduleForm({ onDone }: { onDone: () => void }) {
                 }}
               >
                 <option value="">Nenhuma</option>
-                {phase?.lessons.map((l: any) => (
+                {phase?.lessons.map((l) => (
                   <option key={l.id} value={l.id}>
                     {l.title}
                   </option>
@@ -571,7 +568,7 @@ function ScheduleForm({ onDone }: { onDone: () => void }) {
             <Field label="Turma">
               <select value={f.cohortId} onChange={(e) => set("cohortId", e.target.value)}>
                 <option value="">Escolher…</option>
-                {dir?.cohorts.map((c: any) => (
+                {dir?.cohorts.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
                   </option>
@@ -712,7 +709,15 @@ function LessonMaterialsSection({
           "id, title, kind, position, phase:phases(month_number, pillar), materials:lesson_materials(count)",
         )
         .order("position");
-      return ((data ?? []) as any[]).sort(
+      type LessonMaterialsRow = {
+        id: string;
+        title: string;
+        kind: string;
+        position: number;
+        phase: { month_number: number; pillar: string } | null;
+        materials: Array<{ count: number }> | null;
+      };
+      return ((data ?? []) as unknown as LessonMaterialsRow[]).sort(
         (a, b) =>
           (a.phase?.month_number ?? 0) - (b.phase?.month_number ?? 0) || a.position - b.position,
       );
@@ -770,7 +775,7 @@ function StaffAgenda() {
     m.audience === "all"
       ? "Todas as turmas"
       : m.audience === "cohort"
-        ? (dir?.cohorts.find((c: any) => c.id === m.cohort_id)?.name ?? "Turma")
+        ? (dir?.cohorts.find((c) => c.id === m.cohort_id)?.name ?? "Turma")
         : "Mentoradas escolhidas";
 
   async function cancel(m: MeetingRow) {
@@ -1086,7 +1091,7 @@ function ReviewScreen({
             <button className="button button--glass" type="button" onClick={() => void addNote()}>
               Salvar anotação
             </button>
-            {notes.data?.map((n: any) => (
+            {notes.data?.map((n) => (
               <div key={n.id} className="ops-note">
                 <small>{new Date(n.created_at).toLocaleString("pt-BR")}</small>
                 <p>{n.content}</p>
@@ -1130,7 +1135,7 @@ function ReviewPanel() {
         <div className="ops-filters">
           <select value={cohort} onChange={(e) => setCohort(e.target.value)}>
             <option value="">Todas as turmas</option>
-            {dir?.cohorts.map((c: any) => (
+            {dir?.cohorts.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
               </option>
@@ -1146,7 +1151,7 @@ function ReviewPanel() {
           </select>
           <select value={month} onChange={(e) => setMonth(e.target.value)}>
             <option value="">Todos os meses</option>
-            {dir?.phases.map((p: any) => (
+            {dir?.phases.map((p) => (
               <option key={p.id} value={String(p.month_number)}>
                 Mês {p.month_number} · {p.title}
               </option>
@@ -1374,7 +1379,7 @@ function MemberForm({ onDone }: { onDone: () => void }) {
                     onChange={(e) => setF({ ...f, cohortId: e.target.value })}
                   >
                     <option value="">Sem turma</option>
-                    {dir?.cohorts.map((c: any) => (
+                    {dir?.cohorts.map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.name}
                       </option>
@@ -1536,7 +1541,7 @@ function MembersPanel() {
         </div>
         {cohortOpen ? <CohortForm onDone={() => setCohortOpen(false)} /> : null}
         <div className="ops-cohorts">
-          {dir?.cohorts.map((c: any) => (
+          {dir?.cohorts.map((c) => (
             <article key={c.id} className="admin-card">
               <strong>{c.name}</strong>
               <small className="ops-muted">
@@ -1616,7 +1621,7 @@ function MembersPanel() {
                       onChange={(ev) => void update(e.id, { cohortId: ev.target.value || null })}
                     >
                       <option value="">Sem turma</option>
-                      {dir.cohorts.map((c: any) => (
+                      {dir.cohorts.map((c) => (
                         <option key={c.id} value={c.id}>
                           {c.name}
                         </option>
