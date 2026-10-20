@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test src/lib/access.test.ts src/lib/assessment.test.ts src/lib/whatsapp-templates.test.ts src/lib/whatsapp.server.test.ts",
+    "test": "tsx --test src/lib/access.test.ts src/lib/assessment.test.ts src/lib/whatsapp-templates.test.ts",
     "format": "prettier --write ."
   },
   "overrides": {

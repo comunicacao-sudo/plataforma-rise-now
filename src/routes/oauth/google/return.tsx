@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { completeGoogleConnect } from "@/lib/google.functions";
 
 export const Route = createFileRoute("/oauth/google/return")({
   head: () => ({
@@ -19,22 +20,26 @@ function OAuthReturn() {
   const [message, setMessage] = useState("Finalizando a conexão…");
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const notify = (type: "appUserConnectorOAuthComplete" | "appUserConnectorOAuthFailed", code?: string) => {
-      window.opener?.postMessage({ type, connectorId: "google_calendar", code: code ?? null }, window.location.origin);
+    const notify = (type: "riseGoogleOAuthComplete" | "riseGoogleOAuthFailed") => {
+      window.opener?.postMessage(
+        { type, connectorId: "google_calendar", code: null },
+        window.location.origin,
+      );
       window.close();
     };
-    if (params.get("success") !== "true") {
+    const code = params.get("code");
+    const state = params.get("state");
+    if (!code || !state || params.get("error")) {
       setMessage("A conexão não foi concluída. Você pode fechar esta janela.");
-      notify("appUserConnectorOAuthFailed");
+      notify("riseGoogleOAuthFailed");
       return;
     }
-    const code = params.get("code");
-    if (!code) {
-      if (params.get("offline_access_allowed") === "false") return notify("appUserConnectorOAuthComplete");
-      setMessage("A conexão não foi concluída.");
-      return notify("appUserConnectorOAuthFailed");
-    }
-    notify("appUserConnectorOAuthComplete", code);
+    void completeGoogleConnect({ data: { code, state } })
+      .then(() => notify("riseGoogleOAuthComplete"))
+      .catch(() => {
+        setMessage("A conexão não foi concluída. Você pode fechar esta janela.");
+        notify("riseGoogleOAuthFailed");
+      });
   }, []);
   return (
     <main className="loading-screen">
