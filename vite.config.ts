@@ -12,5 +12,4 @@ export default defineConfig({
     // runs in Supabase Edge Functions, never in Lovable's runtime.
     spa: { enabled: true },
   },
-  nitro: false,
 });
