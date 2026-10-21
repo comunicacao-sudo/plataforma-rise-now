@@ -1,0 +1,265 @@
+{
+  "migration": "0025_storage_cover_import_20261021.sql",
+  "project_ref": "riakceytqrlvdcgcwfdx",
+  "imported_at": "2026-10-21",
+  "source_package": "rise-now-storage-migration-corrected (6).zip",
+  "covers": [
+    {
+      "title": "Self Brand & Posicionamento",
+      "stable_key": "b3407b6f-6fb6-4e8e-b434-f3015597b7d3",
+      "source_file": "d84294b5-aaec-4547-8bc1-48f656cb1af9.png",
+      "storage_path": "covers/import-20261021/d84294b5-aaec-4547-8bc1-48f656cb1af9.png",
+      "sha256": "3950ed990da4166b6ccb06c32d6a6fbe8704ca6b70953a008302145c7fdabf23",
+      "mime_type": "image/png",
+      "size_bytes": 1221241,
+      "sha256_verified_after_upload": true
+    },
+    {
+      "title": "Tomada de Decisão Profissional",
+      "stable_key": "7a57b6bb-94b9-4b1f-b42a-7eac4410df18",
+      "source_file": "d0198946-a54f-4ff0-9acc-c5abe73c33e2.png",
+      "storage_path": "covers/import-20261021/d0198946-a54f-4ff0-9acc-c5abe73c33e2.png",
+      "sha256": "34ae3aae7c43ddf9f65c659a1aef28be69984b8b4e912758350233e33e450d4b",
+      "mime_type": "image/png",
+      "size_bytes": 1240585,
+      "sha256_verified_after_upload": true
+    },
+    {
+      "title": "Mapa de Esclarecimento",
+      "stable_key": "7789ee31-bff4-4766-a178-9037d5255d10",
+      "source_file": "9861abbb-d96a-47c0-9bfa-908a391dabd0.png",
+      "storage_path": "covers/import-20261021/9861abbb-d96a-47c0-9bfa-908a391dabd0.png",
+      "sha256": "5d71391ffdbd8e82c6e05476a84fd7d759fe6d09a1d26009172bbde6f12cc290",
+      "mime_type": "image/png",
+      "size_bytes": 1237808,
+      "sha256_verified_after_upload": true
+    },
+    {
+      "title": "Onboarding RISE",
+      "stable_key": "9f63aace-2568-4af8-a177-95324e2133e8",
+      "source_file": "91206845-c7a8-4913-95c6-e3b79e70ebc4.png",
+      "storage_path": "covers/import-20261021/91206845-c7a8-4913-95c6-e3b79e70ebc4.png",
+      "sha256": "8049292414bd84547acea16b50bce9e70093a71bf0879ad315f9a3b043ea6d7c",
+      "mime_type": "image/png",
+      "size_bytes": 1229574,
+      "sha256_verified_after_upload": true
+    },
+    {
+      "title": "Identity Session",
+      "stable_key": "5ccc5982-819a-4883-88b1-ca46685c384f",
+      "source_file": "2e3a7727-80bd-44a3-bc3f-7744114007a2.png",
+      "storage_path": "covers/import-20261021/2e3a7727-80bd-44a3-bc3f-7744114007a2.png",
+      "sha256": "c22ed40b193d28581ea2c7696a06338b4c235e4048b6ce492a5031a79088ab1d",
+      "mime_type": "image/png",
+      "size_bytes": 1225584,
+      "sha256_verified_after_upload": true
+    },
+    {
+      "title": "Questionário do perfil comportamental",
+      "stable_key": "7d2d3d63-9fc4-4d7a-a1c0-6e32a5c91c50",
+      "source_file": "33e6e4ea-f693-4910-aaba-cb6850a9ea23.png",
+      "storage_path": "covers/import-20261021/33e6e4ea-f693-4910-aaba-cb6850a9ea23.png",
+      "sha256": "97b3653b22356d2ff50301f15bc7aa5a4012600eff0d8529bf8e197e2ec5ad12",
+      "mime_type": "image/png",
+      "size_bytes": 1243671,
+      "sha256_verified_after_upload": true
+    },
+    {
+      "title": "1:1 Direção",
+      "stable_key": "c0fd9fa4-0c5c-437b-bad0-b8f33a658183",
+      "source_file": "87f24adf-922f-4a37-bd43-fb799c586815.png",
+      "storage_path": "covers/import-20261021/87f24adf-922f-4a37-bd43-fb799c586815.png",
+      "sha256": "fa85c4db76795b77db9e9bded21550648ac914efa32b1aca951e3ecbc4aee00b",
+      "mime_type": "image/png",
+      "size_bytes": 1222677,
+      "sha256_verified_after_upload": true
+    },
+    {
+      "title": "Consciência & Leitura de Ambiente",
+      "stable_key": "3aa09845-fa81-4097-b73f-710b14f7a5d1",
+      "source_file": "40767b08-908b-4d26-ac04-1f708d886192.png",
+      "storage_path": "covers/import-20261021/40767b08-908b-4d26-ac04-1f708d886192.png",
+      "sha256": "063299a488733c8a8baf7fccab078ea155747d0060f37bcfb84ea9965f9a2b84",
+      "mime_type": "image/png",
+      "size_bytes": 1242265,
+      "sha256_verified_after_upload": true
+    },
+    {
+      "title": "O Novo Profissional",
+      "stable_key": "a81c13da-2a9a-4dd4-a0dc-bd482cea60da",
+      "source_file": "e3dc914e-78ab-4490-a147-fc73ea8a4b39.png",
+      "storage_path": "covers/import-20261021/e3dc914e-78ab-4490-a147-fc73ea8a4b39.png",
+      "sha256": "fa61828a6d78c8c1cf66ee7ddbd00b8870d1387d083456af982639f4efe3dfbe",
+      "mime_type": "image/png",
+      "size_bytes": 1236350,
+      "sha256_verified_after_upload": true
+    },
+    {
+      "title": "Competências do Próximo Nível",
+      "stable_key": "83a70fbe-ddd7-48f7-b4f8-5eb7d913b523",
+      "source_file": "633d88d2-3b16-4da8-8126-66fba4c3f084.png",
+      "storage_path": "covers/import-20261021/633d88d2-3b16-4da8-8126-66fba4c3f084.png",
+      "sha256": "c4b294eeb97b64659bf8051f953d81aeba5aa6076f17ff9ecea3cd28a42048f7",
+      "mime_type": "image/png",
+      "size_bytes": 1242359,
+      "sha256_verified_after_upload": true
+    },
+    {
+      "title": "IA na Prática",
+      "stable_key": "74c559b9-c222-4503-9fd5-68db4474f98a",
+      "source_file": "eb4d185c-b5c3-4cc0-92df-d79df8234af0.png",
+      "storage_path": "covers/import-20261021/eb4d185c-b5c3-4cc0-92df-d79df8234af0.png",
+      "sha256": "acbe2b9da85401f1e5a326a7cfe20e5b698b59bc29d91abebd1bca371d0c5fac",
+      "mime_type": "image/png",
+      "size_bytes": 1231787,
+      "sha256_verified_after_upload": true
+    },
+    {
+      "title": "Forward Reflection",
+      "stable_key": "ff9a6db1-8a60-42cc-ba71-73381ac72313",
+      "source_file": "a1c6b06f-d0c1-49ce-96ae-06bfd91f3420.png",
+      "storage_path": "covers/import-20261021/a1c6b06f-d0c1-49ce-96ae-06bfd91f3420.png",
+      "sha256": "e204b6a4c8e4fd59f1296974addac54084b2a42f67a2771f87d4f143ff9efdca",
+      "mime_type": "image/png",
+      "size_bytes": 1231471,
+      "sha256_verified_after_upload": true
+    },
+    {
+      "title": "Consolidação",
+      "stable_key": "cf94849b-b919-4e02-8c73-9f84456c798d",
+      "source_file": "9dad6ee0-d76f-4c59-95a1-4054e7e83335.png",
+      "storage_path": "covers/import-20261021/9dad6ee0-d76f-4c59-95a1-4054e7e83335.png",
+      "sha256": "1ea546424a691c41a67b93b2b60e973b1debd49d3ba615ed3fbc08c332607700",
+      "mime_type": "image/png",
+      "size_bytes": 1231436,
+      "sha256_verified_after_upload": true
+    },
+    {
+      "title": "AI & Productivity Session",
+      "stable_key": "b45614c3-648c-45a3-b05f-0167793da7ad",
+      "source_file": "abe3a098-ed83-471f-80a6-66f7e0080226.png",
+      "storage_path": "covers/import-20261021/abe3a098-ed83-471f-80a6-66f7e0080226.png",
+      "sha256": "9374ce63cda428d4c3aa1e996541da8d2b034dd639d4e8ec846bc18e7e9d8ab7",
+      "mime_type": "image/png",
+      "size_bytes": 1240007,
+      "sha256_verified_after_upload": true
+    },
+    {
+      "title": "RISE 90 START",
+      "stable_key": "09ab6a52-7214-4cb2-adeb-7b06e35f139d",
+      "source_file": "c22d076d-6244-4069-91a1-07577b6a93eb.png",
+      "storage_path": "covers/import-20261021/c22d076d-6244-4069-91a1-07577b6a93eb.png",
+      "sha256": "bbbfbec0e09aae77c3b53dac6d9d6513fed6d7c9bbab1fab4ac2ad788716a48e",
+      "mime_type": "image/png",
+      "size_bytes": 1226810,
+      "sha256_verified_after_upload": true
+    },
+    {
+      "title": "Next Level Lab",
+      "stable_key": "2f4c1b5f-3473-490c-b11e-03c8128e27f8",
+      "source_file": "28d27c89-4eda-466b-993a-7ca0497a9334.png",
+      "storage_path": "covers/import-20261021/28d27c89-4eda-466b-993a-7ca0497a9334.png",
+      "sha256": "c88c1f6ce791958f33a3498191ad4fec9f1d665786949691d1ad89e1af3cbdf4",
+      "mime_type": "image/png",
+      "size_bytes": 1224193,
+      "sha256_verified_after_upload": true
+    },
+    {
+      "title": "Consistência & Accountability",
+      "stable_key": "8e58a530-ddf9-48ea-aa87-1ffe8d1043a7",
+      "source_file": "83a57309-55f2-4cdb-a2fa-695df7b5cb00.png",
+      "storage_path": "covers/import-20261021/83a57309-55f2-4cdb-a2fa-695df7b5cb00.png",
+      "sha256": "da2b85c45b865f1b4e3aa3f6419544af64ab9ce0bfa4a1ef0f405e6a9a7b2b08",
+      "mime_type": "image/png",
+      "size_bytes": 1242703,
+      "sha256_verified_after_upload": true
+    },
+    {
+      "title": "RISE 90 CHECKPOINT",
+      "stable_key": "ab5b1e6c-86c8-42d6-9296-19ecc68cd391",
+      "source_file": "082bec40-6fa6-44c7-ab71-1dcb7465c6a4.png",
+      "storage_path": "covers/import-20261021/082bec40-6fa6-44c7-ab71-1dcb7465c6a4.png",
+      "sha256": "c71e4af0000a9daf8d4b7efa5720efa96d96998ac23c208a04ec35804e1f4d8b",
+      "mime_type": "image/png",
+      "size_bytes": 1229989,
+      "sha256_verified_after_upload": true
+    },
+    {
+      "title": "RISE Decision Room",
+      "stable_key": "6908d7b6-450a-4053-8968-c4ddb71b1232",
+      "source_file": "54658f92-5bc8-4cbc-9364-f2944fc34a25.png",
+      "storage_path": "covers/import-20261021/54658f92-5bc8-4cbc-9364-f2944fc34a25.png",
+      "sha256": "c7d5cc56aaaee7b2baf34a28036c79b3af68f2382a03f6afbb663bc0f34cdf94",
+      "mime_type": "image/png",
+      "size_bytes": 1230648,
+      "sha256_verified_after_upload": true
+    },
+    {
+      "title": "Sustentar a Evolução",
+      "stable_key": "2ce08f2c-69e4-4ac9-9b15-888de1b6cb74",
+      "source_file": "43ece0b4-f574-41ad-a34e-5d1a4b82d022.png",
+      "storage_path": "covers/import-20261021/43ece0b4-f574-41ad-a34e-5d1a4b82d022.png",
+      "sha256": "5399b927aa1a13fb3ec0d3d7f5b7e642f161507a8dc6baea0350d4395b802536",
+      "mime_type": "image/png",
+      "size_bytes": 1231218,
+      "sha256_verified_after_upload": true
+    },
+    {
+      "title": "RISE Board",
+      "stable_key": "17905347-5e1d-469d-9bde-379379844324",
+      "source_file": "b47a56f8-c059-456d-8ac0-ec919735732d.png",
+      "storage_path": "covers/import-20261021/b47a56f8-c059-456d-8ac0-ec919735732d.png",
+      "sha256": "af3362a430a8052745ef0b93ab503c4d8f5b909f239ba2102ec98b3919ade500",
+      "mime_type": "image/png",
+      "size_bytes": 1223956,
+      "sha256_verified_after_upload": true
+    },
+    {
+      "title": "RISE 90 REVIEW",
+      "stable_key": "cce586eb-dd6e-4683-a0e7-92a4a6fb7f41",
+      "source_file": "5e5a541d-6a11-4d07-905f-ba2e55aa8fa4.png",
+      "storage_path": "covers/import-20261021/5e5a541d-6a11-4d07-905f-ba2e55aa8fa4.png",
+      "sha256": "02c98cc21057194dfcf878aa9a198594aa103ca2867491f092f83bb15cc65afb",
+      "mime_type": "image/png",
+      "size_bytes": 1228116,
+      "sha256_verified_after_upload": true
+    },
+    {
+      "title": "RISE Closing",
+      "stable_key": "f1976e75-5322-4885-8247-dead1e849a11",
+      "source_file": "4e452b75-7093-49a1-8f7b-1c2ddcbbfed8.png",
+      "storage_path": "covers/import-20261021/4e452b75-7093-49a1-8f7b-1c2ddcbbfed8.png",
+      "sha256": "24d60b5d33b73da99de788e86d3555ab541d007ed0b07fe0b57d0ed772454261",
+      "mime_type": "image/png",
+      "size_bytes": 1226256,
+      "sha256_verified_after_upload": true
+    }
+  ],
+  "without_cover": [
+    {
+      "title": "Next Level Lab, Consistência",
+      "stable_key": "9cf07bef-1098-4c29-9cfb-ceb7fb545e5d",
+      "storage_path": null,
+      "reason": "Valid distinct step; no individual legacy artwork was supplied."
+    }
+  ],
+  "avatar": {
+    "profile_email": "ana@pamarisdigital.com",
+    "profile_id": "f2e28e10-1cf7-42b6-806a-bbc031ee52b7",
+    "source_file": "1792362943018.jpg",
+    "storage_path": "f2e28e10-1cf7-42b6-806a-bbc031ee52b7/1792362943018.jpg",
+    "public_url": "https://riakceytqrlvdcgcwfdx.supabase.co/storage/v1/object/public/avatars/f2e28e10-1cf7-42b6-806a-bbc031ee52b7/1792362943018.jpg",
+    "sha256": "dd4ac9882f5e2a201e0b8785fe74ccb5dcb96106f37035c7fefaa788e0bf4474",
+    "mime_type": "image/jpeg",
+    "size_bytes": 293745,
+    "sha256_verified_after_upload": true
+  },
+  "integrity": {
+    "covers_verified": 23,
+    "avatars_verified": 1,
+    "duplicate_objects_uploaded": 0,
+    "excluded_duplicate_file": "103d2732-4cef-4087-9654-6fca9f4e9f45.png"
+  }
+}
+
+
