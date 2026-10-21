@@ -3,16 +3,33 @@ import { defineConfig } from "drizzle-kit";
 const OFFICIAL_SUPABASE_PROJECT_REF = "riakceytqrlvdcgcwfdx";
 const databaseUrl = process.env.SUPABASE_DB_URL?.trim() ?? "";
 
+function targetsOfficialSupabaseProject(url: URL): boolean {
+  const protocol = url.protocol.toLowerCase();
+  if (protocol !== "postgres:" && protocol !== "postgresql:") return false;
+
+  const hostname = url.hostname.toLowerCase();
+  const username = decodeURIComponent(url.username).toLowerCase();
+  const directHostname = `db.${OFFICIAL_SUPABASE_PROJECT_REF}.supabase.co`;
+  const poolerUsername = `postgres.${OFFICIAL_SUPABASE_PROJECT_REF}`;
+
+  return (
+    (hostname === directHostname && username === "postgres") ||
+    (hostname.endsWith(".pooler.supabase.com") && username === poolerUsername)
+  );
+}
+
 if (databaseUrl) {
-  let identity: string;
+  let parsed: URL;
   try {
-    const parsed = new URL(databaseUrl);
-    identity = [parsed.hostname, decodeURIComponent(parsed.username), parsed.pathname].join(" ");
+    parsed = new URL(databaseUrl);
   } catch {
-    throw new Error("SUPABASE_DB_URL must be a valid database URL.");
+    throw new Error("SUPABASE_DB_URL must be a valid PostgreSQL connection URL.");
   }
-  if (!identity.includes(OFFICIAL_SUPABASE_PROJECT_REF)) {
-    throw new Error("SUPABASE_DB_URL must identify the official project.");
+
+  if (!targetsOfficialSupabaseProject(parsed)) {
+    throw new Error(
+      `SUPABASE_DB_URL must target the official project ${OFFICIAL_SUPABASE_PROJECT_REF}.`,
+    );
   }
 }
 
@@ -21,7 +38,9 @@ export default defineConfig({
   schema: "./drizzle/schema.ts",
   out: "./drizzle/migrations",
   dbCredentials: {
-    // Variável server-side para tooling local de migrations; nunca deve ir para o frontend.
+    // Local migration tooling may connect only to the official Supabase database.
+    // Keep this server-side value out of Vite and out of the published frontend.
     url: databaseUrl,
   },
 });
+

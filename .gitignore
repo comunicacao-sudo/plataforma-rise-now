@@ -16,6 +16,12 @@ dist-ssr
 .nitro
 *.local
 
+# Environment files are materialized by hosting/development tools and are never
+# a source of truth for this repository. Keep only the safe documentation file.
+.env
+.env.*
+!.env.example
+
 # Wrangler / Cloudflare
 .wrangler/
 .dev.vars
@@ -30,3 +36,4 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
