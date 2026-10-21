@@ -91,23 +91,83 @@ input:focus-visible {
   width: min(100% - 7vw, 1480px);
   margin-inline: auto;
 }
-.platform-shell {
-  --platform-background: #1b0909;
+.platform-shell,
+.platform-shell[data-theme="dark"] {
+  --rise-graphite: #26312f;
+  --rise-sand: #d7b07a;
+  --rise-terracotta: #b8755d;
+  --rise-white: #ffffff;
+  --platform-background: var(--rise-graphite);
+  --platform-title: var(--rise-white);
+  --platform-text: var(--rise-sand);
+  --platform-muted: rgba(215, 176, 122, 0.72);
+  --platform-line: rgba(215, 176, 122, 0.28);
+  --platform-line-strong: rgba(215, 176, 122, 0.48);
+  --platform-surface: rgba(38, 49, 47, 0.9);
+  --platform-surface-soft: rgba(255, 255, 255, 0.045);
+  --platform-surface-strong: #1f2927;
+  --platform-overlay: rgba(23, 31, 29, 0.82);
+  --platform-shadow: rgba(8, 13, 12, 0.42);
+  --background: var(--rise-graphite);
+  --foreground: var(--rise-sand);
+  --card: #2d3a37;
+  --primary: var(--rise-sand);
+  --secondary: #34423f;
+  --muted: #303d3a;
+  --muted-foreground: rgba(215, 176, 122, 0.72);
+  --border: rgba(215, 176, 122, 0.22);
+  --marsala: var(--rise-sand);
+  --marsala-bright: var(--rise-sand);
+  --rose: rgba(215, 176, 122, 0.76);
+  --gold: var(--rise-sand);
+  --cream: var(--rise-white);
+  --ivory: var(--rise-white);
+  --ink: var(--rise-graphite);
+  color: var(--platform-text);
+  color-scheme: dark;
   min-height: 100vh;
   overflow: hidden;
   background-color: var(--platform-background);
   background-image:
-    linear-gradient(rgba(27, 9, 9, 0.42), rgba(27, 9, 9, 0.5)), url("/brand/platform-dark.webp");
+    linear-gradient(rgba(38, 49, 47, 0.86), rgba(38, 49, 47, 0.9)), url("/brand/platform-dark.webp");
+  background-blend-mode: color, luminosity;
   background-position: top center;
   background-size: cover;
   background-attachment: fixed;
 }
 .platform-shell[data-theme="light"] {
-  --platform-background: #f2f0ef;
+  --platform-background: var(--rise-white);
+  --platform-title: var(--rise-terracotta);
+  --platform-text: var(--rise-graphite);
+  --platform-muted: rgba(38, 49, 47, 0.7);
+  --platform-line: color-mix(in srgb, var(--rise-terracotta) 25%, white);
+  --platform-line-strong: color-mix(in srgb, var(--rise-terracotta) 48%, white);
+  --platform-surface: rgba(255, 255, 255, 0.92);
+  --platform-surface-soft: rgba(184, 117, 93, 0.055);
+  --platform-surface-strong: #fffaf7;
+  --platform-overlay: rgba(255, 255, 255, 0.84);
+  --platform-shadow: rgba(38, 49, 47, 0.12);
+  --background: var(--rise-white);
+  --foreground: var(--rise-graphite);
+  --card: var(--rise-white);
+  --primary: var(--rise-terracotta);
+  --secondary: #fff7f3;
+  --muted: #f9efeb;
+  --muted-foreground: rgba(38, 49, 47, 0.7);
+  --border: color-mix(in srgb, var(--rise-terracotta) 25%, white);
+  --marsala: var(--rise-terracotta);
+  --marsala-bright: var(--rise-terracotta);
+  --rose: rgba(38, 49, 47, 0.72);
+  --gold: var(--rise-terracotta);
+  --cream: var(--rise-graphite);
+  --ivory: var(--rise-graphite);
+  --ink: var(--rise-white);
+  color: var(--platform-text);
   color-scheme: light;
   background-image:
-    linear-gradient(rgba(242, 240, 239, 0.32), rgba(242, 240, 239, 0.38)),
+    linear-gradient(rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.88)),
     url("/brand/platform-light.webp");
+  background-blend-mode: normal, luminosity;
 }
 /* Brand */
 .rise-mark {
@@ -6515,4 +6575,199 @@ hr,
   .questionnaire-page iframe {
     min-height: 72vh;
   }
+}
+
+/* Authenticated platform chromatic system.
+   Keep this layer scoped: the public login intentionally retains its original art direction. */
+.platform-shell :where(h1, h2, h3, h4, h5, h6, legend) {
+  color: var(--platform-title);
+}
+.platform-shell :where(.eyebrow--gold, .main-nav button.is-active, .main-nav button:hover) {
+  color: var(--gold);
+}
+.platform-shell
+  :where(
+    .hero__copy > p,
+    .hero__meta,
+    .section-heading p,
+    .section-heading > button,
+    .page-intro > p,
+    .event-row__content p,
+    .deliverable-card p,
+    .goal-card__copy p,
+    .next-up__copy p,
+    .mentor-card p,
+    .content-card__body small,
+    .profile-trigger__copy small,
+    .content-modal__body > p,
+    .content-modal__meta span,
+    .private-note,
+    .ops-muted,
+    .ops-empty
+  ) {
+  color: var(--platform-muted);
+}
+.platform-shell .app-header {
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--platform-background) 98%, transparent),
+    color-mix(in srgb, var(--platform-background) 82%, transparent),
+    transparent
+  );
+}
+.platform-shell :where(.main-nav button, .icon-button, .profile-trigger) {
+  color: var(--platform-muted);
+}
+.platform-shell :where(.main-nav button:hover, .main-nav button.is-active, .icon-button:hover) {
+  color: var(--platform-title);
+}
+.platform-shell
+  :where(.icon-button:hover, .profile-dropdown button:hover, .profile-dropdown button.is-active) {
+  background: var(--platform-surface-soft);
+}
+.platform-shell .profile-avatar {
+  border-color: var(--platform-line-strong);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--gold) 72%, var(--platform-background)),
+    var(--platform-surface-strong)
+  );
+  color: var(--platform-title);
+}
+.platform-shell :where(.profile-dropdown, .content-modal, .goal-editor-modal) {
+  border-color: var(--platform-line);
+  background: var(--platform-surface-strong);
+  box-shadow: 0 24px 70px var(--platform-shadow);
+}
+.platform-shell :where(.profile-dropdown__label, .profile-dropdown button) {
+  color: var(--platform-muted);
+}
+.platform-shell :where(.dropdown-divider, .private-note) {
+  border-color: var(--platform-line);
+}
+.platform-shell .hero__progress {
+  border-color: var(--platform-line);
+  background: var(--platform-surface);
+  color: var(--platform-text);
+}
+.platform-shell .progress-ring {
+  background: conic-gradient(var(--gold) var(--progress), var(--platform-line) 0);
+}
+.platform-shell .progress-ring::before {
+  background: var(--platform-surface-strong);
+}
+.platform-shell
+  :where(
+    .mentor-card,
+    .deliverable-card,
+    .rise90-summary > div,
+    .goal-card,
+    .assessment-overview-grid article,
+    .assessment-two-cols article,
+    .assessment-leadership-grid article,
+    .assessment-competency-grid article,
+    .assessment-development-list article,
+    .assessment-plans article,
+    .admin-card,
+    .x-card,
+    .ops-review-content
+  ) {
+  border-color: var(--platform-line);
+  background: var(--platform-surface-soft);
+}
+.platform-shell :where(.next-up, .ops-meeting) {
+  border-color: var(--platform-line);
+  background: linear-gradient(90deg, var(--platform-surface), var(--platform-surface-soft));
+}
+.platform-shell :where(.content-card__art, .journey-card) {
+  border-color: var(--platform-line);
+  box-shadow: 0 18px 42px var(--platform-shadow);
+}
+.platform-shell :where(.journey-card__delivery, .content-card__type) {
+  border-color: var(--platform-line);
+  background: var(--platform-overlay);
+  color: var(--platform-text);
+}
+.platform-shell :where(.status-pill, .button--primary) {
+  background: var(--gold);
+  color: var(--rise-graphite);
+}
+.platform-shell .button--primary:hover {
+  background: color-mix(in srgb, var(--gold) 84%, white);
+}
+.platform-shell .button--glass {
+  border-color: var(--platform-line);
+  background: var(--platform-surface-soft);
+  color: var(--platform-title);
+}
+.platform-shell
+  :where(
+    .ops-field input,
+    .ops-field select,
+    .ops-field textarea,
+    .ops-filters select,
+    .ops-table select,
+    .ops-confidential textarea,
+    .ops-inline-form input,
+    .assessment-form-grid input,
+    .assessment-form-grid textarea,
+    .assessment-form-grid select
+  ) {
+  border-color: var(--platform-line);
+  background: var(--platform-surface);
+  color: var(--platform-title);
+}
+.platform-shell :where(.modal-close, .assessment-close) {
+  border-color: var(--platform-line-strong);
+  background: var(--platform-surface-strong);
+  color: var(--platform-title);
+}
+.platform-shell :where(.assessment-shell, .assessment-profile-modal, .lesson-screen) {
+  background-color: var(--platform-background);
+  color: var(--platform-text);
+}
+.platform-shell :where(.assessment-question, .assessment-section, .lesson-player, .lesson-block) {
+  border-color: var(--platform-line);
+  background-color: var(--platform-surface-strong);
+  color: var(--platform-text);
+}
+.platform-shell :where(.recorded-library, .journey-cover-preview img) {
+  background-color: var(--platform-background) !important;
+  color: var(--platform-text) !important;
+}
+.platform-shell :where(.journey-materials a, .journey-upload, .journey-material-editor > div) {
+  border-color: var(--platform-line);
+  background: var(--platform-surface-soft);
+  color: var(--platform-text);
+}
+
+.platform-shell[data-theme="light"] :where(h1, h2, h3, h4, h5, h6, legend) {
+  color: var(--rise-terracotta);
+}
+.platform-shell[data-theme="light"]
+  :where(
+    .hero,
+    .dashboard-body,
+    .inner-page,
+    .ops-specialties > span,
+    .main-nav button:hover,
+    .main-nav button.is-active
+  ) {
+  color: var(--rise-graphite);
+}
+.platform-shell[data-theme="light"] :where(.button--primary, .status-pill) {
+  background: var(--rise-terracotta);
+  color: var(--rise-white);
+}
+.platform-shell[data-theme="light"] .button--primary:hover {
+  background: color-mix(in srgb, var(--rise-terracotta) 88%, black);
+}
+.platform-shell[data-theme="light"] .button--glass {
+  border-color: var(--platform-line-strong);
+  background: var(--rise-white);
+  color: var(--rise-graphite);
+}
+.platform-shell[data-theme="light"] :where(.content-card__play, .modal-play) {
+  background: var(--rise-terracotta);
+  color: var(--rise-white);
 }

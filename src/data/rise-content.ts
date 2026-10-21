@@ -149,7 +149,8 @@ export const recommendations: LearningItem[] = [
     mentor: "Camila Mariano",
     duration: "44 min",
     progress: 0,
-    accent: "linear-gradient(135deg, #d0ac5c 0%, #79541f 46%, #181006 100%)",
+    accent:
+      "linear-gradient(135deg, var(--rise-terracotta) 0%, var(--rise-sand) 48%, var(--rise-graphite) 100%)",
     description:
       "Escolhas, riscos, concessões e o custo da não decisão para chegar ao próximo movimento com direção.",
     type: "Aula",

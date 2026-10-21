@@ -1158,7 +1158,7 @@ export function ProfileModal({
                 onClick={() => setForm({ ...form, theme_preference: "dark" })}
               >
                 <Moon size={17} /> Escuro
-                <span>#1b0909</span>
+                <span>#26312F</span>
               </button>
               <button
                 type="button"
@@ -1167,7 +1167,7 @@ export function ProfileModal({
                 onClick={() => setForm({ ...form, theme_preference: "light" })}
               >
                 <Sun size={17} /> Claro
-                <span>#f2f0ef</span>
+                <span>#FFFFFF</span>
               </button>
             </div>
           </fieldset>

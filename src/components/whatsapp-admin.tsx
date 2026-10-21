@@ -104,7 +104,8 @@ const mutedStyle: CSSProperties = {
 function statusDetails(status: string) {
   const normalized = status.toUpperCase();
   if (normalized === "WORKING") return { label: "Conectado", color: "#7bd89c" };
-  if (normalized === "SCAN_QR_CODE") return { label: "Aguardando leitura do QR", color: "#d0ac5c" };
+  if (normalized === "SCAN_QR_CODE")
+    return { label: "Aguardando leitura do QR", color: "var(--gold)" };
   if (normalized === "STARTING") return { label: "Iniciando", color: "#f6ddb0" };
   if (normalized === "FAILED") return { label: "Falha na conexão", color: "#ff8d91" };
   return { label: "Desconectado", color: "rgba(255, 250, 245, .66)" };
@@ -145,7 +146,7 @@ function Toggle({
           height: 26,
           flex: "0 0 auto",
           borderRadius: 999,
-          border: `1px solid ${checked ? "#d0ac5c" : "rgba(255, 250, 245, .24)"}`,
+          border: `1px solid ${checked ? "var(--gold)" : "var(--platform-line)"}`,
           background: checked ? "rgba(208, 172, 92, .24)" : "rgba(255, 250, 245, .06)",
           transition: "all .2s ease",
         }}
@@ -158,7 +159,7 @@ function Toggle({
             width: 16,
             height: 16,
             borderRadius: "50%",
-            background: checked ? "#d0ac5c" : "rgba(255, 250, 245, .6)",
+            background: checked ? "var(--gold)" : "var(--platform-muted)",
             transition: "left .2s ease",
           }}
         />
@@ -301,7 +302,7 @@ export function WhatsAppAdmin() {
               }}
             >
               <article className="admin-card" style={cardStyle}>
-                <Smartphone size={22} color="#d0ac5c" />
+                <Smartphone size={22} color="var(--gold)" />
                 <span style={{ ...mutedStyle, display: "block", marginTop: ".9rem" }}>Status</span>
                 <strong style={{ display: "flex", alignItems: "center", gap: ".5rem" }}>
                   <span
@@ -312,17 +313,17 @@ export function WhatsAppAdmin() {
                 </strong>
               </article>
               <article className="admin-card" style={cardStyle}>
-                <MessageCircleMore size={22} color="#d0ac5c" />
+                <MessageCircleMore size={22} color="var(--gold)" />
                 <span style={{ ...mutedStyle, display: "block", marginTop: ".9rem" }}>Número</span>
                 <strong>{session.phone || "Ainda não conectado"}</strong>
               </article>
               <article className="admin-card" style={cardStyle}>
-                <Link2 size={22} color="#d0ac5c" />
+                <Link2 size={22} color="var(--gold)" />
                 <span style={{ ...mutedStyle, display: "block", marginTop: ".9rem" }}>Sessão</span>
                 <strong>{session.name}</strong>
               </article>
               <article className="admin-card" style={cardStyle}>
-                <CheckCircle2 size={22} color="#d0ac5c" />
+                <CheckCircle2 size={22} color="var(--gold)" />
                 <span style={{ ...mutedStyle, display: "block", marginTop: ".9rem" }}>Engine</span>
                 <strong>{session.engine}</strong>
               </article>
@@ -401,7 +402,7 @@ export function WhatsAppAdmin() {
                     padding: "1rem",
                     borderRadius: 14,
                     background: "#fff",
-                    color: "#1b0909",
+                    color: "var(--rise-graphite)",
                     textAlign: "center",
                   }}
                 >

@@ -540,12 +540,12 @@ function Header({
 }
 
 const accents = [
-  "linear-gradient(135deg, #8f3544 0%, #461520 58%, #100608 100%)",
-  "linear-gradient(135deg, #a34c61 0%, #3e111d 72%, #11070a 100%)",
-  "linear-gradient(135deg, #d0ac5c 0%, #79541f 46%, #181006 100%)",
-  "linear-gradient(135deg, #74404e 0%, #331720 60%, #0b0608 100%)",
-  "linear-gradient(135deg, #8f6670 0%, #432830 58%, #100a0c 100%)",
-  "linear-gradient(135deg, #5a0f14 0%, #2a0709 60%, #0b0304 100%)",
+  "linear-gradient(135deg, var(--rise-terracotta) 0%, var(--rise-graphite) 72%)",
+  "linear-gradient(135deg, var(--rise-sand) 0%, var(--rise-graphite) 76%)",
+  "linear-gradient(135deg, var(--rise-terracotta) 0%, var(--rise-sand) 48%, var(--rise-graphite) 100%)",
+  "linear-gradient(135deg, var(--rise-graphite) 0%, var(--rise-terracotta) 100%)",
+  "linear-gradient(135deg, var(--rise-sand) 0%, var(--rise-terracotta) 54%, var(--rise-graphite) 100%)",
+  "linear-gradient(135deg, var(--rise-terracotta) 0%, var(--rise-graphite) 62%)",
 ];
 
 function currentPhase(trail: Trail) {
