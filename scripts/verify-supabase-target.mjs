@@ -23,10 +23,7 @@ function textFiles(path) {
       const buffer = readFileSync(child);
       if (buffer.includes(0)) continue;
       try {
-        files.push([
-          child,
-          new TextDecoder("utf-8", { fatal: true }).decode(buffer),
-        ]);
+        files.push([child, new TextDecoder("utf-8", { fatal: true }).decode(buffer)]);
       } catch {
         // Binary assets are not configuration or executable text.
       }
@@ -57,11 +54,7 @@ try {
   if (!vite.includes(officialRef)) {
     failures.push("Vite must target the official project.");
   }
-  requireMatch(
-    vite,
-    /\benvDefine\s*:\s*false\b/,
-    "Vite envDefine must be false.",
-  );
+  requireMatch(vite, /\benvDefine\s*:\s*false\b/, "Vite envDefine must be false.");
   requireMatch(
     vite,
     /\benvPrefix\s*:\s*["']RISE_PUBLIC_["']/,
@@ -73,27 +66,18 @@ try {
     "The project configuration must target the official project.",
   );
   const drizzle = read("drizzle.config.ts");
-  if (
-    !drizzle.includes("SUPABASE_DB_URL") ||
-    drizzle.includes("LOVABLE_DB_MIGRATION_URL")
-  ) {
+  if (!drizzle.includes("SUPABASE_DB_URL") || drizzle.includes("LOVABLE_DB_MIGRATION_URL")) {
     failures.push("Drizzle must use only SUPABASE_DB_URL for its connection.");
   }
-  requireMatch(
-    read(".gitignore"),
-    /^\.env\s*$/m,
-    ".gitignore must exclude .env.",
-  );
+  requireMatch(read(".gitignore"), /^\.env\s*$/m, ".gitignore must exclude .env.");
 
   const databaseUrl = process.env.SUPABASE_DB_URL?.trim() ?? "";
   if (databaseUrl) {
     try {
       const parsed = new URL(databaseUrl);
-      const identity = [
-        parsed.hostname,
-        decodeURIComponent(parsed.username),
-        parsed.pathname,
-      ].join(" ");
+      const identity = [parsed.hostname, decodeURIComponent(parsed.username), parsed.pathname].join(
+        " ",
+      );
       if (!identity.includes(officialRef)) {
         failures.push("SUPABASE_DB_URL targets an unofficial project.");
       }

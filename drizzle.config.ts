@@ -7,11 +7,7 @@ if (databaseUrl) {
   let identity: string;
   try {
     const parsed = new URL(databaseUrl);
-    identity = [
-      parsed.hostname,
-      decodeURIComponent(parsed.username),
-      parsed.pathname,
-    ].join(" ");
+    identity = [parsed.hostname, decodeURIComponent(parsed.username), parsed.pathname].join(" ");
   } catch {
     throw new Error("SUPABASE_DB_URL must be a valid database URL.");
   }
