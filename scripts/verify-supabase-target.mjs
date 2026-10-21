@@ -133,7 +133,10 @@ for (const relativePath of sourceFiles) {
     failures.push(`${relativePath} references the retired Supabase project.`);
   }
   if (
-    (relativePath === "vite.config.ts" || relativePath.startsWith(`src${path.sep}`)) &&
+    (relativePath === "vite.config.ts" ||
+      (relativePath.startsWith(`src${path.sep}`) &&
+        // Platform-generated server-only file; never bundled for the browser (checked below via --bundle).
+        !relativePath.endsWith(`client.server.ts`))) &&
     content.includes("SUPABASE_SERVICE_ROLE_KEY")
   ) {
     failures.push(`${relativePath} exposes an administrative Supabase variable to the app.`);
