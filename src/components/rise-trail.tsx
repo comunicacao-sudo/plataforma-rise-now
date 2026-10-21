@@ -81,8 +81,8 @@ export type Trail = {
 };
 
 async function loadTrail(): Promise<Trail> {
-  const { data: auth } = await supabase.auth.getUser();
-  const uid = auth.user?.id;
+  const { data: auth } = await supabase.auth.getSession();
+  const uid = auth.session?.user.id;
   const { data: enrollment } = await supabase
     .from("enrollments")
     .select("id, program_id, current_month, progress_pct")
