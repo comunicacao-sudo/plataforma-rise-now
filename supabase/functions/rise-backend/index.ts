@@ -616,42 +616,36 @@ async function journeyAction(c: Context, action: string, d: any) {
       stepTitle: titles.get(x.step_key) ?? "Etapa",
     }));
   }
-  const mapped = await Promise.all(
-    (steps ?? []).map(async (s: any) => {
-      const coverUrl = s.cover_path
-        ? ((await c.admin.storage.from("journey-content").createSignedUrl(s.cover_path, 3600)).data
-            ?.signedUrl ?? null)
-        : null;
-      return {
-        stableKey: s.stable_key,
-        title: s.title,
-        format: s.format,
-        impactLead: s.impact_lead ?? "",
-        impactHighlight: s.impact_highlight ?? "",
-        impactTail: s.impact_tail ?? "",
-        description: s.description ?? "",
-        responsibleName: s.responsible_name,
-        durationMinutes: s.duration_minutes,
-        resourceType: s.resource_type,
-        resourceId: s.resource_id,
-        resourceUrl: s.resource_url,
-        scheduledAt: s.scheduled_at,
-        releaseAt: s.release_at,
-        completionRule: s.completion_rule,
-        required: s.required,
-        monthNumber: s.month_number,
-        coverPath: s.cover_path,
-        coverUrl,
-        mediaPath: s.media_path,
-        summary: s.summary ?? "",
-        topics: s.topics ?? [],
-        materials: s.materials ?? [],
-        accessScope: s.access_scope ?? "general",
-        cohortId: s.cohort_id,
-        menteeId: s.mentee_id,
-      };
-    }),
-  );
+  const coverUrls = await signedBatch((steps ?? []).map((s: any) => s.cover_path));
+  const mapped = (steps ?? []).map((s: any) => ({
+    stableKey: s.stable_key,
+    title: s.title,
+    format: s.format,
+    impactLead: s.impact_lead ?? "",
+    impactHighlight: s.impact_highlight ?? "",
+    impactTail: s.impact_tail ?? "",
+    description: s.description ?? "",
+    responsibleName: s.responsible_name,
+    durationMinutes: s.duration_minutes,
+    resourceType: s.resource_type,
+    resourceId: s.resource_id,
+    resourceUrl: s.resource_url,
+    scheduledAt: s.scheduled_at,
+    releaseAt: s.release_at,
+    completionRule: s.completion_rule,
+    required: s.required,
+    monthNumber: s.month_number,
+    coverPath: s.cover_path,
+    coverUrl:
+      typeof s.cover_path === "string" ? (coverUrls.get(s.cover_path) ?? null) : null,
+    mediaPath: s.media_path,
+    summary: s.summary ?? "",
+    topics: s.topics ?? [],
+    materials: s.materials ?? [],
+    accessScope: s.access_scope ?? "general",
+    cohortId: s.cohort_id,
+    menteeId: s.mentee_id,
+  }));
   return {
     isAdmin: true,
     pillars: (pillars ?? []).map((p: any) => ({
