@@ -29,10 +29,8 @@ import {
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
-import { mentors } from "@/data/rise-content";
 import {
   Avatar,
-  MentorsSection,
   NotificationBell,
   ProfileModal,
   Rise90Live,
@@ -838,41 +836,10 @@ function HomeView({
           onOpen={(item) => onOpenContent(item.stepKey)}
         />
         <Rail title="Revisite quando quiser" items={revisit} onOpen={onOpen} />
-        <MentorRail />
         <NextMeetingBanner onAgenda={() => onView("agenda")} />
         <NextUp trail={trail} onAgenda={() => onView("agenda")} />
       </div>
     </>
-  );
-}
-
-function MentorRail() {
-  return (
-    <section className="content-section page-width">
-      <div className="section-heading">
-        <div>
-          <h2>Quatro perspectivas. Uma jornada.</h2>
-          <p>Mentoras complementares para desafios reais.</p>
-        </div>
-      </div>
-      <div className="mentor-rail">
-        {mentors.map((mentor) => (
-          <article className="mentor-card" key={mentor.name}>
-            <div
-              className="mentor-avatar"
-              style={{ "--mentor-color": mentor.color } as React.CSSProperties}
-            >
-              <span>{mentor.initials}</span>
-            </div>
-            <div>
-              <span>{mentor.pillar}</span>
-              <h3>{mentor.name}</h3>
-              <p>{mentor.copy}</p>
-            </div>
-          </article>
-        ))}
-      </div>
-    </section>
   );
 }
 
@@ -1010,7 +977,6 @@ function JourneyView({
           );
         })}
       </section>
-      <MentorsSection />
     </main>
   );
 }
