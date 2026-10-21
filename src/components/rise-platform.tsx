@@ -88,6 +88,24 @@ type View =
   | "whatsapp";
 type AuthMode = "checking" | "login" | "authenticated" | "change-password";
 
+const menteeViews: View[] = ["inicio", "jornada", "agenda", "entregas", "rise90"];
+const staffViews: View[] = [
+  "painel",
+  "gestao-jornada",
+  "agenda",
+  "entregas",
+  "alunas",
+  "whatsapp",
+];
+
+function defaultViewForRole(role: Role): View {
+  return role === "mentee" ? "inicio" : "painel";
+}
+
+function allowedViewsForRole(role: Role) {
+  return role === "mentee" ? menteeViews : staffViews;
+}
+
 const roleLabels: Record<Role, string> = {
   mentee: "Mentorada",
   admin: "Mentora · Administradora",
@@ -1186,24 +1204,20 @@ export function RisePlatform() {
         const resolvedRole: Role = storedRole === "mentee" ? "mentee" : "admin";
         setRole(resolvedRole);
         const requested = new URLSearchParams(window.location.search).get("view") as View | null;
-        const menteeViews: View[] = ["inicio", "jornada", "agenda", "entregas", "rise90"];
-        const staffViews: View[] = [
-          "painel",
-          "gestao-jornada",
-          "agenda",
-          "entregas",
-          "alunas",
-          "whatsapp",
-        ];
-        setActiveView(
-          resolvedRole === "mentee"
-            ? requested && menteeViews.includes(requested)
-              ? requested
-              : "inicio"
-            : requested && staffViews.includes(requested)
-              ? requested
-              : "painel",
-        );
+        const allowedViews = allowedViewsForRole(resolvedRole);
+        const targetView =
+          requested && allowedViews.includes(requested)
+            ? requested
+            : defaultViewForRole(resolvedRole);
+        setActiveView(targetView);
+
+        // Keep the current application view in the URL so auth refresh/focus events
+        // cannot reset the user back to the default screen.
+        const currentUrl = new URL(window.location.href);
+        if (currentUrl.searchParams.get("view") !== targetView) {
+          currentUrl.searchParams.set("view", targetView);
+          window.history.replaceState(window.history.state, "", currentUrl);
+        }
         setAuthMode("authenticated");
       } catch {
         if (mounted) setAuthMode("login");
@@ -1217,6 +1231,36 @@ export function RisePlatform() {
       listener.subscription.unsubscribe();
     };
   }, []);
+
+  function navigateToView(view: View) {
+    const allowedViews = allowedViewsForRole(role);
+    const targetView = allowedViews.includes(view) ? view : defaultViewForRole(role);
+    setActiveView(targetView);
+
+    const nextUrl = new URL(window.location.href);
+    const currentView = nextUrl.searchParams.get("view");
+    nextUrl.searchParams.set("view", targetView);
+    if (targetView !== "jornada") nextUrl.searchParams.delete("step");
+
+    if (currentView !== targetView || window.location.href !== nextUrl.href) {
+      window.history.pushState({ ...window.history.state, riseView: targetView }, "", nextUrl);
+    }
+  }
+
+  useEffect(() => {
+    if (authMode !== "authenticated") return;
+
+    const handlePopState = () => {
+      const requested = new URLSearchParams(window.location.search).get("view") as View | null;
+      const allowedViews = allowedViewsForRole(role);
+      setActiveView(
+        requested && allowedViews.includes(requested) ? requested : defaultViewForRole(role),
+      );
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [authMode, role]);
 
   const { data: currentProfile } = useMyProfile(authMode === "authenticated");
   const theme = currentProfile?.theme_preference === "light" ? "light" : "dark";
@@ -1255,7 +1299,7 @@ export function RisePlatform() {
     <div className={shellClass} data-theme={theme}>
       <Header
         activeView={activeView}
-        onView={setActiveView}
+        onView={navigateToView}
         role={role}
         name={name}
         onExit={() => void exit()}
@@ -1269,12 +1313,12 @@ export function RisePlatform() {
               ? activeView
               : "painel") as StaffView
           }
-          onView={setActiveView}
+          onView={navigateToView}
         />
       ) : (
-        <MenteeArea view={activeView} onView={setActiveView} />
+        <MenteeArea view={activeView} onView={navigateToView} />
       )}
-      <AppFooter role={role} onView={setActiveView} />
+      <AppFooter role={role} onView={navigateToView} />
     </div>
   );
 }
