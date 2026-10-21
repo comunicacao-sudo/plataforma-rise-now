@@ -1,29 +1,21 @@
-# Limpeza definitiva do Lovable Cloud antigo
+# Etapa 2: exclusão definitiva dos dados do Lovable Cloud antigo
 
-## Alvo da limpeza
-- Backend antigo do Lovable Cloud: **vfkvdkqjwnmhxhlfrqba**. Não é `riakceytqrlvdcgcwfdx`.
-- O banco oficial `riakceytqrlvdcgcwfdx`, o GitHub, o código, o domínio e a publicação não serão alterados.
+Alvo único: **vfkvdkqjwnmhxhlfrqba**. Antes de cada passo, confiro de novo esse identificador. Se aparecer `riakceytqrlvdcgcwfdx`, paro na hora.
 
-## Etapa 1: auditoria final (só leitura)
-1. Conferir que a conexão de banco aqui é a `vfkv…`. Se for outra, eu paro.
-2. Contar: contas de login, perfis, papéis, e-mails aprovados, matrículas, progresso, entregas, questionários, histórico, etapas da trilha, avisos, notas, metas RISE 90, materiais e arquivos guardados (por bucket e pasta).
-3. Comparar com a auditoria anterior (9 perfis, 4 papéis, 9 e-mails, 2 matrículas, 1 progresso, 59 histórico, 116 etapas, 31 arquivos).
-4. Baixar o site publicado (board.mentoriarisenow.com.br) e conferir que os arquivos só citam `riakceytqrlvdcgcwfdx`. Fazer uma entrada de teste e ver que nenhuma chamada vai para o banco antigo.
-5. Preservação no banco oficial: eu não tenho acesso ao banco oficial. Para as 23 capas, a RISE Decision Room e o avatar, uso a sua confirmação de que a migração foi feita e validada. Se der, também abro o site publicado para ver se as capas carregam de lá.
-6. Se alguma contagem mostrar dado novo, com cara de real (aluna de fora, entrega nova), eu paro e te mostro antes de apagar.
+## O que será apagado
+1. **Arquivos:** as 30 capas do journey-content e a 1 foto do avatars, apagadas pela ferramenta de arquivos. Os 4 buckets continuam existindo, vazios.
+2. **Dados:** todas as linhas das tabelas do banco antigo, entre elas matrículas, progresso, caderno, questionário, histórico, trilha (116 etapas e 20 versões), aulas, meses, entregas, pilares, especialidades, programa, turma, conexões Google, configuração de WhatsApp, e-mails aprovados, papéis e perfis.
+3. **Contas de login:** as 7 contas, removidas uma a uma pela ferramenta de administração de contas, sem mexer direto nas tabelas internas do sistema.
 
-## Etapa 2: exclusão (só se a Etapa 1 passar)
-- Apagar todos os arquivos dos buckets antigos (journey-content, avatars, materials e outros) e conferir que ficaram vazios. Os buckets continuam existindo, mas vazios.
-- Apagar as linhas de todas as tabelas de dados (matrículas, progresso, entregas, questionários, histórico, trilha, avisos, notas, metas, e-mails aprovados, papéis, perfis e as outras).
-- Excluir todas as contas de login do Lovable Cloud antigo.
-- Ficam no lugar: tabelas, regras de acesso e configurações, todas vazias. Assim o editor e a publicação do Lovable continuam funcionando.
+## O que não muda
+Tabelas, estrutura do banco, migrations, regras de acesso, buckets, configurações, GitHub, código, site publicado, domínio e o banco oficial.
 
-## Etapa 3: conferência e relatório
-- Refazer as contagens (o resultado esperado é zero) e mostrar o ANTES e o DEPOIS.
-- Abrir o site publicado (HTTP 200), entrar com uma conta de teste, abrir uma área logada e confirmar que todas as chamadas vão para `riakceytqrlvdcgcwfdx`.
-- Para o teste de login, preciso de uma conta no banco oficial. Sem ela, testo só até a tela de acesso e aviso que essa parte ficou sem conferência.
+## Depois
+- Refaço todas as contagens (o esperado é zero), confirmo os arquivos vazios e as contas removidas.
+- Abro board.mentoriarisenow.com.br (HTTP 200) e confiro de novo que os arquivos do site citam só `riakceytqrlvdcgcwfdx`.
+- Envio o relatório ANTES → DEPOIS.
 
 ## Detalhes técnicos
-- Contagens com psql e read_query. A exclusão de linhas passa pela ferramenta de dados (DELETE por tabela, com WHERE), sem migration e sem DROP. Os arquivos saem pela API de Storage com a chave de serviço do projeto antigo. As contas saem pela API admin de Auth, uma a uma.
-- A ordem respeita as chaves estrangeiras: primeiro as tabelas filhas, depois profiles e por último auth.users.
-- Nenhum arquivo do repositório muda, a não ser este plano.
+- As linhas saem pela ferramenta de dados, com DELETE ... WHERE true em cada tabela pública. A ordem é das tabelas filhas para as pais, e profiles vai por último.
+- Os arquivos saem pela API de Storage e as contas pela API admin de Auth, as duas usando a chave de serviço do projeto vfkv.
+- Não haverá migration, DROP nem TRUNCATE.
