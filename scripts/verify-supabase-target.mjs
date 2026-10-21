@@ -72,7 +72,10 @@ requireCondition(
   viteConfig.includes(`const SUPABASE_PROJECT_ID = "${OFFICIAL_PROJECT_REF}"`),
   "vite.config.ts must pin the official Supabase project.",
 );
-requireCondition(viteConfig.includes("envDefine: false"), "Lovable VITE_* injection must stay disabled.");
+requireCondition(
+  viteConfig.includes("envDefine: false"),
+  "Lovable VITE_* injection must stay disabled.",
+);
 requireCondition(
   viteConfig.includes('envPrefix: "RISE_PUBLIC_"'),
   "Native Vite VITE_* loading must stay disabled.",
@@ -111,10 +114,7 @@ if (databaseUrl) {
   } catch {
     failures.push("SUPABASE_DB_URL is not a valid URL.");
   }
-  requireCondition(
-    officialDatabaseTarget,
-    `SUPABASE_DB_URL must target ${OFFICIAL_PROJECT_REF}.`,
-  );
+  requireCondition(officialDatabaseTarget, `SUPABASE_DB_URL must target ${OFFICIAL_PROJECT_REF}.`);
 }
 
 const sourceFiles = [
@@ -145,7 +145,10 @@ for (const relativePath of sourceFiles) {
 
 if (CHECK_BUNDLE) {
   const bundleRoot = path.join(".output", "public");
-  requireCondition(existsSync(path.join(ROOT, bundleRoot)), "Production bundle .output/public is missing.");
+  requireCondition(
+    existsSync(path.join(ROOT, bundleRoot)),
+    "Production bundle .output/public is missing.",
+  );
   const bundleFiles = await collectTextFiles(bundleRoot);
   let officialReferenceCount = 0;
   for (const relativePath of bundleFiles) {
