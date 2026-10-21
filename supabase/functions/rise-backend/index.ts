@@ -67,7 +67,7 @@ async function audit(c: Context, action: string, target: string, payload: unknow
 }
 const officialMentors = new Set([
   "camilaum@pamarisdigital.com",
-  "gabi@pamarisdigital.com",
+  "gabriela@pamarisdigital.com",
   "ana@pamarisdigital.com",
   "camila@pamarisdigital.com",
 ]);

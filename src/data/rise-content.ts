@@ -195,7 +195,7 @@ export const mentors = [
     initials: "GR",
     copy: "Posicionamento e marca pessoal para tornar valor visível.",
     color: "#a85f70",
-    email: "gabi@pamarisdigital.com",
+    email: "gabriela@pamarisdigital.com",
   },
   {
     name: "Ana Luiza",
