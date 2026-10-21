@@ -147,10 +147,12 @@ for (const relativePath of sourceFiles) {
 }
 
 if (CHECK_BUNDLE) {
-  const bundleRoot = path.join(".output", "public");
+  const bundleRoot = [path.join(".output", "public"), path.join("dist", "client")].find((p) =>
+    existsSync(path.join(ROOT, p)),
+  ) ?? path.join("dist", "client");
   requireCondition(
     existsSync(path.join(ROOT, bundleRoot)),
-    "Production bundle .output/public is missing.",
+    "Production bundle (dist/client or .output/public) is missing.",
   );
   const bundleFiles = await collectTextFiles(bundleRoot);
   let officialReferenceCount = 0;
