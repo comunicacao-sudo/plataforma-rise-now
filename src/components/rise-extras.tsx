@@ -993,14 +993,15 @@ export function useMyProfile(enabled = true) {
     queryKey: ["my-profile"],
     enabled,
     queryFn: async () => {
-      const { data: u } = await supabase.auth.getUser();
-      if (!u.user) return null;
+      const { data: auth } = await supabase.auth.getSession();
+      const userId = auth.session?.user.id;
+      if (!userId) return null;
       const { data } = await supabase
         .from("profiles")
         .select(
           "id, email, display_name, full_name, title, avatar_url, phone, contact_email, profession, profession_visible, theme_preference",
         )
-        .eq("id", u.user.id)
+        .eq("id", userId)
         .maybeSingle();
       return (data as MyProfile | null) ?? null;
     },
