@@ -11,7 +11,15 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test src/lib/access.test.ts src/lib/assessment.test.ts src/lib/whatsapp-templates.test.ts",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "prebuild": "node scripts/verify-supabase-target.mjs",
+    "postbuild": "node scripts/verify-supabase-target.mjs --bundle",
+    "prebuild:dev": "node scripts/verify-supabase-target.mjs",
+    "postbuild:dev": "node scripts/verify-supabase-target.mjs --bundle",
+    "prelint": "node scripts/verify-supabase-target.mjs",
+    "pretypecheck": "node scripts/verify-supabase-target.mjs",
+    "pretest": "node scripts/verify-supabase-target.mjs",
+    "verify:supabase": "node scripts/verify-supabase-target.mjs --bundle"
   },
   "overrides": {
     "rolldown": "1.2.1"
