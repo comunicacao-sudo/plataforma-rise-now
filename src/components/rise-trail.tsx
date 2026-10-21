@@ -97,7 +97,7 @@ async function loadTrail(): Promise<Trail> {
   const [phasesRes, progressRes, subsRes] = await Promise.all([
     supabase
       .from("phases")
-      .select("*, lessons(*), deliverables(*)")
+      .select("id, month_number, title, pillar, mentor_name, question, description, lessons(id, title, kind, session_format, mentor_name, duration_minutes, description, topics, media_url, join_url, scheduled_at, position), deliverables(id, title, description, position)")
       .eq("program_id", programId)
       .order("month_number"),
     enrollment
@@ -107,7 +107,7 @@ async function loadTrail(): Promise<Trail> {
           .eq("enrollment_id", enrollment.id)
       : Promise.resolve({ data: [] as { lesson_id: string; completed: boolean }[] }),
     enrollment
-      ? supabase.from("submissions").select("*").eq("enrollment_id", enrollment.id)
+      ? supabase.from("submissions").select("deliverable_id, status, content, link_url, file_path, feedback").eq("enrollment_id", enrollment.id)
       : Promise.resolve({ data: [] as never[] }),
   ]);
   if ("error" in phasesRes && phasesRes.error) throw phasesRes.error;
