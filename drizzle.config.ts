@@ -5,6 +5,7 @@ export default defineConfig({
   schema: "./drizzle/schema.ts",
   out: "./drizzle/migrations",
   dbCredentials: {
-    url: process.env.LOVABLE_DB_MIGRATION_URL ?? "",
+    // Variável server-side para tooling local de migrations; nunca deve ir para o frontend.
+    url: process.env.SUPABASE_DB_URL ?? "",
   },
 });
