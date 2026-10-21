@@ -27,7 +27,7 @@ import {
   UsersRound,
   X,
 } from "lucide-react";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   Avatar,
@@ -781,7 +781,7 @@ function HomeView({
     queryKey: ["next-journey-step", trail.enrollmentId],
     queryFn: () => loadNext(),
     enabled: Boolean(trail.enrollmentId),
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
   const revisit = trail.phases
     .flatMap((p) => p.lessons)
@@ -1140,6 +1140,7 @@ export function RisePlatform() {
   const [role, setRole] = useState<Role>("mentee");
   const [name, setName] = useState("Participante RISE");
   const [activeView, setActiveView] = useState<View>("inicio");
+  const resolvedUserId = useRef<string | null>(null);
   const [assessmentPreview, setAssessmentPreview] = useState<"report" | "questionnaire" | null>(
     null,
   );
@@ -1163,6 +1164,7 @@ export function RisePlatform() {
         const { data } = await supabase.auth.getSession();
         if (!mounted) return;
         if (!data.session) {
+          resolvedUserId.current = null;
           setAuthMode("login");
           return;
         }
@@ -1195,6 +1197,7 @@ export function RisePlatform() {
           return;
         }
 
+        resolvedUserId.current = userId;
         setName(
           profileResult.data.display_name ||
             profileResult.data.full_name ||
@@ -1225,7 +1228,24 @@ export function RisePlatform() {
     }
 
     void resolveSession();
-    const { data: listener } = supabase.auth.onAuthStateChange(() => void resolveSession());
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "TOKEN_REFRESHED" || event === "INITIAL_SESSION") return;
+
+      if (event === "SIGNED_OUT" || !session) {
+        resolvedUserId.current = null;
+        if (mounted) setAuthMode("login");
+        return;
+      }
+
+      if (event === "PASSWORD_RECOVERY") {
+        if (mounted) setAuthMode("change-password");
+        return;
+      }
+
+      if (event === "USER_UPDATED" || resolvedUserId.current !== session.user.id) {
+        void resolveSession();
+      }
+    });
     return () => {
       mounted = false;
       listener.subscription.unsubscribe();
