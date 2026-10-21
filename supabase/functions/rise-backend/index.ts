@@ -687,6 +687,25 @@ async function signed(path: string | null) {
     null
   );
 }
+
+async function signedBatch(paths: Array<string | null | undefined>) {
+  const unique = [
+    ...new Set(paths.filter((path): path is string => typeof path === "string" && path.length > 0)),
+  ];
+  const urls = new Map<string, string | null>();
+  if (!unique.length) return urls;
+
+  const { data, error } = await admin.storage
+    .from("journey-content")
+    .createSignedUrls(unique, 3600);
+  if (error || !data) return urls;
+
+  data.forEach((item: any, index: number) => {
+    const path = typeof item.path === "string" ? item.path : unique[index];
+    urls.set(path, typeof item.signedUrl === "string" ? item.signedUrl : null);
+  });
+  return urls;
+}
 async function loadLibrary(userId: string) {
   const { data: enrollment, error } = await admin
     .from("enrollments")
@@ -739,59 +758,78 @@ async function loadLibrary(userId: string) {
       (s.access_scope === "cohort" && s.cohort_id === enrollment.cohort_id) ||
       (s.access_scope === "mentee" && s.mentee_id === userId),
   );
-  const items = await Promise.all(
-    allowed.map(async (s: any) => {
-      const p = versions.get(s.version_id) ?? { name: "Jornada", position: 999 };
-      const locked =
-        s.month_number > enrollment.current_month ||
-        (!!s.release_at && Date.parse(s.release_at) > now);
-      const mediaUrl = locked ? null : await signed(s.media_path);
-      const materials = locked
-        ? []
-        : await Promise.all(
-            (Array.isArray(s.materials) ? s.materials : []).map(async (m: any, i: number) => ({
-              id: String(m.id ?? `${s.stable_key}-${i}`),
-              title: String(m.title ?? "Material de apoio"),
-              url: typeof m.url === "string" ? m.url : null,
-              filePath: typeof m.filePath === "string" ? m.filePath : null,
-              fileUrl: await signed(m.filePath),
-            })),
-          );
-      const state = byStep.get(s.stable_key);
-      const resource = mediaUrl ?? s.resource_url ?? null;
-      const hasResource = videoFormats.has(s.format)
-        ? !!resource
-        : ["questionnaire", "form"].includes(s.format)
-          ? s.resource_type === "rise_assessment" || !!s.resource_url
-          : true;
-      return {
-        stepKey: s.stable_key,
-        title: s.title,
-        resourceType: s.resource_type,
-        format: s.format,
-        description: s.description ?? "",
-        summary: s.summary || s.description || "",
-        responsibleName: s.responsible_name,
-        durationMinutes: s.duration_minutes,
-        monthNumber: s.month_number,
-        pillarName: p.name,
-        position: p.position * 1000 + s.position,
-        coverUrl: await signed(s.cover_path),
-        mediaUrl: !locked && videoFormats.has(s.format) ? resource : null,
-        questionnaireUrl:
-          !locked && ["questionnaire", "form"].includes(s.format) ? s.resource_url : null,
-        scheduledAt: s.scheduled_at,
-        releaseAt: s.release_at,
-        topics: Array.isArray(s.topics) ? s.topics : [],
-        materials,
-        accessScope: s.access_scope,
-        availability: locked ? "coming_soon" : hasResource ? "available" : "missing_resource",
-        completed: !!state?.completed,
-        currentSeconds: state?.current_seconds ?? 0,
-        durationSeconds: state?.duration_seconds ?? null,
-      };
-    }),
-  );
+
+  const assetPaths: string[] = [];
+  for (const s of allowed) {
+    if (typeof s.cover_path === "string" && s.cover_path) assetPaths.push(s.cover_path);
+    const locked =
+      s.month_number > enrollment.current_month ||
+      (!!s.release_at && Date.parse(s.release_at) > now);
+    if (!locked && typeof s.media_path === "string" && s.media_path) assetPaths.push(s.media_path);
+    if (!locked && Array.isArray(s.materials)) {
+      for (const material of s.materials) {
+        if (typeof material?.filePath === "string" && material.filePath) {
+          assetPaths.push(material.filePath);
+        }
+      }
+    }
+  }
+  const signedUrls = await signedBatch(assetPaths);
+
+  const items = allowed.map((s: any) => {
+    const p = versions.get(s.version_id) ?? { name: "Jornada", position: 999 };
+    const locked =
+      s.month_number > enrollment.current_month ||
+      (!!s.release_at && Date.parse(s.release_at) > now);
+    const mediaUrl =
+      !locked && typeof s.media_path === "string"
+        ? (signedUrls.get(s.media_path) ?? null)
+        : null;
+    const materials = locked
+      ? []
+      : (Array.isArray(s.materials) ? s.materials : []).map((m: any, i: number) => ({
+          id: String(m.id ?? `${s.stable_key}-${i}`),
+          title: String(m.title ?? "Material de apoio"),
+          url: typeof m.url === "string" ? m.url : null,
+          filePath: typeof m.filePath === "string" ? m.filePath : null,
+          fileUrl:
+            typeof m.filePath === "string" ? (signedUrls.get(m.filePath) ?? null) : null,
+        }));
+    const state = byStep.get(s.stable_key);
+    const resource = mediaUrl ?? s.resource_url ?? null;
+    const hasResource = videoFormats.has(s.format)
+      ? !!resource
+      : ["questionnaire", "form"].includes(s.format)
+        ? s.resource_type === "rise_assessment" || !!s.resource_url
+        : true;
+    return {
+      stepKey: s.stable_key,
+      title: s.title,
+      resourceType: s.resource_type,
+      format: s.format,
+      description: s.description ?? "",
+      summary: s.summary || s.description || "",
+      responsibleName: s.responsible_name,
+      durationMinutes: s.duration_minutes,
+      monthNumber: s.month_number,
+      pillarName: p.name,
+      position: p.position * 1000 + s.position,
+      coverUrl:
+        typeof s.cover_path === "string" ? (signedUrls.get(s.cover_path) ?? null) : null,
+      mediaUrl: !locked && videoFormats.has(s.format) ? resource : null,
+      questionnaireUrl:
+        !locked && ["questionnaire", "form"].includes(s.format) ? s.resource_url : null,
+      scheduledAt: s.scheduled_at,
+      releaseAt: s.release_at,
+      topics: Array.isArray(s.topics) ? s.topics : [],
+      materials,
+      accessScope: s.access_scope,
+      availability: locked ? "coming_soon" : hasResource ? "available" : "missing_resource",
+      completed: !!state?.completed,
+      currentSeconds: state?.current_seconds ?? 0,
+      durationSeconds: state?.duration_seconds ?? null,
+    };
+  });
   return {
     enrollmentId: enrollment.id,
     currentMonth: enrollment.current_month,
