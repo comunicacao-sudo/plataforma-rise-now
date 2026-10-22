@@ -278,7 +278,7 @@ function StepForm({
         };
       });
     } else {
-      setStep((current) => ({ ...current, mediaPath: null }));
+      setStep((current) => ({ ...current, mediaPath: null, resourceType: null }));
     }
   }
 
