@@ -8122,3 +8122,53 @@ hr,
   font-size: 0.75rem;
   font-weight: 700;
 }
+
+/* 2026-10-22 Home da mentorada: arte do broto só no hero, resto com fundo padrão */
+.platform-shell--mentee[data-theme="dark"] .mentee-home-view {
+  background: #26312f;
+  background-image: none;
+  background-attachment: scroll;
+}
+.platform-shell--mentee[data-theme="dark"] .app-header {
+  background: linear-gradient(to bottom, rgba(38, 49, 47, 0.92), rgba(38, 49, 47, 0.5), transparent);
+}
+.platform-shell--mentee[data-theme="dark"] .next-step-hero {
+  background: #26312f;
+  min-height: clamp(640px, 56.28vw, 900px);
+}
+.platform-shell--mentee[data-theme="dark"] .next-step-hero__art {
+  display: block;
+  background-color: #26312f;
+  background-image: url("/__l5e/assets-v1/cd5f5f7f-0362-45aa-9cba-bf2043bdd01a/mentee-hero-broto.png");
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-position: right center;
+  background-attachment: scroll;
+}
+.platform-shell--mentee[data-theme="dark"] .next-step-hero::after {
+  display: block;
+  background: linear-gradient(180deg, transparent 72%, #26312f 100%);
+}
+.platform-shell--mentee[data-theme="dark"] .next-step-hero__copy {
+  width: min(720px, 50vw);
+}
+@media (max-width: 900px) {
+  .platform-shell--mentee[data-theme="dark"] .next-step-hero__art {
+    background-position: 78% center;
+  }
+  .platform-shell--mentee[data-theme="dark"] .next-step-hero__copy {
+    width: 100%;
+  }
+  .platform-shell--mentee[data-theme="dark"] .next-step-hero::after {
+    background: linear-gradient(90deg, rgba(38, 49, 47, 0.85), rgba(38, 49, 47, 0.35)),
+      linear-gradient(180deg, transparent 72%, #26312f 100%);
+  }
+}
+@media (max-width: 640px) {
+  .platform-shell--mentee[data-theme="dark"] .next-step-hero__art {
+    background-position: 82% top;
+  }
+  .platform-shell--mentee[data-theme="dark"] .next-step-hero::after {
+    background: linear-gradient(180deg, rgba(38, 49, 47, 0.2) 0%, rgba(38, 49, 47, 0.88) 45%, #26312f 100%);
+  }
+}
