@@ -6914,3 +6914,229 @@ hr,
     flex-basis: 100%;
   }
 }
+
+
+/* 2026-10 authenticated theme bridge: remove legacy burgundy surfaces */
+.platform-shell .next-step-hero {
+  color: var(--platform-title);
+  background: var(--platform-background);
+}
+.platform-shell .next-step-hero__art {
+  background-image:
+    linear-gradient(
+      90deg,
+      rgba(38, 49, 47, 0.96) 0%,
+      rgba(38, 49, 47, 0.82) 42%,
+      rgba(38, 49, 47, 0.42) 72%,
+      rgba(38, 49, 47, 0.18) 100%
+    ),
+    url("/brand/platform-dark.webp");
+  background-position: center;
+  background-size: cover;
+}
+.platform-shell .next-step-hero::after {
+  background: linear-gradient(
+    180deg,
+    rgba(38, 49, 47, 0.06),
+    rgba(38, 49, 47, 0.18)
+  );
+}
+.platform-shell .next-step-hero__eyebrow {
+  border-color: var(--platform-line-strong);
+  background: color-mix(in srgb, var(--platform-surface) 82%, transparent);
+  color: var(--rise-sand);
+}
+.platform-shell .next-step-hero h1 span {
+  color: var(--platform-title);
+}
+.platform-shell .next-step-hero h1 strong {
+  color: var(--rise-sand);
+  text-shadow: 0 0 30px rgba(215, 176, 122, 0.16);
+}
+.platform-shell .next-step-hero__copy > p,
+.platform-shell .next-step-hero__meta span {
+  color: var(--platform-text);
+}
+.platform-shell .next-step-hero__meta span + span {
+  border-left-color: var(--platform-line-strong);
+}
+.platform-shell .next-step-hero__meta svg {
+  color: var(--rise-sand);
+}
+.platform-shell .next-step-hero__button {
+  border-color: color-mix(in srgb, var(--primary) 70%, white);
+  color: var(--ink);
+  background: var(--primary);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--primary) 24%, transparent) inset,
+    0 10px 30px var(--platform-shadow);
+}
+.platform-shell .next-step-hero__waiting {
+  border-left-color: var(--primary);
+  background: color-mix(in srgb, var(--platform-surface-strong) 88%, transparent);
+  color: var(--platform-text);
+}
+.platform-shell[data-theme="light"] .next-step-hero__art {
+  background-image:
+    linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.98) 0%,
+      rgba(255, 255, 255, 0.9) 44%,
+      rgba(255, 255, 255, 0.58) 76%,
+      rgba(255, 255, 255, 0.24) 100%
+    ),
+    url("/brand/platform-light.webp");
+}
+
+/* Journey administration follows the active platform theme instead of its old burgundy palette. */
+.platform-shell .journey-editor-page,
+.platform-shell .journey-editor-modal {
+  --text: var(--platform-title);
+  --muted: var(--platform-muted);
+  --line: var(--platform-line);
+  --surface: var(--platform-surface);
+  --bg: var(--platform-background);
+}
+.platform-shell .journey-editor-toolbar,
+.platform-shell .journey-step-row {
+  border-color: var(--platform-line);
+  color: var(--platform-title);
+  background: var(--platform-surface);
+  box-shadow: 0 14px 34px var(--platform-shadow);
+}
+.platform-shell .journey-editor-toolbar select {
+  border-color: var(--platform-line);
+  color: var(--platform-title);
+  background: var(--platform-surface-strong);
+}
+.platform-shell .journey-step-row__copy span,
+.platform-shell .journey-step-row__grip,
+.platform-shell .journey-editor-toolbar span,
+.platform-shell .journey-editor-toolbar small {
+  color: var(--platform-muted);
+}
+.platform-shell .journey-editor-modal,
+.platform-shell .journey-preview {
+  background: color-mix(in srgb, var(--platform-background) 92%, transparent);
+}
+.platform-shell .journey-editor-form,
+.platform-shell .journey-publish-card {
+  border-color: var(--platform-line-strong);
+  color: var(--platform-title);
+  background:
+    radial-gradient(
+      circle at 100% 0,
+      color-mix(in srgb, var(--primary) 9%, transparent),
+      transparent 26rem
+    ),
+    var(--platform-surface-strong);
+}
+.platform-shell .journey-editor-form fieldset,
+.platform-shell .journey-editor-form details {
+  border-color: var(--platform-line);
+  background: var(--platform-surface-soft);
+}
+.platform-shell .journey-editor-form input,
+.platform-shell .journey-editor-form select,
+.platform-shell .journey-editor-form textarea {
+  border-color: var(--platform-line);
+  color: var(--platform-title);
+  background: var(--platform-surface);
+}
+.platform-shell .journey-editor-form select,
+.platform-shell .journey-editor-form option {
+  color: var(--platform-title);
+  background: var(--platform-surface-strong);
+}
+
+/* Six-month journey covers keep their artwork, but the old red cast is neutralized by the new graphite palette. */
+.platform-shell .journey-card {
+  border-color: var(--platform-line);
+  background: var(--platform-surface-strong);
+  box-shadow: 0 18px 42px var(--platform-shadow);
+}
+.platform-shell .journey-card::after {
+  background: linear-gradient(
+    180deg,
+    rgba(38, 49, 47, 0.5) 0%,
+    rgba(38, 49, 47, 0.2) 30%,
+    rgba(38, 49, 47, 0.18) 62%,
+    rgba(31, 41, 39, 0.88) 100%
+  );
+}
+.platform-shell .journey-card__cover {
+  filter: saturate(0.38) brightness(0.82) contrast(1.04);
+}
+.platform-shell .journey-card--upcoming .journey-card__cover {
+  filter: grayscale(1) saturate(0) brightness(0.58) contrast(1.06);
+}
+.platform-shell .journey-card--completed .journey-card__cover {
+  filter: saturate(0.28) brightness(0.74) contrast(1.04);
+}
+.platform-shell .journey-card__delivery {
+  border-color: var(--platform-line);
+  background: color-mix(in srgb, var(--platform-surface-strong) 88%, transparent);
+  color: var(--platform-text);
+}
+.platform-shell[data-theme="light"] .journey-card::after {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.2) 0%,
+    rgba(255, 255, 255, 0.08) 55%,
+    rgba(255, 255, 255, 0.48) 100%
+  );
+}
+.platform-shell[data-theme="light"] .journey-card__cover {
+  filter: saturate(0.72) brightness(1.02) contrast(0.98);
+}
+
+/* RISE 90 and supporting cards use the same surfaces as the rest of the platform. */
+.platform-shell .x-ruler {
+  border-color: var(--platform-line-strong);
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--platform-surface-strong) 94%, transparent),
+      color-mix(in srgb, var(--platform-surface) 86%, transparent)
+    );
+  box-shadow: 0 18px 44px var(--platform-shadow);
+}
+.platform-shell .x-ruler__head div,
+.platform-shell .x-ruler__head small {
+  color: var(--platform-muted);
+}
+.platform-shell .x-ruler__head strong {
+  color: var(--platform-title);
+}
+.platform-shell .x-ruler__track,
+.platform-shell .x-bar {
+  background: color-mix(in srgb, var(--platform-line) 65%, transparent);
+}
+.platform-shell .x-ruler__days,
+.platform-shell .x-bar span {
+  background: linear-gradient(90deg, var(--primary), var(--rise-sand));
+}
+.platform-shell .goal-card,
+.platform-shell .x-goal-add {
+  border-color: var(--platform-line);
+  background: var(--platform-surface-soft);
+}
+.platform-shell .goal-card__copy p,
+.platform-shell .x-goal-add span {
+  color: var(--platform-muted);
+}
+
+/* Other authenticated cards that still carried the legacy wine tint. */
+.platform-shell .deliverable-card,
+.platform-shell .mentor-stats article,
+.platform-shell .admin-card--security,
+.platform-shell .next-up,
+.platform-shell .journey-recorded-access,
+.platform-shell .x-mentor {
+  border-color: var(--platform-line);
+  background: var(--platform-surface);
+}
+.platform-shell .lesson-player {
+  border-color: var(--platform-line-strong);
+  background: var(--platform-surface-strong);
+}
