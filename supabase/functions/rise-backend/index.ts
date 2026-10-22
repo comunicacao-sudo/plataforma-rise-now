@@ -521,7 +521,9 @@ async function journeyAction(c: Context, action: string, d: any) {
       stepTitle: titles.get(x.step_key) ?? "Etapa",
     }));
   }
-  const coverUrls = await signedBatch((steps ?? []).map((s: any) => s.cover_path));
+  const coverUrls = await signedBatch(
+    (steps ?? []).flatMap((s: any) => [s.cover_path, s.cover_path_light, s.cover_path_dark]),
+  );
   const mapped = (steps ?? []).map((s: any) => ({
     stableKey: s.stable_key,
     title: s.title,
@@ -542,6 +544,12 @@ async function journeyAction(c: Context, action: string, d: any) {
     monthNumber: s.month_number,
     coverPath: s.cover_path,
     coverUrl: typeof s.cover_path === "string" ? (coverUrls.get(s.cover_path) ?? null) : null,
+    coverPathLight: s.cover_path_light,
+    coverUrlLight:
+      typeof s.cover_path_light === "string" ? (coverUrls.get(s.cover_path_light) ?? null) : null,
+    coverPathDark: s.cover_path_dark,
+    coverUrlDark:
+      typeof s.cover_path_dark === "string" ? (coverUrls.get(s.cover_path_dark) ?? null) : null,
     mediaPath: s.media_path,
     summary: s.summary ?? "",
     topics: s.topics ?? [],
@@ -642,7 +650,7 @@ async function loadLibrary(userId: string) {
   const { data: steps, error: se } = await admin
     .from("journey_steps")
     .select(
-      "version_id, stable_key, title, format, description, summary, responsible_name, duration_minutes, month_number, position, cover_path, media_path, resource_type, resource_url, scheduled_at, release_at, topics, materials, access_scope, cohort_id, mentee_id",
+      "version_id, stable_key, title, format, description, summary, responsible_name, duration_minutes, month_number, position, cover_path, cover_path_light, cover_path_dark, media_path, resource_type, resource_url, scheduled_at, release_at, topics, materials, access_scope, cohort_id, mentee_id",
     )
     .in("version_id", [...versions.keys()])
     .is("archived_at", null)
@@ -660,6 +668,10 @@ async function loadLibrary(userId: string) {
   const assetPaths: string[] = [];
   for (const s of allowed) {
     if (typeof s.cover_path === "string" && s.cover_path) assetPaths.push(s.cover_path);
+    if (typeof s.cover_path_light === "string" && s.cover_path_light)
+      assetPaths.push(s.cover_path_light);
+    if (typeof s.cover_path_dark === "string" && s.cover_path_dark)
+      assetPaths.push(s.cover_path_dark);
     const locked =
       s.month_number > enrollment.current_month ||
       (!!s.release_at && Date.parse(s.release_at) > now);
@@ -710,6 +722,18 @@ async function loadLibrary(userId: string) {
       pillarName: p.name,
       position: p.position * 1000 + s.position,
       coverUrl: typeof s.cover_path === "string" ? (signedUrls.get(s.cover_path) ?? null) : null,
+      coverUrlLight:
+        typeof s.cover_path_light === "string"
+          ? (signedUrls.get(s.cover_path_light) ?? null)
+          : typeof s.cover_path === "string"
+            ? (signedUrls.get(s.cover_path) ?? null)
+            : null,
+      coverUrlDark:
+        typeof s.cover_path_dark === "string"
+          ? (signedUrls.get(s.cover_path_dark) ?? null)
+          : typeof s.cover_path === "string"
+            ? (signedUrls.get(s.cover_path) ?? null)
+            : null,
       mediaUrl: !locked && videoFormats.has(s.format) ? resource : null,
       questionnaireUrl:
         !locked && ["questionnaire", "form"].includes(s.format) ? s.resource_url : null,
