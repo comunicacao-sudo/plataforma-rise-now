@@ -847,7 +847,7 @@ function HomeView({
     }
   }
   return (
-    <>
+    <div className="mentee-home-view">
       <NextStepHero
         step={highlightedStep}
         onAction={() => void openHighlightedStep()}
@@ -864,7 +864,7 @@ function HomeView({
         <NextMeetingBanner onAgenda={() => onView("agenda")} />
         <NextUp trail={trail} onAgenda={() => onView("agenda")} />
       </div>
-    </>
+    </div>
   );
 }
 
