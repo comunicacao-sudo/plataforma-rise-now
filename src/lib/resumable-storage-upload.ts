@@ -54,15 +54,16 @@ async function sleep(ms: number, signal?: AbortSignal) {
       return;
     }
 
-    const timer = window.setTimeout(() => {
-      signal?.removeEventListener("abort", onAbort);
-      resolve();
-    }, ms);
-
+    let timer = 0;
     const onAbort = () => {
       window.clearTimeout(timer);
       reject(abortError());
     };
+
+    timer = window.setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
 
     signal?.addEventListener("abort", onAbort, { once: true });
   });
