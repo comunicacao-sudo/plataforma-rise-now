@@ -40,6 +40,8 @@ export type JourneyContentItem = {
   coverUrlDark: string | null;
   mediaUrl: string | null;
   questionnaireUrl: string | null;
+  questionnaireId: string | null;
+  questionnaire: { questions: StageQuestion[] } | null;
   scheduledAt: string | null;
   releaseAt: string | null;
   topics: string[];
