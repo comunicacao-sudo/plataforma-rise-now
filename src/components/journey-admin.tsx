@@ -421,7 +421,7 @@ function StepForm({
               onChange={(e) => update("summary", e.target.value)}
               maxLength={4000}
               rows={5}
-              placeholder="Resumo exibido abaixo do vídeo"
+              placeholder="Resumo exibido na página da etapa"
             />
           </label>
           <label>
