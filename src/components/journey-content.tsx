@@ -40,8 +40,12 @@ type JourneyMarker = {
 };
 
 function isVideo(item: JourneyContentItem) {
-  return ["recorded_class", "collective_recording", "cohort_onboarding", "individual_1_1"].includes(
-    item.format,
+  return (
+    item.resourceType === "r2" ||
+    !!item.mediaUrl ||
+    ["recorded_class", "collective_recording", "cohort_onboarding", "individual_1_1"].includes(
+      item.format,
+    )
   );
 }
 
