@@ -215,10 +215,12 @@ function ContentCover({ item }: { item: JourneyContentItem }) {
       )}
       {item.availability !== "available" ? (
         <span>{availabilityLabel(item)}</span>
-      ) : isVideo(item) ? (
+      ) : item.resourceType === "r2" || item.mediaUrl ? (
         <Play size={25} fill="currentColor" aria-hidden="true" />
-      ) : !hasCover ? (
+      ) : item.questionnaireId || item.format === "questionnaire" || item.format === "form" ? (
         <FileQuestion size={25} aria-hidden="true" />
+      ) : !hasCover && item.materials.length ? (
+        <FileText size={25} aria-hidden="true" />
       ) : null}
     </div>
   );
