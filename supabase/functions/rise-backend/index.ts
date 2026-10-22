@@ -679,8 +679,41 @@ async function loadLibrary(userId: string) {
       (s.access_scope === "mentee" && s.mentee_id === userId),
   );
 
+  const allowedStepKeys = allowed.map((step: any) => step.stable_key);
+  const { data: stageContentRows, error: stageContentError } = allowedStepKeys.length
+    ? await admin
+        .from("journey_stage_contents")
+        .select("*")
+        .in("step_key", allowedStepKeys)
+        .eq("active", true)
+        .order("position")
+    : { data: [], error: null };
+  if (stageContentError) throw new Error(stageContentError.message);
+
+  const scopedStageRows = (stageContentRows ?? []).filter((row: any) =>
+    stageScopeAllowed(row, enrollment, userId),
+  );
+  const stageByStep = new Map<string, any[]>();
+  for (const row of scopedStageRows) {
+    const list = stageByStep.get(row.step_key) ?? [];
+    list.push(row);
+    stageByStep.set(row.step_key, list);
+  }
+  const chooseStage = (rows: any[], type: string) =>
+    rows
+      .filter((row: any) => row.content_type === type)
+      .sort(
+        (a: any, b: any) =>
+          stageScopeRank(b) - stageScopeRank(a) ||
+          (a.position ?? 0) - (b.position ?? 0) ||
+          String(a.created_at ?? "").localeCompare(String(b.created_at ?? "")),
+      )[0] ?? null;
+
   const assetPaths: string[] = [];
   for (const s of allowed) {
+    const stageRows = stageByStep.get(s.stable_key) ?? [];
+    const stageVideo = chooseStage(stageRows, "video");
+    const stageMaterials = stageRows.filter((row: any) => row.content_type === "material");
     if (typeof s.cover_path === "string" && s.cover_path) assetPaths.push(s.cover_path);
     if (typeof s.cover_path_light === "string" && s.cover_path_light)
       assetPaths.push(s.cover_path_light);
@@ -689,14 +722,28 @@ async function loadLibrary(userId: string) {
     const locked =
       s.month_number > enrollment.current_month ||
       (!!s.release_at && Date.parse(s.release_at) > now);
+    const stageMediaPath =
+      typeof stageVideo?.media_path === "string" ? stageVideo.media_path : null;
     if (
+      !locked &&
+      stageMediaPath &&
+      !stageMediaPath.startsWith("r2:")
+    )
+      assetPaths.push(stageMediaPath);
+    else if (
       !locked &&
       typeof s.media_path === "string" &&
       s.media_path &&
       !s.media_path.startsWith("r2:")
     )
       assetPaths.push(s.media_path);
-    if (!locked && Array.isArray(s.materials)) {
+    if (!locked && stageMaterials.length) {
+      for (const material of stageMaterials) {
+        if (typeof material?.file_path === "string" && material.file_path) {
+          assetPaths.push(material.file_path);
+        }
+      }
+    } else if (!locked && Array.isArray(s.materials)) {
       for (const material of s.materials) {
         if (typeof material?.filePath === "string" && material.filePath) {
           assetPaths.push(material.filePath);
@@ -711,36 +758,72 @@ async function loadLibrary(userId: string) {
     const locked =
       s.month_number > enrollment.current_month ||
       (!!s.release_at && Date.parse(s.release_at) > now);
+    const stageRows = stageByStep.get(s.stable_key) ?? [];
+    const stageVideo = chooseStage(stageRows, "video");
+    const stageQuestionnaire = chooseStage(stageRows, "questionnaire");
+    const stageMaterials = stageRows
+      .filter((row: any) => row.content_type === "material")
+      .sort((a: any, b: any) => (a.position ?? 0) - (b.position ?? 0));
+    const effectiveMediaPath =
+      typeof stageVideo?.media_path === "string" && stageVideo.media_path
+        ? stageVideo.media_path
+        : s.media_path;
+    const effectiveExternalVideo =
+      typeof stageVideo?.external_url === "string" && stageVideo.external_url
+        ? stageVideo.external_url
+        : null;
     const r2Media =
       !locked &&
-      typeof s.media_path === "string" &&
-      s.media_path.startsWith("r2:");
+      typeof effectiveMediaPath === "string" &&
+      effectiveMediaPath.startsWith("r2:");
     const mediaUrl =
-      !locked &&
-      typeof s.media_path === "string" &&
-      !r2Media
-        ? (signedUrls.get(s.media_path) ?? null)
-        : null;
+      locked
+        ? null
+        : effectiveExternalVideo ??
+          (typeof effectiveMediaPath === "string" && effectiveMediaPath && !r2Media
+            ? (signedUrls.get(effectiveMediaPath) ?? null)
+            : !stageVideo && videoFormats.has(s.format)
+              ? s.resource_url
+              : null);
     const materials = locked
       ? []
-      : (Array.isArray(s.materials) ? s.materials : []).map((m: any, i: number) => ({
-          id: String(m.id ?? `${s.stable_key}-${i}`),
-          title: String(m.title ?? "Material de apoio"),
-          url: typeof m.url === "string" ? m.url : null,
-          filePath: typeof m.filePath === "string" ? m.filePath : null,
-          fileUrl: typeof m.filePath === "string" ? (signedUrls.get(m.filePath) ?? null) : null,
-        }));
+      : stageMaterials.length
+        ? stageMaterials.map((m: any) => ({
+            id: String(m.id),
+            title: String(m.title ?? "Material de apoio"),
+            url: typeof m.external_url === "string" ? m.external_url : null,
+            filePath: typeof m.file_path === "string" ? m.file_path : null,
+            fileUrl:
+              typeof m.file_path === "string" ? (signedUrls.get(m.file_path) ?? null) : null,
+          }))
+        : (Array.isArray(s.materials) ? s.materials : []).map((m: any, i: number) => ({
+            id: String(m.id ?? `${s.stable_key}-${i}`),
+            title: String(m.title ?? "Material de apoio"),
+            url: typeof m.url === "string" ? m.url : null,
+            filePath: typeof m.filePath === "string" ? m.filePath : null,
+            fileUrl: typeof m.filePath === "string" ? (signedUrls.get(m.filePath) ?? null) : null,
+          }));
     const state = byStep.get(s.stable_key);
-    const resource = mediaUrl ?? s.resource_url ?? null;
+    const questionnaireUrl =
+      !locked && stageQuestionnaire
+        ? (stageQuestionnaire.external_url ?? null)
+        : !locked && ["questionnaire", "form"].includes(s.format)
+          ? s.resource_url
+          : null;
+    const hasStageContent = !!stageVideo || !!stageQuestionnaire || stageMaterials.length > 0;
     const hasResource = videoFormats.has(s.format)
-      ? r2Media || !!resource
+      ? hasStageContent || r2Media || !!mediaUrl
       : ["questionnaire", "form"].includes(s.format)
-        ? s.resource_type === "rise_assessment" || !!s.resource_url
-        : true;
+        ? !!stageQuestionnaire || s.resource_type === "rise_assessment" || !!s.resource_url
+        : hasStageContent || true;
     return {
       stepKey: s.stable_key,
       title: s.title,
-      resourceType: s.resource_type,
+      resourceType: stageVideo
+        ? r2Media
+          ? "r2"
+          : "external"
+        : s.resource_type,
       format: s.format,
       description: s.description ?? "",
       summary: s.summary || s.description || "",
@@ -762,9 +845,13 @@ async function loadLibrary(userId: string) {
           : typeof s.cover_path === "string"
             ? (signedUrls.get(s.cover_path) ?? null)
             : null,
-      mediaUrl: !locked && videoFormats.has(s.format) ? resource : null,
-      questionnaireUrl:
-        !locked && ["questionnaire", "form"].includes(s.format) ? s.resource_url : null,
+      mediaUrl: !locked ? mediaUrl : null,
+      questionnaireUrl,
+      questionnaireId: stageQuestionnaire?.id ?? null,
+      questionnaire:
+        stageQuestionnaire?.questionnaire && typeof stageQuestionnaire.questionnaire === "object"
+          ? stageQuestionnaire.questionnaire
+          : null,
       scheduledAt: s.scheduled_at,
       releaseAt: s.release_at,
       topics: Array.isArray(s.topics) ? s.topics : [],
