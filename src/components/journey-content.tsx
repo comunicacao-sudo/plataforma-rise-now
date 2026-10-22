@@ -181,10 +181,8 @@ export function useJourneyContentLibrary(enabled = true) {
 }
 
 function ContentCover({ item }: { item: JourneyContentItem }) {
-  const lightCoverUrl =
-    item.coverUrlLight ?? (!item.coverUrlDark ? (item.coverUrl ?? null) : null);
-  const darkCoverUrl =
-    item.coverUrlDark ?? (!item.coverUrlLight ? (item.coverUrl ?? null) : null);
+  const lightCoverUrl = item.coverUrlLight ?? (!item.coverUrlDark ? (item.coverUrl ?? null) : null);
+  const darkCoverUrl = item.coverUrlDark ?? (!item.coverUrlLight ? (item.coverUrl ?? null) : null);
   const hasCover = !!(lightCoverUrl || darkCoverUrl);
 
   return (
@@ -603,7 +601,9 @@ export function JourneyContentLessonPage({
       })
       .catch((error) => {
         if (!cancelled)
-          setR2Error(error instanceof Error ? error.message : "Não foi possível liberar esta aula.");
+          setR2Error(
+            error instanceof Error ? error.message : "Não foi possível liberar esta aula.",
+          );
       })
       .finally(() => {
         if (!cancelled) setR2Loading(false);

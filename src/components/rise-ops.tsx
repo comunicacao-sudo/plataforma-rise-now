@@ -1377,9 +1377,7 @@ function CohortEditor({
         ? ` Esta turma possui ${memberCount} mentorada(s); elas ficarão sem turma vinculada, mas não serão excluídas.`
         : "";
     if (
-      !window.confirm(
-        `Excluir a turma “${cohort.name}”?${detail} Esta ação não pode ser desfeita.`,
-      )
+      !window.confirm(`Excluir a turma “${cohort.name}”?${detail} Esta ação não pode ser desfeita.`)
     )
       return;
 
@@ -1441,9 +1439,7 @@ function CohortEditor({
             </Field>
           </div>
 
-          <p className="ops-muted">
-            {memberCount} mentorada(s) vinculada(s) a esta turma.
-          </p>
+          <p className="ops-muted">{memberCount} mentorada(s) vinculada(s) a esta turma.</p>
           {msg ? <p className="form-message">{msg}</p> : null}
 
           <div className="content-modal__actions">
@@ -2051,7 +2047,9 @@ function MembersPanel({ mode }: { mode: "students" | "access" }) {
         {editingCohort ? (
           <CohortEditor
             cohort={editingCohort}
-            memberCount={dir?.enrollments.filter((e) => e.cohortId === editingCohort.id).length ?? 0}
+            memberCount={
+              dir?.enrollments.filter((e) => e.cohortId === editingCohort.id).length ?? 0
+            }
             onDone={() => setEditingCohort(null)}
           />
         ) : null}

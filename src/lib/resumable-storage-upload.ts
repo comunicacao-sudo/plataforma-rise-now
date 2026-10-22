@@ -32,7 +32,7 @@ function base64Metadata(value: string) {
 }
 
 function uploadMetadata(options: ResumableUploadOptions) {
-  return [
+  const metadata: Array<readonly [string, string]> = [
     ["bucketName", options.bucketName],
     ["objectName", options.objectPath],
     ["contentType", options.file.type || "application/octet-stream"],

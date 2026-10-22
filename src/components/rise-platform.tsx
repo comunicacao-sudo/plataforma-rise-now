@@ -185,7 +185,6 @@ function LoginScreen() {
         setError("Email ou senha incorretos.");
         return;
       }
-      sessionStorage.setItem("rise-initial-pw", password);
     } catch {
       setError(
         "Não foi possível liberar o acesso. Confirme se este é o email aprovado pela equipe RISE.",
@@ -314,9 +313,6 @@ export function NewPasswordScreen({
   onDone?: () => void;
   recovery?: boolean;
 }) {
-  const [current, setCurrent] = useState(
-    () => (typeof window !== "undefined" && sessionStorage.getItem("rise-initial-pw")) || "",
-  );
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
@@ -331,16 +327,13 @@ export function NewPasswordScreen({
     setBusy(true);
     const { error: updateError } = await supabase.auth.updateUser({
       password,
-      ...(recovery ? {} : { current_password: current }),
       data: { must_change_password: false },
-    } as Parameters<typeof supabase.auth.updateUser>[0]);
+    });
     setBusy(false);
     if (updateError) {
       const code = (updateError as { code?: string }).code;
       const messages: Record<string, string> = {
-        current_password_required: "Informe a senha atual (a senha inicial que você recebeu).",
-        current_password_mismatch: "A senha atual está incorreta.",
-        invalid_credentials: "A senha atual está incorreta.",
+        invalid_credentials: "Sua sessão expirou. Solicite um novo link ou entre novamente.",
         weak_password: "Essa senha é fraca demais. Use letras, números e símbolos.",
         same_password: "A nova senha precisa ser diferente da atual.",
         session_not_found: "Sua sessão expirou. Saia e entre novamente.",
@@ -349,7 +342,6 @@ export function NewPasswordScreen({
         messages[code ?? ""] ?? `Não foi possível salvar a senha: ${updateError.message}`,
       );
     }
-    sessionStorage.removeItem("rise-initial-pw");
     onDone?.();
   }
 
@@ -364,24 +356,13 @@ export function NewPasswordScreen({
         <div className="login-panel__content">
           <RiseMark />
           <div className="login-panel__copy">
-            <span className="eyebrow eyebrow--gold">Primeiro acesso</span>
+            <span className="eyebrow eyebrow--gold">
+              {recovery ? "Recuperação de acesso" : "Primeiro acesso"}
+            </span>
             <h1>Crie sua nova senha.</h1>
             <p>Por segurança, defina uma senha pessoal antes de continuar.</p>
           </div>
           <form className="login-form" onSubmit={save}>
-            {!recovery ? (
-              <>
-                <label htmlFor="rise-current-password">Senha atual</label>
-                <input
-                  id="rise-current-password"
-                  type="password"
-                  required
-                  autoComplete="current-password"
-                  value={current}
-                  onChange={(e) => setCurrent(e.target.value)}
-                />
-              </>
-            ) : null}
             <label htmlFor="rise-new-password">Nova senha</label>
             <input
               id="rise-new-password"
