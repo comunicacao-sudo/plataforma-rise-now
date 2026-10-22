@@ -478,7 +478,7 @@ export function JourneyAdmin() {
     () =>
       preview
         ? {
-            state: preview.resourceUrl || preview.resourceId ? "ready" : "waiting_resource",
+            state: "ready",
             ...(data?.selected?.name ? { pillarName: data.selected.name } : {}),
             ...preview,
             stepKey: preview.stableKey,
