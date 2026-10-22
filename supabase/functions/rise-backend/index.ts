@@ -369,9 +369,9 @@ async function journeyAction(c: Context, action: string, d: any) {
   if (action === "saveJourneyDraft") {
     await requireStaff(c);
     const { data, error } = await c.db.rpc("save_journey_draft", {
-      _pillar_id: d.pillarId,
-      _expected_revision: d.revision,
-      _steps: d.steps,
+      p_pillar_id: d.pillarId,
+      p_expected_revision: d.revision,
+      p_steps: d.steps,
     });
     if (error) throw new Error(error.message);
     return { ok: true, revision: data };
@@ -379,9 +379,9 @@ async function journeyAction(c: Context, action: string, d: any) {
   if (action === "publishJourneyDraft") {
     await requireStaff(c);
     const { data, error } = await c.db.rpc("publish_journey_draft", {
-      _pillar_id: d.pillarId,
-      _expected_revision: d.revision,
-      _apply_active: d.applyActive,
+      p_pillar_id: d.pillarId,
+      p_expected_revision: d.revision,
+      p_apply_active: d.applyActive,
     });
     if (error) throw new Error(error.message);
     return { ok: true, versionId: data };
