@@ -77,8 +77,23 @@ export function useJourneyContentLibrary(enabled = true) {
 function ContentCover({ item }: { item: JourneyContentItem }) {
   return (
     <div className="journey-content-cover">
-      {item.coverUrl ? (
-        <img src={item.coverUrl} alt="" loading="lazy" decoding="async" />
+      {item.coverUrlLight || item.coverUrlDark || item.coverUrl ? (
+        <>
+          <img
+            className="journey-content-cover__image journey-content-cover__image--light"
+            src={item.coverUrlLight ?? item.coverUrl ?? item.coverUrlDark ?? ""}
+            alt=""
+            loading="lazy"
+            decoding="async"
+          />
+          <img
+            className="journey-content-cover__image journey-content-cover__image--dark"
+            src={item.coverUrlDark ?? item.coverUrl ?? item.coverUrlLight ?? ""}
+            alt=""
+            loading="lazy"
+            decoding="async"
+          />
+        </>
       ) : (
         <div aria-hidden="true" />
       )}
@@ -86,7 +101,7 @@ function ContentCover({ item }: { item: JourneyContentItem }) {
         <span>{availabilityLabel(item)}</span>
       ) : isVideo(item) ? (
         <Play size={25} fill="currentColor" aria-hidden="true" />
-      ) : !item.coverUrl ? (
+      ) : !(item.coverUrlLight || item.coverUrlDark || item.coverUrl) ? (
         <FileQuestion size={25} aria-hidden="true" />
       ) : null}
     </div>
