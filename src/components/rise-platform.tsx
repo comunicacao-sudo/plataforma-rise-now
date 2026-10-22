@@ -87,6 +87,7 @@ type View =
   | "gestao-jornada"
   | "conteudos"
   | "alunas"
+  | "turmas-acessos"
   | "whatsapp";
 type AuthMode = "checking" | "login" | "authenticated" | "change-password";
 
@@ -98,6 +99,7 @@ const staffViews: View[] = [
   "agenda",
   "entregas",
   "alunas",
+  "turmas-acessos",
   "whatsapp",
 ];
 
@@ -461,7 +463,8 @@ function Header({
           { label: "Conteúdos", view: "conteudos" },
           { label: "Agenda", view: "agenda" },
           { label: "Entregas", view: "entregas" },
-          { label: "Alunas e turmas", view: "alunas" },
+          { label: "Alunas", view: "alunas" },
+          { label: "Turmas e acessos", view: "turmas-acessos" },
           { label: "WhatsApp", view: "whatsapp" },
         ];
   const visibleName = me?.display_name?.trim() || me?.full_name || name;
@@ -1344,7 +1347,7 @@ export function RisePlatform() {
       {role !== "mentee" ? (
         <StaffArea
           view={
-            (["painel", "gestao-jornada", "conteudos", "agenda", "entregas", "alunas", "whatsapp"].includes(
+            (["painel", "gestao-jornada", "conteudos", "agenda", "entregas", "alunas", "turmas-acessos", "whatsapp"].includes(
               activeView,
             )
               ? activeView
