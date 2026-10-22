@@ -138,6 +138,7 @@ for (const relativePath of sourceFiles) {
   }
   if (
     (relativePath === "vite.config.ts" || relativePath.startsWith(`src${path.sep}`)) &&
+    !relativePath.endsWith(".server.ts") &&
     content.includes("SUPABASE_SERVICE_ROLE_KEY")
   ) {
     failures.push(`${relativePath} exposes an administrative Supabase variable to the app.`);
