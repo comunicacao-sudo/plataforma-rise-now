@@ -828,7 +828,10 @@ async function loadLibrary(userId: string) {
       description: s.description ?? "",
       summary: s.summary || s.description || "",
       responsibleName: s.responsible_name,
-      durationMinutes: s.duration_minutes,
+      durationMinutes:
+        typeof stageVideo?.duration_minutes === "number"
+          ? stageVideo.duration_minutes
+          : s.duration_minutes,
       monthNumber: s.month_number,
       pillarName: p.name,
       position: p.position * 1000 + s.position,
@@ -983,7 +986,7 @@ async function visibleStageContents(c: Context, contentType?: string) {
 
   const { data: steps, error: stepError } = await admin
     .from("journey_steps")
-    .select("version_id, stable_key, title, month_number, release_at, position")
+    .select("version_id, stable_key, title, month_number, release_at, position, access_scope, cohort_id, mentee_id")
     .in("version_id", [...versionToPillar.keys()])
     .is("archived_at", null)
     .order("position");
@@ -993,7 +996,10 @@ async function visibleStageContents(c: Context, contentType?: string) {
   const visibleSteps = (steps ?? []).filter(
     (step: any) =>
       step.month_number <= enrollment.current_month &&
-      (!step.release_at || Date.parse(step.release_at) <= now),
+      (!step.release_at || Date.parse(step.release_at) <= now) &&
+      (step.access_scope === "general" ||
+        (step.access_scope === "cohort" && step.cohort_id === enrollment.cohort_id) ||
+        (step.access_scope === "mentee" && step.mentee_id === c.userId)),
   );
   if (!visibleSteps.length) return { enrollment, rows: [] as any[] };
 
@@ -1050,6 +1056,24 @@ async function contentAction(c: Context, action: string, d: any) {
     const title = String(d.title ?? "").trim().slice(0, 180);
     if (!title) throw new Error("Informe o título do conteúdo.");
 
+    const pillarId = String(d.pillarId ?? "");
+    const stepKey = String(d.stepKey ?? "");
+    const { data: draftVersion, error: versionError } = await c.admin
+      .from("journey_versions")
+      .select("id")
+      .eq("pillar_id", pillarId)
+      .eq("status", "draft")
+      .maybeSingle();
+    if (versionError || !draftVersion) throw new Error("Pilar inválido.");
+    const { data: validStep, error: stepError } = await c.admin
+      .from("journey_steps")
+      .select("stable_key")
+      .eq("version_id", draftVersion.id)
+      .eq("stable_key", stepKey)
+      .is("archived_at", null)
+      .maybeSingle();
+    if (stepError || !validStep) throw new Error("Etapa inválida para este pilar.");
+
     const accessScope = ["general", "cohort", "mentee"].includes(d.accessScope)
       ? d.accessScope
       : "general";
@@ -1059,8 +1083,8 @@ async function contentAction(c: Context, action: string, d: any) {
     if (accessScope === "mentee" && !menteeId) throw new Error("Selecione o mentorado.");
 
     const payload = {
-      pillar_id: String(d.pillarId ?? ""),
-      step_key: String(d.stepKey ?? ""),
+      pillar_id: pillarId,
+      step_key: stepKey,
       content_type: contentType,
       title,
       description: String(d.description ?? "").trim().slice(0, 5000),
