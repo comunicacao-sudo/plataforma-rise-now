@@ -29,7 +29,6 @@ import {
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
-import { mentors } from "@/data/rise-content";
 import {
   Avatar,
   NotificationBell,
@@ -88,6 +87,17 @@ type View =
   | "alunas"
   | "whatsapp";
 type AuthMode = "checking" | "login" | "authenticated" | "change-password";
+
+const menteeViews: View[] = ["inicio", "jornada", "agenda", "entregas", "rise90"];
+const staffViews: View[] = ["painel", "gestao-jornada", "agenda", "entregas", "alunas", "whatsapp"];
+
+function defaultViewForRole(role: Role): View {
+  return role === "mentee" ? "inicio" : "painel";
+}
+
+function allowedViewsForRole(role: Role) {
+  return role === "mentee" ? menteeViews : staffViews;
+}
 
 const roleLabels: Record<Role, string> = {
   mentee: "Mentorada",
@@ -764,7 +774,7 @@ function HomeView({
     queryKey: ["next-journey-step", trail.enrollmentId],
     queryFn: () => loadNext(),
     enabled: Boolean(trail.enrollmentId),
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
   const revisit = trail.phases
     .flatMap((p) => p.lessons)
@@ -837,47 +847,10 @@ function HomeView({
           onOpen={(item) => onOpenContent(item.stepKey)}
         />
         <Rail title="Revisite quando quiser" items={revisit} onOpen={onOpen} />
-        <MentorRail />
         <NextMeetingBanner onAgenda={() => onView("agenda")} />
         <NextUp trail={trail} onAgenda={() => onView("agenda")} />
       </div>
     </>
-  );
-}
-
-function MentorRail() {
-  const { data: staff = [] } = useQuery({
-    queryKey: ["staff-directory"],
-    queryFn: async () => {
-      const { data } = await supabase.rpc("public_staff_directory");
-      return data ?? [];
-    },
-  });
-  return (
-    <section className="content-section page-width">
-      <div className="section-heading">
-        <div>
-          <h2>Quatro perspectivas. Uma jornada.</h2>
-          <p>Mentoras complementares para desafios reais.</p>
-        </div>
-      </div>
-      <div className="mentor-rail">
-        {mentors.map((mentor) => (
-          <article className="mentor-card" key={mentor.name}>
-            <Avatar
-              name={mentor.name}
-              url={staff.find((person) => person.full_name === mentor.name)?.avatar_url}
-              size={76}
-            />
-            <div>
-              <span>{mentor.pillar}</span>
-              <h3>{mentor.name}</h3>
-              <p>{mentor.copy}</p>
-            </div>
-          </article>
-        ))}
-      </div>
-    </section>
   );
 }
 
@@ -1160,10 +1133,10 @@ export function RisePlatform() {
   const [role, setRole] = useState<Role>("mentee");
   const [name, setName] = useState("Participante RISE");
   const [activeView, setActiveView] = useState<View>("inicio");
+  const resolvedUserId = useRef<string | null>(null);
   const [assessmentPreview, setAssessmentPreview] = useState<"report" | "questionnaire" | null>(
     null,
   );
-  const navigationReady = useRef(false);
 
   useEffect(() => {
     const preview = new URLSearchParams(window.location.search).get("assessment-preview");
@@ -1184,6 +1157,7 @@ export function RisePlatform() {
         const { data } = await supabase.auth.getSession();
         if (!mounted) return;
         if (!data.session) {
+          resolvedUserId.current = null;
           setAuthMode("login");
           return;
         }
@@ -1216,6 +1190,7 @@ export function RisePlatform() {
           return;
         }
 
+        resolvedUserId.current = userId;
         setName(
           profileResult.data.display_name ||
             profileResult.data.full_name ||
@@ -1225,30 +1200,20 @@ export function RisePlatform() {
         const resolvedRole: Role = storedRole === "mentee" ? "mentee" : "admin";
         setRole(resolvedRole);
         const requested = new URLSearchParams(window.location.search).get("view") as View | null;
-        const menteeViews: View[] = ["inicio", "jornada", "agenda", "entregas", "rise90"];
-        const staffViews: View[] = [
-          "painel",
-          "gestao-jornada",
-          "agenda",
-          "entregas",
-          "alunas",
-          "whatsapp",
-        ];
-        const nextView =
-          resolvedRole === "mentee"
-            ? requested && menteeViews.includes(requested)
-              ? requested
-              : "inicio"
-            : requested && staffViews.includes(requested)
-              ? requested
-              : "painel";
-        setActiveView(nextView);
-        if (!requested) {
-          const url = new URL(window.location.href);
-          url.searchParams.set("view", nextView);
-          window.history.replaceState({}, "", url);
+        const allowedViews = allowedViewsForRole(resolvedRole);
+        const targetView =
+          requested && allowedViews.includes(requested)
+            ? requested
+            : defaultViewForRole(resolvedRole);
+        setActiveView(targetView);
+
+        // Keep the current application view in the URL so auth refresh/focus events
+        // cannot reset the user back to the default screen.
+        const currentUrl = new URL(window.location.href);
+        if (currentUrl.searchParams.get("view") !== targetView) {
+          currentUrl.searchParams.set("view", targetView);
+          window.history.replaceState(window.history.state, "", currentUrl);
         }
-        navigationReady.current = true;
         setAuthMode("authenticated");
       } catch {
         if (mounted) setAuthMode("login");
@@ -1256,41 +1221,67 @@ export function RisePlatform() {
     }
 
     void resolveSession();
-    const { data: listener } = supabase.auth.onAuthStateChange(() => void resolveSession());
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "TOKEN_REFRESHED" || event === "INITIAL_SESSION") return;
+
+      if (event === "SIGNED_OUT" || !session) {
+        resolvedUserId.current = null;
+        if (mounted) setAuthMode("login");
+        return;
+      }
+
+      if (event === "PASSWORD_RECOVERY") {
+        if (mounted) setAuthMode("change-password");
+        return;
+      }
+
+      if (event === "USER_UPDATED" || resolvedUserId.current !== session.user.id) {
+        void resolveSession();
+      }
+    });
     return () => {
       mounted = false;
       listener.subscription.unsubscribe();
     };
   }, []);
 
-  const { data: currentProfile } = useMyProfile(authMode === "authenticated");
-  const theme = currentProfile?.theme_preference === "light" ? "light" : "dark";
-  const shellClass = useMemo(() => `platform-shell platform-shell--${role}`, [role]);
+  function navigateToView(view: View) {
+    const allowedViews = allowedViewsForRole(role);
+    const targetView = allowedViews.includes(view) ? view : defaultViewForRole(role);
+    setActiveView(targetView);
 
-  function navigate(view: View) {
-    const url = new URL(window.location.href);
-    url.searchParams.set("view", view);
-    if (view !== "alunas") {
-      url.searchParams.delete("mentee");
-      url.searchParams.delete("tab");
+    const nextUrl = new URL(window.location.href);
+    const currentView = nextUrl.searchParams.get("view");
+    nextUrl.searchParams.set("view", targetView);
+    if (targetView !== "jornada") nextUrl.searchParams.delete("step");
+    if (targetView !== "alunas") {
+      nextUrl.searchParams.delete("mentee");
+      nextUrl.searchParams.delete("tab");
     }
-    window.history.pushState({}, "", url);
-    setActiveView(view);
+
+    if (currentView !== targetView || window.location.href !== nextUrl.href) {
+      window.history.pushState({ ...window.history.state, riseView: targetView }, "", nextUrl);
+    }
   }
 
   useEffect(() => {
-    const restore = () => {
-      if (!navigationReady.current) return;
+    if (authMode !== "authenticated") return;
+
+    const handlePopState = () => {
       const requested = new URLSearchParams(window.location.search).get("view") as View | null;
-      const allowed: View[] =
-        role === "mentee"
-          ? ["inicio", "jornada", "agenda", "entregas", "rise90"]
-          : ["painel", "gestao-jornada", "agenda", "entregas", "alunas", "whatsapp"];
-      setActiveView(requested && allowed.includes(requested) ? requested : allowed[0]!);
+      const allowedViews = allowedViewsForRole(role);
+      setActiveView(
+        requested && allowedViews.includes(requested) ? requested : defaultViewForRole(role),
+      );
     };
-    window.addEventListener("popstate", restore);
-    return () => window.removeEventListener("popstate", restore);
-  }, [role]);
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [authMode, role]);
+
+  const { data: currentProfile } = useMyProfile(authMode === "authenticated");
+  const theme = currentProfile?.theme_preference === "light" ? "light" : "dark";
+  const shellClass = useMemo(() => `platform-shell platform-shell--${role}`, [role]);
 
   async function exit() {
     await supabase.auth.signOut();
@@ -1325,7 +1316,7 @@ export function RisePlatform() {
     <div className={shellClass} data-theme={theme}>
       <Header
         activeView={activeView}
-        onView={navigate}
+        onView={navigateToView}
         role={role}
         name={name}
         onExit={() => void exit()}
@@ -1339,12 +1330,12 @@ export function RisePlatform() {
               ? activeView
               : "painel") as StaffView
           }
-          onView={navigate}
+          onView={navigateToView}
         />
       ) : (
-        <MenteeArea view={activeView} onView={navigate} />
+        <MenteeArea view={activeView} onView={navigateToView} />
       )}
-      <AppFooter role={role} onView={navigate} />
+      <AppFooter role={role} onView={navigateToView} />
     </div>
   );
 }

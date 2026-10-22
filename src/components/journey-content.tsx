@@ -86,9 +86,9 @@ function ContentCover({ item }: { item: JourneyContentItem }) {
         <span>{availabilityLabel(item)}</span>
       ) : isVideo(item) ? (
         <Play size={25} fill="currentColor" aria-hidden="true" />
-      ) : (
+      ) : !item.coverUrl ? (
         <FileQuestion size={25} aria-hidden="true" />
-      )}
+      ) : null}
     </div>
   );
 }
