@@ -8010,3 +8010,41 @@ hr,
     margin-top: 22px;
   }
 }
+
+
+/* Theme-aware journey card covers */
+.journey-cover-fieldset {
+  grid-template-columns: 1fr;
+}
+.journey-theme-cover {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--platform-line);
+  border-radius: 14px;
+  background: var(--platform-surface-soft);
+}
+.journey-theme-cover__head {
+  display: grid;
+  gap: 3px;
+}
+.journey-theme-cover__head strong {
+  color: var(--platform-title);
+}
+.journey-theme-cover__head span {
+  color: var(--platform-muted);
+  font-size: 0.78rem;
+}
+.journey-content-cover__image--light {
+  display: none !important;
+}
+.platform-shell[data-theme="light"] .journey-content-cover__image--light {
+  display: block !important;
+}
+.platform-shell[data-theme="light"] .journey-content-cover__image--dark {
+  display: none !important;
+}
+.platform-shell[data-theme="dark"] .journey-content-cover__image--dark,
+.platform-shell:not([data-theme]) .journey-content-cover__image--dark {
+  display: block !important;
+}
