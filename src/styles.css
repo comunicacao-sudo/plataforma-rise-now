@@ -7240,3 +7240,433 @@ hr,
   border-color: var(--platform-line-strong);
   background: var(--platform-surface-strong);
 }
+
+
+/* 2026-10 coded cinematic next-step hero */
+.platform-shell .next-step-hero {
+  min-height: clamp(640px, 58vw, 840px);
+  background:
+    radial-gradient(circle at 78% 42%, rgba(215, 176, 122, 0.1), transparent 25rem),
+    radial-gradient(circle at 18% 26%, rgba(36, 74, 69, 0.34), transparent 30rem),
+    linear-gradient(135deg, #1f3431 0%, var(--rise-graphite) 48%, #162724 100%);
+}
+
+.platform-shell .next-step-hero__art {
+  overflow: hidden;
+  background: none;
+}
+
+.platform-shell .next-step-hero::after {
+  background:
+    linear-gradient(
+      90deg,
+      rgba(21, 35, 33, 0.16) 0%,
+      rgba(21, 35, 33, 0.04) 50%,
+      rgba(21, 35, 33, 0) 74%
+    );
+}
+
+.platform-shell .next-step-hero__content {
+  position: relative;
+  z-index: 3;
+  align-items: center;
+  padding-top: clamp(92px, 9vw, 132px);
+  padding-bottom: clamp(80px, 8vw, 118px);
+}
+
+.platform-shell .next-step-hero__copy {
+  width: min(790px, 58vw);
+  gap: clamp(22px, 2vw, 32px);
+}
+
+.platform-shell .next-step-hero__eyebrow {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--rise-sand);
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+}
+
+.platform-shell .next-step-hero h1 {
+  max-width: 790px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(3.7rem, 5.8vw, 6.5rem);
+  font-weight: 400;
+  line-height: 0.92;
+  letter-spacing: -0.052em;
+  text-wrap: balance;
+}
+
+.platform-shell .next-step-hero h1 span {
+  color: #ffffff;
+}
+
+.platform-shell .next-step-hero h1 strong {
+  color: var(--rise-sand);
+  font-weight: 400;
+  text-shadow: 0 0 28px rgba(215, 176, 122, 0.14);
+}
+
+.platform-shell .next-step-hero__title-fallback span {
+  color: #ffffff;
+}
+
+.platform-shell .next-step-hero__copy > p {
+  max-width: 650px;
+  color: var(--rise-sand);
+  font-size: clamp(1rem, 1.28vw, 1.25rem);
+  line-height: 1.48;
+}
+
+.platform-shell .next-step-hero__meta {
+  max-width: 700px;
+}
+
+.platform-shell .next-step-hero__meta span {
+  min-height: 46px;
+  color: var(--rise-sand);
+  font-size: clamp(0.88rem, 1vw, 1rem);
+}
+
+.platform-shell .next-step-hero__meta svg {
+  color: var(--rise-sand);
+}
+
+.platform-shell .next-step-hero__meta span + span {
+  border-left-color: rgba(215, 176, 122, 0.42);
+}
+
+.platform-shell .next-step-hero__button {
+  width: min(420px, 100%);
+  min-height: 74px;
+  border: 1px solid #f3d79f;
+  color: #182a27;
+  background: linear-gradient(100deg, #d7b07a 0%, #f0cf96 50%, #d7b07a 100%);
+  box-shadow:
+    0 0 0 1px rgba(255, 239, 202, 0.34) inset,
+    0 12px 30px rgba(215, 176, 122, 0.18);
+}
+
+.platform-shell .next-step-hero__button:hover {
+  box-shadow:
+    0 0 0 1px rgba(255, 245, 218, 0.54) inset,
+    0 16px 40px rgba(215, 176, 122, 0.26);
+}
+
+.platform-shell .next-step-hero__glow {
+  position: absolute;
+  right: 2%;
+  bottom: 2%;
+  width: min(52vw, 760px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(215, 176, 122, 0.22) 0%,
+    rgba(215, 176, 122, 0.08) 21%,
+    rgba(215, 176, 122, 0) 63%
+  );
+  filter: blur(12px);
+}
+
+.platform-shell .next-step-hero__wave {
+  position: absolute;
+  pointer-events: none;
+  opacity: 0.86;
+  filter: drop-shadow(0 0 8px rgba(215, 176, 122, 0.12));
+}
+
+.platform-shell .next-step-hero__wave::before,
+.platform-shell .next-step-hero__wave::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+}
+
+.platform-shell .next-step-hero__wave::before {
+  background:
+    repeating-radial-gradient(
+      ellipse at 50% 50%,
+      transparent 0 11px,
+      rgba(215, 176, 122, 0.16) 12px 13px,
+      transparent 14px 20px
+    );
+}
+
+.platform-shell .next-step-hero__wave::after {
+  border: 1px solid rgba(236, 202, 145, 0.7);
+  box-shadow:
+    0 0 12px rgba(215, 176, 122, 0.18),
+    inset 0 0 12px rgba(215, 176, 122, 0.06);
+}
+
+.platform-shell .next-step-hero__wave--top {
+  top: -29%;
+  left: -10%;
+  width: 92%;
+  height: 54%;
+  transform: rotate(-4deg) scaleY(0.72);
+}
+
+.platform-shell .next-step-hero__wave--bottom {
+  right: -20%;
+  bottom: -34%;
+  width: 130%;
+  height: 66%;
+  transform: rotate(5deg) scaleY(0.66);
+}
+
+.platform-shell .next-step-hero__orbit {
+  position: absolute;
+  right: 3.6%;
+  top: 19%;
+  width: min(35vw, 520px);
+  aspect-ratio: 1;
+  border: 1px solid rgba(215, 176, 122, 0.45);
+  border-radius: 50%;
+  box-shadow:
+    0 0 38px rgba(215, 176, 122, 0.04),
+    inset 0 0 50px rgba(215, 176, 122, 0.025);
+}
+
+.platform-shell .next-step-hero__orbit::after {
+  content: "";
+  position: absolute;
+  left: -20%;
+  right: -12%;
+  top: 52%;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(215, 176, 122, 0.28) 24%,
+    rgba(215, 176, 122, 0.58) 72%,
+    transparent
+  );
+  transform: rotate(-24deg);
+  transform-origin: center;
+}
+
+.platform-shell .next-step-hero__sprout {
+  position: absolute;
+  z-index: 2;
+  right: 13.4%;
+  bottom: 16%;
+  width: clamp(150px, 13vw, 230px);
+  height: clamp(260px, 25vw, 410px);
+  filter: drop-shadow(0 0 14px rgba(215, 176, 122, 0.34));
+}
+
+.platform-shell .next-step-hero__stem {
+  position: absolute;
+  left: 50%;
+  bottom: 8%;
+  width: 2px;
+  height: 72%;
+  transform: translateX(-50%);
+  background: linear-gradient(
+    180deg,
+    #fff4d5 0%,
+    var(--rise-sand) 24%,
+    rgba(215, 176, 122, 0.88) 100%
+  );
+  box-shadow: 0 0 9px rgba(255, 224, 159, 0.5);
+}
+
+.platform-shell .next-step-hero__leaf {
+  position: absolute;
+  width: 46%;
+  height: 18%;
+  border: 1.5px solid rgba(255, 232, 184, 0.95);
+  background:
+    linear-gradient(145deg, rgba(255, 240, 201, 0.65), rgba(215, 176, 122, 0.24) 58%, transparent);
+  box-shadow:
+    inset 0 0 18px rgba(255, 231, 173, 0.18),
+    0 0 14px rgba(215, 176, 122, 0.16);
+}
+
+.platform-shell .next-step-hero__leaf::after {
+  content: "";
+  position: absolute;
+  left: 12%;
+  right: 8%;
+  top: 50%;
+  height: 1px;
+  background: rgba(255, 239, 205, 0.72);
+  transform: rotate(-9deg);
+}
+
+.platform-shell .next-step-hero__leaf--one {
+  left: 4%;
+  bottom: 36%;
+  border-radius: 100% 0 100% 0;
+  transform: rotate(27deg);
+}
+
+.platform-shell .next-step-hero__leaf--two {
+  right: 1%;
+  bottom: 53%;
+  border-radius: 0 100% 0 100%;
+  transform: rotate(-34deg);
+}
+
+.platform-shell .next-step-hero__seed {
+  position: absolute;
+  left: 50%;
+  bottom: 2%;
+  width: 18%;
+  aspect-ratio: 1;
+  transform: translateX(-50%);
+  border: 1px solid rgba(255, 239, 202, 0.94);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 38% 30%, #fff5d8 0%, #e3bd7d 28%, #b9843e 72%, #725023 100%);
+  box-shadow:
+    0 0 26px rgba(215, 176, 122, 0.5),
+    0 0 70px rgba(215, 176, 122, 0.2);
+}
+
+.platform-shell .next-step-hero__star {
+  position: absolute;
+  left: 50%;
+  top: -3%;
+  width: 4px;
+  height: 48px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: linear-gradient(transparent, #fff9e9 38%, #ffffff 50%, #fff0c1 62%, transparent);
+  box-shadow: 0 0 22px rgba(255, 228, 166, 0.85);
+}
+
+.platform-shell .next-step-hero__star::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 48px;
+  height: 4px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: linear-gradient(90deg, transparent, #fff4d3 40%, #ffffff 50%, #fff4d3 60%, transparent);
+  box-shadow: 0 0 18px rgba(255, 229, 169, 0.8);
+}
+
+.platform-shell .next-step-hero__star::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 15px;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%) rotate(45deg);
+  background: #fffaf0;
+  box-shadow: 0 0 28px rgba(255, 230, 171, 0.95);
+}
+
+.platform-shell[data-theme="light"] .next-step-hero {
+  background:
+    radial-gradient(circle at 78% 42%, rgba(184, 117, 93, 0.1), transparent 25rem),
+    linear-gradient(135deg, #ffffff 0%, #fbf8f5 52%, #f5eee8 100%);
+}
+
+.platform-shell[data-theme="light"] .next-step-hero__art {
+  background: none;
+}
+
+.platform-shell[data-theme="light"] .next-step-hero h1 span,
+.platform-shell[data-theme="light"] .next-step-hero__title-fallback span {
+  color: var(--rise-terracotta);
+}
+
+.platform-shell[data-theme="light"] .next-step-hero h1 strong,
+.platform-shell[data-theme="light"] .next-step-hero__copy > p,
+.platform-shell[data-theme="light"] .next-step-hero__eyebrow,
+.platform-shell[data-theme="light"] .next-step-hero__meta span,
+.platform-shell[data-theme="light"] .next-step-hero__meta svg {
+  color: var(--rise-graphite);
+}
+
+.platform-shell[data-theme="light"] .next-step-hero__wave::before {
+  background:
+    repeating-radial-gradient(
+      ellipse at 50% 50%,
+      transparent 0 11px,
+      rgba(184, 117, 93, 0.12) 12px 13px,
+      transparent 14px 20px
+    );
+}
+
+.platform-shell[data-theme="light"] .next-step-hero__wave::after,
+.platform-shell[data-theme="light"] .next-step-hero__orbit {
+  border-color: rgba(184, 117, 93, 0.36);
+}
+
+@media (max-width: 900px) {
+  .platform-shell .next-step-hero {
+    min-height: 690px;
+  }
+  .platform-shell .next-step-hero__copy {
+    width: min(100%, 650px);
+  }
+  .platform-shell .next-step-hero h1 {
+    max-width: 78vw;
+    font-size: clamp(3rem, 9vw, 5.2rem);
+  }
+  .platform-shell .next-step-hero__orbit,
+  .platform-shell .next-step-hero__sprout {
+    opacity: 0.42;
+  }
+  .platform-shell .next-step-hero__orbit {
+    right: -14%;
+    width: 54vw;
+  }
+  .platform-shell .next-step-hero__sprout {
+    right: 4%;
+  }
+}
+
+@media (max-width: 640px) {
+  .platform-shell .next-step-hero {
+    min-height: 720px;
+  }
+  .platform-shell .next-step-hero__content {
+    align-items: flex-end;
+    padding-top: 120px;
+  }
+  .platform-shell .next-step-hero__copy {
+    width: 100%;
+    gap: 20px;
+  }
+  .platform-shell .next-step-hero h1 {
+    max-width: 100%;
+    font-size: clamp(2.8rem, 14vw, 4.2rem);
+    line-height: 0.96;
+  }
+  .platform-shell .next-step-hero__meta {
+    display: grid;
+    gap: 10px;
+  }
+  .platform-shell .next-step-hero__meta span {
+    padding: 0;
+    min-height: 34px;
+  }
+  .platform-shell .next-step-hero__meta span + span {
+    border-left: 0;
+  }
+  .platform-shell .next-step-hero__orbit {
+    top: 11%;
+    right: -20%;
+    width: 82vw;
+  }
+  .platform-shell .next-step-hero__sprout {
+    top: 12%;
+    right: 0;
+    bottom: auto;
+    width: 128px;
+    height: 220px;
+    opacity: 0.28;
+  }
+}
