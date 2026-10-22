@@ -1699,47 +1699,97 @@ function MembersPanel() {
                 </tr>
               </thead>
               <tbody>
-                {dir?.access.map((entry) => (
-                  <tr key={entry.id}>
-                    <td>
-                      <strong>{entry.name}</strong>
-                      <small>{entry.email}</small>
-                    </td>
-                    <td>{entry.role === "mentee" ? "Mentorada" : "Mentora · Administradora"}</td>
-                    <td>
-                      <span className={`ops-tag ops-tag--${entry.status}`}>
-                        {entry.status === "ativo"
-                          ? "Ativo"
-                          : entry.status === "revogado"
-                            ? "Revogado"
-                            : "Convite pendente"}
-                      </span>
-                    </td>
-                    <td className="ops-actions">
-                      {entry.email ? (
-                        <button type="button" onClick={() => void reset(entry.email, entry.name)}>
-                          Enviar nova senha
-                        </button>
-                      ) : null}
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          const enabled = entry.status === "revogado";
-                          if (
-                            !window.confirm(
-                              `${enabled ? "Ativar" : "Revogar"} o acesso de ${entry.name}?`,
-                            )
-                          )
-                            return;
-                          await updateAccessFn({ data: { accessId: entry.id, enabled } });
-                          await qc.invalidateQueries({ queryKey: ["directory"] });
-                        }}
-                      >
-                        {entry.status === "revogado" ? "Ativar acesso" : "Revogar acesso"}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {dir?.access.map((entry) => {
+                  const enrollment =
+                    entry.role === "mentee"
+                      ? dir.enrollments.find(
+                          (item) =>
+                            item.menteeId === entry.userId ||
+                            item.email.toLowerCase() === entry.email.toLowerCase(),
+                        )
+                      : null;
+                  return (
+                    <tr key={entry.id}>
+                      <td>
+                        <strong>{entry.name}</strong>
+                        <small>{entry.email}</small>
+                      </td>
+                      <td>{entry.role === "mentee" ? "Mentorada" : "Mentora · Administradora"}</td>
+                      <td>
+                        <span className={`ops-tag ops-tag--${entry.status}`}>
+                          {entry.status === "ativo"
+                            ? "Ativo"
+                            : entry.status === "revogado"
+                              ? "Revogado"
+                              : "Convite pendente"}
+                        </span>
+                        {enrollment ? (
+                          <small className="ops-access-enrollment">
+                            Matrícula: {enrollmentLabels[enrollment.status] ?? enrollment.status}
+                          </small>
+                        ) : null}
+                      </td>
+                      <td className="ops-actions-cell">
+                        <div className="ops-actions">
+                          {entry.email ? (
+                            <button
+                              type="button"
+                              onClick={() => void reset(entry.email, entry.name)}
+                            >
+                              Enviar nova senha
+                            </button>
+                          ) : null}
+                          {enrollment ? (
+                            <>
+                              {enrollment.status === "ativa" ? (
+                                <button
+                                  type="button"
+                                  onClick={() => void update(enrollment.id, { status: "pausada" })}
+                                >
+                                  Pausar
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => void update(enrollment.id, { status: "ativa" })}
+                                >
+                                  Reativar
+                                </button>
+                              )}
+                              {enrollment.status !== "desativada" ? (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    window.confirm(`Desativar o acesso de ${entry.name}?`) &&
+                                    void update(enrollment.id, { status: "desativada" })
+                                  }
+                                >
+                                  Desativar
+                                </button>
+                              ) : null}
+                            </>
+                          ) : null}
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const enabled = entry.status === "revogado";
+                              if (
+                                !window.confirm(
+                                  `${enabled ? "Ativar" : "Revogar"} o acesso de ${entry.name}?`,
+                                )
+                              )
+                                return;
+                              await updateAccessFn({ data: { accessId: entry.id, enabled } });
+                              await qc.invalidateQueries({ queryKey: ["directory"] });
+                            }}
+                          >
+                            {entry.status === "revogado" ? "Ativar acesso" : "Revogar acesso"}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -1861,33 +1911,12 @@ function MembersPanel() {
                       {enrollmentLabels[e.status]}
                     </span>
                   </td>
-                  <td className="ops-actions">
-                    {e.status === "ativa" ? (
-                      <button
-                        type="button"
-                        onClick={() => void update(e.id, { status: "pausada" })}
-                      >
-                        Pausar
+                  <td className="ops-actions-cell">
+                    <div className="ops-actions">
+                      <button type="button" onClick={() => setProfile(e.id)}>
+                        Abrir perfil
                       </button>
-                    ) : (
-                      <button type="button" onClick={() => void update(e.id, { status: "ativa" })}>
-                        Reativar
-                      </button>
-                    )}
-                    {e.status !== "desativada" ? (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          window.confirm(`Desativar o acesso de ${e.name}?`) &&
-                          void update(e.id, { status: "desativada" })
-                        }
-                      >
-                        Desativar
-                      </button>
-                    ) : null}
-                    <button type="button" onClick={() => setProfile(e.id)}>
-                      Abrir perfil
-                    </button>
+                    </div>
                   </td>
                 </tr>
               ))}
