@@ -45,12 +45,21 @@ import {
   Rise90StaffContent,
 } from "@/components/rise-extras";
 import { JourneyAdmin } from "@/components/journey-admin";
+import { JourneyContentAdmin } from "@/components/journey-content-admin";
 import { AssessmentMentorContent } from "@/components/rise-assessment";
 import { WhatsAppAdmin } from "@/components/whatsapp-admin";
+import { getMyAgendaMaterials } from "@/lib/content.functions";
 
 /* ---------- shared ---------- */
 
-export type StaffView = "painel" | "gestao-jornada" | "agenda" | "entregas" | "alunas" | "whatsapp";
+export type StaffView =
+  | "painel"
+  | "gestao-jornada"
+  | "conteudos"
+  | "agenda"
+  | "entregas"
+  | "alunas"
+  | "whatsapp";
 
 const statusLabels: Record<string, string> = {
   nao_iniciada: "Não iniciada",
@@ -257,6 +266,58 @@ export function MenteeMeetings() {
           </div>
         </>
       ) : null}
+    </section>
+  );
+}
+
+export function MenteeAgendaMaterials() {
+  const load = useServerFn(getMyAgendaMaterials);
+  const { data, isLoading } = useQuery({
+    queryKey: ["agenda-materials"],
+    queryFn: () => load(),
+  });
+  const items = data?.items ?? [];
+
+  if (isLoading) return null;
+
+  return (
+    <section className="page-width ops-section">
+      <div className="section-heading ops-gap">
+        <div>
+          <h2>Materiais disponíveis</h2>
+          <p>Arquivos e links liberados para você em cada etapa da jornada.</p>
+        </div>
+      </div>
+      {items.length ? (
+        <div className="x-mats">
+          {items.map((item) => (
+            <article className="x-mat" key={item.id}>
+              <span className="x-mat__icon">
+                {item.externalUrl ? <Link2 size={18} /> : <FileText size={18} />}
+              </span>
+              <div className="x-mat__body">
+                <strong>{item.title}</strong>
+                <p>
+                  Mês {item.monthNumber} · {item.pillarName} · {item.stepTitle}
+                </p>
+                {item.description ? <small>{item.description}</small> : null}
+              </div>
+              {item.fileUrl || item.externalUrl ? (
+                <a
+                  className="x-mat__open"
+                  href={item.fileUrl ?? item.externalUrl ?? "#"}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {item.fileUrl ? "Baixar" : "Abrir"} <ExternalLink size={14} />
+                </a>
+              ) : null}
+            </article>
+          ))}
+        </div>
+      ) : (
+        <p className="ops-empty">Nenhum material disponível no momento.</p>
+      )}
     </section>
   );
 }
@@ -2194,6 +2255,7 @@ function StaffOverview({ onView }: { onView: (v: StaffView) => void }) {
 
 export function StaffArea({ view, onView }: { view: StaffView; onView: (v: StaffView) => void }) {
   if (view === "gestao-jornada") return <JourneyAdmin />;
+  if (view === "conteudos") return <JourneyContentAdmin />;
   if (view === "agenda") return <StaffAgenda />;
   if (view === "entregas") return <ReviewPanel />;
   if (view === "alunas") return <MembersPanel />;
