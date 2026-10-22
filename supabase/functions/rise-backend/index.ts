@@ -681,7 +681,13 @@ async function loadLibrary(userId: string) {
     const locked =
       s.month_number > enrollment.current_month ||
       (!!s.release_at && Date.parse(s.release_at) > now);
-    if (!locked && typeof s.media_path === "string" && s.media_path) assetPaths.push(s.media_path);
+    if (
+      !locked &&
+      typeof s.media_path === "string" &&
+      s.media_path &&
+      !s.media_path.startsWith("r2:")
+    )
+      assetPaths.push(s.media_path);
     if (!locked && Array.isArray(s.materials)) {
       for (const material of s.materials) {
         if (typeof material?.filePath === "string" && material.filePath) {
@@ -697,8 +703,16 @@ async function loadLibrary(userId: string) {
     const locked =
       s.month_number > enrollment.current_month ||
       (!!s.release_at && Date.parse(s.release_at) > now);
+    const r2Media =
+      !locked &&
+      typeof s.media_path === "string" &&
+      s.media_path.startsWith("r2:");
     const mediaUrl =
-      !locked && typeof s.media_path === "string" ? (signedUrls.get(s.media_path) ?? null) : null;
+      !locked &&
+      typeof s.media_path === "string" &&
+      !r2Media
+        ? (signedUrls.get(s.media_path) ?? null)
+        : null;
     const materials = locked
       ? []
       : (Array.isArray(s.materials) ? s.materials : []).map((m: any, i: number) => ({
@@ -711,7 +725,7 @@ async function loadLibrary(userId: string) {
     const state = byStep.get(s.stable_key);
     const resource = mediaUrl ?? s.resource_url ?? null;
     const hasResource = videoFormats.has(s.format)
-      ? !!resource
+      ? r2Media || !!resource
       : ["questionnaire", "form"].includes(s.format)
         ? s.resource_type === "rise_assessment" || !!s.resource_url
         : true;
