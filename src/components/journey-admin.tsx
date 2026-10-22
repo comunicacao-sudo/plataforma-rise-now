@@ -121,6 +121,7 @@ function StepForm({
   >("");
   const [uploadError, setUploadError] = useState("");
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [removedCovers, setRemovedCovers] = useState({ light: false, dark: false });
   const previewObjects = useRef<{ light: string | null; dark: string | null }>({
     light: null,
     dark: null,
@@ -135,10 +136,12 @@ function StepForm({
     "individual_1_1",
   ].includes(step.format);
   const showDuration = showMeeting || showVideo;
-  const lightCoverUrl =
-    step.coverUrlLight ?? (!step.coverUrlDark ? (step.coverUrl ?? null) : null);
-  const darkCoverUrl =
-    step.coverUrlDark ?? (!step.coverUrlLight ? (step.coverUrl ?? null) : null);
+  const lightCoverUrl = removedCovers.light
+    ? null
+    : (step.coverUrlLight ?? (!step.coverUrlDark ? (step.coverUrl ?? null) : null));
+  const darkCoverUrl = removedCovers.dark
+    ? null
+    : (step.coverUrlDark ?? (!step.coverUrlLight ? (step.coverUrl ?? null) : null));
 
   function changeFormat(format: JourneyDraftStep["format"]) {
     setStep((current) => ({
@@ -199,6 +202,7 @@ function StepForm({
         if (previous) URL.revokeObjectURL(previous);
         const preview = URL.createObjectURL(file);
         previewObjects.current[theme] = preview;
+        setRemovedCovers((current) => ({ ...current, [theme]: false }));
         setStep((current) =>
           theme === "light"
             ? {
@@ -240,6 +244,11 @@ function StepForm({
 
   function removeAsset(kind: "cover-light" | "cover-dark" | "media") {
     if (kind === "cover-light") {
+      setRemovedCovers((current) => ({ ...current, light: true }));
+      if (previewObjects.current.light) {
+        URL.revokeObjectURL(previewObjects.current.light);
+        previewObjects.current.light = null;
+      }
       setStep((current) => {
         const removedPath = current.coverPathLight;
         const legacyWasRemoved = !!removedPath && current.coverPath === removedPath;
@@ -252,6 +261,11 @@ function StepForm({
         };
       });
     } else if (kind === "cover-dark") {
+      setRemovedCovers((current) => ({ ...current, dark: true }));
+      if (previewObjects.current.dark) {
+        URL.revokeObjectURL(previewObjects.current.dark);
+        previewObjects.current.dark = null;
+      }
       setStep((current) => {
         const removedPath = current.coverPathDark;
         const legacyWasRemoved = !!removedPath && current.coverPath === removedPath;
@@ -345,7 +359,11 @@ function StepForm({
                 />
                 <button
                   type="button"
-                  onClick={() => removeAsset("cover-light")}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    removeAsset("cover-light");
+                  }}
                   disabled={uploading !== ""}
                 >
                   Remover capa clara
@@ -384,7 +402,11 @@ function StepForm({
                 />
                 <button
                   type="button"
-                  onClick={() => removeAsset("cover-dark")}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    removeAsset("cover-dark");
+                  }}
                   disabled={uploading !== ""}
                 >
                   Remover capa escura
