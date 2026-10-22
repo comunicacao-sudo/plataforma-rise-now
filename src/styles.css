@@ -4424,6 +4424,32 @@ hr,
   display: none;
 }
 
+/* A Home da mentorada recebe a arte escura oficial em uma camada própria.
+   O arquivo /brand/mentee-home-dark.png deve ser exatamente a arte aprovada pela RISE.
+   Enquanto o asset binário não estiver presente no deploy, a imagem oficial anterior
+   da plataforma permanece como fallback para não deixar a tela quebrada. */
+.platform-shell--mentee[data-theme="dark"] .mentee-home-view {
+  min-height: calc(100vh - 72px);
+  background-color: #26312f;
+  background-image:
+    url("/brand/mentee-home-dark.png"),
+    linear-gradient(rgba(38, 49, 47, 0.08), rgba(38, 49, 47, 0.16)),
+    url("/brand/platform-dark.webp");
+  background-position: top center, top center, top center;
+  background-size: cover, cover, cover;
+  background-repeat: no-repeat;
+  background-attachment: fixed, fixed, fixed;
+}
+.platform-shell--mentee[data-theme="dark"] .mentee-home-view .dashboard-body {
+  background: transparent;
+}
+@media (max-width: 820px) {
+  .platform-shell--mentee[data-theme="dark"] .mentee-home-view {
+    background-attachment: scroll, scroll, scroll;
+    background-position: top center, top center, top center;
+  }
+}
+
 .journey-editor-page {
   padding-bottom: 64px;
 }
