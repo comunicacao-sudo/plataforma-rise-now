@@ -4412,6 +4412,18 @@ hr,
   max-width: 760px;
 }
 
+/* Home da mentorada: usa exatamente o fundo fixo oficial da plataforma.
+   O hero não aplica uma segunda arte, gradiente ou ilustração por cima do fundo. */
+.platform-shell--mentee[data-theme="dark"] .next-step-hero {
+  background: transparent;
+}
+.platform-shell--mentee[data-theme="dark"] .next-step-hero__art {
+  display: none;
+}
+.platform-shell--mentee[data-theme="dark"] .next-step-hero::after {
+  display: none;
+}
+
 .journey-editor-page {
   padding-bottom: 64px;
 }
@@ -6244,6 +6256,19 @@ hr,
   border-color: var(--gold);
   background: rgba(208, 172, 92, 0.1);
   box-shadow: 0 0 0 1px rgba(208, 172, 92, 0.12);
+}
+.x-theme-picker button.is-disabled,
+.x-theme-picker button:disabled {
+  opacity: 0.38;
+  filter: grayscale(0.35);
+  cursor: not-allowed;
+  border-style: dashed;
+  box-shadow: none;
+}
+.x-theme-picker button.is-disabled:hover,
+.x-theme-picker button:disabled:hover {
+  border-color: rgba(208, 172, 92, 0.2);
+  background: rgba(255, 255, 255, 0.025);
 }
 .ops-field > span {
   display: flex;
