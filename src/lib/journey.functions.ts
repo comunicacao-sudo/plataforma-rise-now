@@ -71,6 +71,8 @@ export type NextJourneyStep = {
   scheduledAt?: string | null;
   releaseAt?: string | null;
   progressStatus?: "not_started" | "in_progress" | "awaiting_confirmation" | "completed";
+  hasStageContent?: boolean;
+  contentTypes?: Array<"video" | "material" | "questionnaire"> | null;
   actionLabel?: string | null;
 };
 
