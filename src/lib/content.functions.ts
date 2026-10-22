@@ -83,3 +83,8 @@ export const saveJourneyContentNote: any = createEdgeFunction("saveJourneyConten
 export const addJourneyContentMarker: any = createEdgeFunction("addJourneyContentMarker");
 export const saveJourneyContentProgress: any = createEdgeFunction("saveJourneyContentProgress");
 export const createJourneyUpload: any = createEdgeFunction("createJourneyUpload");
+
+export const createR2MultipartUpload: any = createEdgeFunction("createR2MultipartUpload");
+export const getR2UploadPartUrls: any = createEdgeFunction("getR2UploadPartUrls");
+export const completeR2MultipartUpload: any = createEdgeFunction("completeR2MultipartUpload");
+export const abortR2MultipartUpload: any = createEdgeFunction("abortR2MultipartUpload");
