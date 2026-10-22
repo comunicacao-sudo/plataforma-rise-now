@@ -6771,3 +6771,146 @@ hr,
   background: var(--rise-terracotta);
   color: var(--rise-white);
 }
+
+.ops-subnav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin: 0 0 1.5rem;
+  padding: 0.4rem;
+  border: 1px solid var(--platform-line);
+  border-radius: 999px;
+  background: var(--platform-card);
+}
+.ops-subnav button {
+  flex: 1 1 auto;
+  min-height: 42px;
+  padding: 0.65rem 1rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--platform-muted);
+  font-weight: 700;
+}
+.ops-subnav button.is-active {
+  background: var(--rise-terracotta);
+  color: #fff;
+}
+.ops-admin-panel {
+  display: grid;
+  gap: 1rem;
+}
+.mentee-profile-header {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  margin: 1.25rem 0 1.5rem;
+  padding: 1.4rem;
+  border: 1px solid var(--platform-line);
+  border-radius: 20px;
+  background: var(--platform-card);
+}
+.mentee-profile-header h1,
+.mentee-profile-header p {
+  margin: 0.2rem 0;
+}
+.mentee-profile-header small {
+  color: var(--platform-muted);
+}
+.mentee-profile-tabs {
+  border-radius: 18px;
+}
+.mentee-profile-content {
+  min-height: 360px;
+}
+.mentee-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+.mentee-overview-grid article {
+  display: grid;
+  gap: 0.45rem;
+}
+.mentee-readings-empty {
+  display: grid;
+  justify-items: center;
+  gap: 0.6rem;
+  padding: 4rem 1rem;
+  text-align: center;
+}
+.avatar-crop-backdrop {
+  z-index: 130;
+}
+.avatar-crop-modal {
+  width: min(94vw, 560px);
+}
+.avatar-crop-viewport {
+  position: relative;
+  width: min(300px, 76vw);
+  aspect-ratio: 1;
+  margin: 1.25rem auto;
+  overflow: hidden;
+  border-radius: 50%;
+  background: #101514;
+  touch-action: none;
+  cursor: grab;
+}
+.avatar-crop-viewport:active {
+  cursor: grabbing;
+}
+.avatar-crop-viewport img {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  min-width: 100%;
+  min-height: 100%;
+  max-width: none;
+  object-fit: cover;
+  user-select: none;
+}
+.avatar-crop-viewport > span {
+  position: absolute;
+  inset: 0;
+  border: 2px solid var(--gold);
+  border-radius: inherit;
+  box-shadow: 0 0 0 999px rgba(0, 0, 0, 0.24);
+  pointer-events: none;
+}
+.avatar-zoom {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 1rem;
+}
+.whatsapp-unconfigured,
+.whatsapp-safety {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1.5rem;
+}
+.whatsapp-unconfigured svg,
+.whatsapp-safety svg {
+  flex: 0 0 auto;
+  color: var(--gold);
+}
+.whatsapp-unconfigured h2,
+.whatsapp-unconfigured p,
+.whatsapp-safety p {
+  margin: 0 0 0.55rem;
+}
+@media (max-width: 760px) {
+  .mentee-profile-header {
+    align-items: flex-start;
+  }
+  .mentee-overview-grid {
+    grid-template-columns: 1fr;
+  }
+  .ops-subnav {
+    border-radius: 18px;
+  }
+  .ops-subnav button {
+    flex-basis: 100%;
+  }
+}

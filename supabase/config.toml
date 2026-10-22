@@ -1,9 +1,9 @@
 project_id = "riakceytqrlvdcgcwfdx"
 
 [auth]
-site_url = "https://mentoriarisenow.lovable.app"
+site_url = "https://board.mentoriarisenow.com.br"
 additional_redirect_urls = [
-  "https://mentoriarisenow.lovable.app/reset-password",
+  "https://board.mentoriarisenow.com.br/reset-password",
   "http://localhost:3000/reset-password",
   "http://localhost:8080/reset-password",
 ]
@@ -11,3 +11,12 @@ additional_redirect_urls = [
 [auth.email.template.invite]
 subject = "Seu acesso à RISE Now está pronto"
 content_path = "./supabase/templates/invite.html"
+
+[functions.rise-backend]
+verify_jwt = true
+
+[functions.rise-cron]
+verify_jwt = false
+
+[functions.waha-webhook]
+verify_jwt = false

@@ -9,7 +9,7 @@ import {
   renderWhatsAppMessage,
 } from "./whatsapp-templates";
 
-test("normaliza formatos brasileiros para E.164 e chatId do WAHA", () => {
+test("normaliza formatos brasileiros para E.164 e identificador do destinatário", () => {
   const expected = {
     e164: "+5511912345678",
     digits: "5511912345678",
@@ -37,12 +37,12 @@ test("aceita telefone fixo válido e recusa números incompletos ou estrangeiros
 
 test("monta links internos na origem configurada e preserva parâmetros", () => {
   assert.equal(
-    buildAppLink("https://mentoriarisenow.lovable.app/", "/", {
+    buildAppLink("https://board.mentoriarisenow.com.br/", "/", {
       view: "jornada",
       step: "mapa de clareza",
       empty: null,
     }),
-    "https://mentoriarisenow.lovable.app/?view=jornada&step=mapa+de+clareza",
+    "https://board.mentoriarisenow.com.br/?view=jornada&step=mapa+de+clareza",
   );
   assert.equal(
     buildAppLink("http://localhost:3000", "reset-password", { invited: true }),
@@ -54,15 +54,15 @@ test("bloqueia origem insegura, credenciais e caminhos externos", () => {
   assert.throws(() => buildAppLink("javascript:alert(1)", "/"), /HTTP ou HTTPS/);
   assert.throws(() => buildAppLink("https://user:secret@example.com", "/"), /credenciais/);
   assert.throws(
-    () => buildAppLink("https://mentoriarisenow.lovable.app", "https://example.com"),
+    () => buildAppLink("https://board.mentoriarisenow.com.br", "https://example.com"),
     /interno/,
   );
   assert.throws(
-    () => buildAppLink("https://mentoriarisenow.lovable.app", "//example.com"),
+    () => buildAppLink("https://board.mentoriarisenow.com.br", "//example.com"),
     /interno/,
   );
   assert.throws(
-    () => buildAppLink("https://mentoriarisenow.lovable.app", "\\example.com"),
+    () => buildAppLink("https://board.mentoriarisenow.com.br", "\\example.com"),
     /origem/,
   );
 });
@@ -73,7 +73,7 @@ test("formata encontro no horário de Brasília de forma determinística", () =>
 });
 
 test("renderiza os cinco eventos transacionais com mensagem e link", () => {
-  const link = "https://mentoriarisenow.lovable.app/?view=jornada";
+  const link = "https://board.mentoriarisenow.com.br/?view=jornada";
   const messages = WHATSAPP_EVENT_TYPES.map((type) =>
     renderWhatsAppMessage({
       type,
@@ -100,7 +100,7 @@ test("renderiza os cinco eventos transacionais com mensagem e link", () => {
 test("usa textos seguros de apoio quando dados opcionais não existem", () => {
   const message = renderWhatsAppMessage({
     type: "stage_completed_mentor",
-    actionUrl: "https://mentoriarisenow.lovable.app/",
+    actionUrl: "https://board.mentoriarisenow.com.br/",
   });
 
   assert.match(message, /^Olá!/);

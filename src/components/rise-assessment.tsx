@@ -966,6 +966,45 @@ export function AssessmentProfileModal({ onClose }: { onClose: () => void }) {
   );
 }
 
+export function AssessmentMentorContent({
+  enrollmentId,
+  name,
+}: {
+  enrollmentId: string;
+  name: string;
+}) {
+  const load = useServerFn(getMentorAssessmentProfile);
+  const query = useQuery({
+    queryKey: ["mentor-assessment", enrollmentId],
+    queryFn: () => load({ data: { enrollmentId } }),
+    retry: false,
+  });
+  return (
+    <div className="mentee-profile-assessment">
+      {query.isLoading ? (
+        <div className="assessment-loading">Carregando mapeamento…</div>
+      ) : query.data?.latest?.calculated_result ? (
+        <AssessmentReport
+          result={query.data.latest.calculated_result as PublicResult}
+          full
+          mentor
+          enrollmentId={enrollmentId}
+          attempt={query.data.latest}
+          attempts={query.data.attempts ?? []}
+          plans={query.data.plans ?? []}
+          onChanged={() => void query.refetch()}
+        />
+      ) : (
+        <div className="assessment-empty">
+          <BrainCircuit size={34} />
+          <h2>{name} ainda não concluiu o mapeamento</h2>
+          <p>O resultado completo e o histórico aparecerão aqui após a conclusão.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function AssessmentMentorDrawer({
   enrollmentId,
   name,
@@ -975,12 +1014,6 @@ export function AssessmentMentorDrawer({
   name: string;
   onClose: () => void;
 }) {
-  const load = useServerFn(getMentorAssessmentProfile);
-  const query = useQuery({
-    queryKey: ["mentor-assessment", enrollmentId],
-    queryFn: () => load({ data: { enrollmentId } }),
-    retry: false,
-  });
   return (
     <div
       className="modal-backdrop assessment-profile-modal"
@@ -997,26 +1030,7 @@ export function AssessmentMentorDrawer({
           <X size={21} />
         </button>
         <div className="content-modal__body">
-          {query.isLoading ? (
-            <div className="assessment-loading">Carregando mapeamento…</div>
-          ) : query.data?.latest?.calculated_result ? (
-            <AssessmentReport
-              result={query.data.latest.calculated_result as PublicResult}
-              full
-              mentor
-              enrollmentId={enrollmentId}
-              attempt={query.data.latest}
-              attempts={query.data.attempts ?? []}
-              plans={query.data.plans ?? []}
-              onChanged={() => void query.refetch()}
-            />
-          ) : (
-            <div className="assessment-empty">
-              <BrainCircuit size={34} />
-              <h2>{name} ainda não concluiu o mapeamento</h2>
-              <p>O resultado completo e o histórico aparecerão aqui após a conclusão.</p>
-            </div>
-          )}
+          <AssessmentMentorContent enrollmentId={enrollmentId} name={name} />
         </div>
       </section>
     </div>

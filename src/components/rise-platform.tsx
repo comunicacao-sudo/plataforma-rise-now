@@ -27,12 +27,11 @@ import {
   UsersRound,
   X,
 } from "lucide-react";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { mentors } from "@/data/rise-content";
 import {
   Avatar,
-  MentorsSection,
   NotificationBell,
   ProfileModal,
   Rise90Live,
@@ -847,6 +846,13 @@ function HomeView({
 }
 
 function MentorRail() {
+  const { data: staff = [] } = useQuery({
+    queryKey: ["staff-directory"],
+    queryFn: async () => {
+      const { data } = await supabase.rpc("public_staff_directory");
+      return data ?? [];
+    },
+  });
   return (
     <section className="content-section page-width">
       <div className="section-heading">
@@ -858,12 +864,11 @@ function MentorRail() {
       <div className="mentor-rail">
         {mentors.map((mentor) => (
           <article className="mentor-card" key={mentor.name}>
-            <div
-              className="mentor-avatar"
-              style={{ "--mentor-color": mentor.color } as React.CSSProperties}
-            >
-              <span>{mentor.initials}</span>
-            </div>
+            <Avatar
+              name={mentor.name}
+              url={staff.find((person) => person.full_name === mentor.name)?.avatar_url}
+              size={76}
+            />
             <div>
               <span>{mentor.pillar}</span>
               <h3>{mentor.name}</h3>
@@ -1010,7 +1015,6 @@ function JourneyView({
           );
         })}
       </section>
-      <MentorsSection />
     </main>
   );
 }
@@ -1159,6 +1163,7 @@ export function RisePlatform() {
   const [assessmentPreview, setAssessmentPreview] = useState<"report" | "questionnaire" | null>(
     null,
   );
+  const navigationReady = useRef(false);
 
   useEffect(() => {
     const preview = new URLSearchParams(window.location.search).get("assessment-preview");
@@ -1229,15 +1234,21 @@ export function RisePlatform() {
           "alunas",
           "whatsapp",
         ];
-        setActiveView(
+        const nextView =
           resolvedRole === "mentee"
             ? requested && menteeViews.includes(requested)
               ? requested
               : "inicio"
             : requested && staffViews.includes(requested)
               ? requested
-              : "painel",
-        );
+              : "painel";
+        setActiveView(nextView);
+        if (!requested) {
+          const url = new URL(window.location.href);
+          url.searchParams.set("view", nextView);
+          window.history.replaceState({}, "", url);
+        }
+        navigationReady.current = true;
         setAuthMode("authenticated");
       } catch {
         if (mounted) setAuthMode("login");
@@ -1255,6 +1266,31 @@ export function RisePlatform() {
   const { data: currentProfile } = useMyProfile(authMode === "authenticated");
   const theme = currentProfile?.theme_preference === "light" ? "light" : "dark";
   const shellClass = useMemo(() => `platform-shell platform-shell--${role}`, [role]);
+
+  function navigate(view: View) {
+    const url = new URL(window.location.href);
+    url.searchParams.set("view", view);
+    if (view !== "alunas") {
+      url.searchParams.delete("mentee");
+      url.searchParams.delete("tab");
+    }
+    window.history.pushState({}, "", url);
+    setActiveView(view);
+  }
+
+  useEffect(() => {
+    const restore = () => {
+      if (!navigationReady.current) return;
+      const requested = new URLSearchParams(window.location.search).get("view") as View | null;
+      const allowed: View[] =
+        role === "mentee"
+          ? ["inicio", "jornada", "agenda", "entregas", "rise90"]
+          : ["painel", "gestao-jornada", "agenda", "entregas", "alunas", "whatsapp"];
+      setActiveView(requested && allowed.includes(requested) ? requested : allowed[0]!);
+    };
+    window.addEventListener("popstate", restore);
+    return () => window.removeEventListener("popstate", restore);
+  }, [role]);
 
   async function exit() {
     await supabase.auth.signOut();
@@ -1289,7 +1325,7 @@ export function RisePlatform() {
     <div className={shellClass} data-theme={theme}>
       <Header
         activeView={activeView}
-        onView={setActiveView}
+        onView={navigate}
         role={role}
         name={name}
         onExit={() => void exit()}
@@ -1303,12 +1339,12 @@ export function RisePlatform() {
               ? activeView
               : "painel") as StaffView
           }
-          onView={setActiveView}
+          onView={navigate}
         />
       ) : (
-        <MenteeArea view={activeView} onView={setActiveView} />
+        <MenteeArea view={activeView} onView={navigate} />
       )}
-      <AppFooter role={role} onView={setActiveView} />
+      <AppFooter role={role} onView={navigate} />
     </div>
   );
 }

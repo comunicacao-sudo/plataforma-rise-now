@@ -1,6 +1,8 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
+  ArrowLeft,
+  BookOpen,
   CalendarDays,
   CalendarPlus,
   Check,
@@ -30,16 +32,19 @@ import {
   createMentorSpecialty,
   createMember,
   getDirectory,
+  type RiseDirectory,
+  updateAccess,
   updateEnrollment,
 } from "@/lib/admin.functions";
 import {
+  Avatar,
   CalendarButtons,
   MaterialsList,
   MaterialsManager,
-  Rise90StaffDrawer,
+  Rise90StaffContent,
 } from "@/components/rise-extras";
 import { JourneyAdmin } from "@/components/journey-admin";
-import { AssessmentMentorDrawer } from "@/components/rise-assessment";
+import { AssessmentMentorContent } from "@/components/rise-assessment";
 import { WhatsAppAdmin } from "@/components/whatsapp-admin";
 
 /* ---------- shared ---------- */
@@ -1266,7 +1271,6 @@ function MemberForm({ onDone }: { onDone: () => void }) {
     phone: "",
     memberType: "mentee" as "mentee" | "mentor",
     cohortId: "",
-    mentorId: "",
     specialtyId: "",
   });
   const [msg, setMsg] = useState("");
@@ -1282,7 +1286,6 @@ function MemberForm({ onDone }: { onDone: () => void }) {
           ...f,
           phone: f.phone.trim() || null,
           cohortId: f.memberType === "mentee" ? f.cohortId || null : null,
-          mentorId: f.memberType === "mentee" ? f.mentorId || null : null,
           specialtyId: f.memberType === "mentee" ? null : f.specialtyId || null,
         },
       });
@@ -1362,7 +1365,6 @@ function MemberForm({ onDone }: { onDone: () => void }) {
                     ...f,
                     memberType: e.target.value as typeof f.memberType,
                     cohortId: "",
-                    mentorId: "",
                     specialtyId: "",
                   })
                 }
@@ -1382,19 +1384,6 @@ function MemberForm({ onDone }: { onDone: () => void }) {
                     {dir?.cohorts.map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.name}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label="Mentora responsável">
-                  <select
-                    value={f.mentorId}
-                    onChange={(e) => setF({ ...f, mentorId: e.target.value })}
-                  >
-                    <option value="">Escolher depois</option>
-                    {dir?.staff.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name}
                       </option>
                     ))}
                   </select>
@@ -1485,22 +1474,145 @@ function SpecialtyForm({ onDone }: { onDone: () => void }) {
   );
 }
 
+type MenteeProfileTab = "visao-geral" | "mapeamento" | "testes" | "plano" | "leituras" | "rise90";
+
+const menteeProfileTabs: Array<{ id: MenteeProfileTab; label: string }> = [
+  { id: "visao-geral", label: "Visão geral" },
+  { id: "mapeamento", label: "Mapeamento RISE" },
+  { id: "testes", label: "Testes realizados" },
+  { id: "plano", label: "Plano de desenvolvimento" },
+  { id: "leituras", label: "Leituras recomendadas" },
+  { id: "rise90", label: "RISE 90" },
+];
+
+function MenteeProfilePage({
+  enrollment,
+  tab,
+  onTab,
+  onBack,
+}: {
+  enrollment: RiseDirectory["enrollments"][number];
+  tab: MenteeProfileTab;
+  onTab: (tab: MenteeProfileTab) => void;
+  onBack: () => void;
+}) {
+  return (
+    <main className="inner-page mentee-profile-page">
+      <section className="page-width ops-section">
+        <button className="recorded-back" type="button" onClick={onBack}>
+          <ArrowLeft size={17} /> Voltar para mentoradas
+        </button>
+        <header className="mentee-profile-header">
+          <Avatar name={enrollment.name} url={enrollment.avatarUrl} size={92} />
+          <div>
+            <span className="eyebrow eyebrow--gold">Perfil privado</span>
+            <h1>{enrollment.name}</h1>
+            {enrollment.profession ? <p>{enrollment.profession}</p> : null}
+            <small>
+              {enrollment.email}
+              {enrollment.phone ? ` · ${enrollment.phone}` : ""}
+            </small>
+          </div>
+        </header>
+        <nav className="ops-subnav mentee-profile-tabs" aria-label="Áreas do perfil">
+          {menteeProfileTabs.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={tab === item.id ? "is-active" : ""}
+              onClick={() => onTab(item.id)}
+            >
+              {item.label}
+            </button>
+          ))}
+        </nav>
+        <div className="mentee-profile-content">
+          {tab === "visao-geral" ? (
+            <div className="mentee-overview-grid">
+              <article className="admin-card">
+                <span>Turma</span>
+                <strong>{enrollment.cohortId ? "Turma vinculada" : "Sem turma"}</strong>
+              </article>
+              <article className="admin-card">
+                <span>Progresso atual</span>
+                <strong>{enrollment.progress}%</strong>
+                <small>Mês {enrollment.month}</small>
+              </article>
+              <article className="admin-card">
+                <span>Status da matrícula</span>
+                <strong>{enrollmentLabels[enrollment.status] ?? enrollment.status}</strong>
+              </article>
+            </div>
+          ) : null}
+          {tab === "mapeamento" || tab === "testes" || tab === "plano" ? (
+            <AssessmentMentorContent enrollmentId={enrollment.id} name={enrollment.name} />
+          ) : null}
+          {tab === "leituras" ? (
+            <div className="ops-empty mentee-readings-empty">
+              <BookOpen size={28} />
+              <h2>Nenhuma leitura recomendada cadastrada</h2>
+              <p>A fonte de recomendações ainda não foi definida.</p>
+            </div>
+          ) : null}
+          {tab === "rise90" ? (
+            <Rise90StaffContent enrollmentId={enrollment.id} name={enrollment.name} />
+          ) : null}
+        </div>
+      </section>
+    </main>
+  );
+}
+
 function MembersPanel() {
   const qc = useQueryClient();
   const { data: dir } = useDirectory();
   const updateFn = useServerFn(updateEnrollment);
+  const updateAccessFn = useServerFn(updateAccess);
   const { data: subs = [] } = useSubmissions();
   const [cohortOpen, setCohortOpen] = useState(false);
   const [specialtyOpen, setSpecialtyOpen] = useState(false);
   const [memberOpen, setMemberOpen] = useState(false);
-  const [goalsOf, setGoalsOf] = useState<{ id: string; name: string } | null>(null);
-  const [assessmentOf, setAssessmentOf] = useState<{ id: string; name: string } | null>(null);
+  const [adminSection, setAdminSection] = useState<"perfis" | "acessos" | "turmas">("perfis");
+  const [selectedMentee, setSelectedMentee] = useState(() =>
+    new URLSearchParams(window.location.search).get("mentee"),
+  );
+  const [profileTab, setProfileTab] = useState<MenteeProfileTab>(() => {
+    const requested = new URLSearchParams(window.location.search).get("tab") as MenteeProfileTab;
+    return menteeProfileTabs.some((item) => item.id === requested) ? requested : "visao-geral";
+  });
+
+  useEffect(() => {
+    const sync = () => {
+      const params = new URLSearchParams(window.location.search);
+      setSelectedMentee(params.get("mentee"));
+      const requested = params.get("tab") as MenteeProfileTab;
+      setProfileTab(
+        menteeProfileTabs.some((item) => item.id === requested) ? requested : "visao-geral",
+      );
+    };
+    window.addEventListener("popstate", sync);
+    return () => window.removeEventListener("popstate", sync);
+  }, []);
+
+  function setProfile(enrollmentId: string | null, tab: MenteeProfileTab = "visao-geral") {
+    const url = new URL(window.location.href);
+    if (enrollmentId) {
+      url.searchParams.set("view", "alunas");
+      url.searchParams.set("mentee", enrollmentId);
+      url.searchParams.set("tab", tab);
+    } else {
+      url.searchParams.delete("mentee");
+      url.searchParams.delete("tab");
+    }
+    window.history.pushState({}, "", url);
+    setSelectedMentee(enrollmentId);
+    setProfileTab(tab);
+  }
 
   async function update(
     enrollmentId: string,
     patch: {
       cohortId?: string | null;
-      mentorId?: string | null;
       status?: "ativa" | "pausada" | "desativada";
     },
   ) {
@@ -1523,15 +1635,117 @@ function MembersPanel() {
       (s) => s.enrollment_id === enrollmentId && s.deliverable?.phase?.month_number === month,
     )?.status ?? "nao_iniciada";
 
+  const activeEnrollment = dir?.enrollments.find((entry) => entry.id === selectedMentee);
+  if (activeEnrollment)
+    return (
+      <MenteeProfilePage
+        enrollment={activeEnrollment}
+        tab={profileTab}
+        onTab={(tab) => setProfile(activeEnrollment.id, tab)}
+        onBack={() => setProfile(null)}
+      />
+    );
+
   return (
     <main className="inner-page">
       <Intro
         eyebrow="Gestão"
-        title="Alunas e turmas"
-        copy="Cadastre pessoas, organize as turmas e defina quem acompanha cada mentorada."
+        title="Pessoas, acessos e turmas"
+        copy="Administre cada conceito em sua área, usando os mesmos perfis oficiais."
       />
       <section className="page-width ops-section">
-        <div className="section-heading">
+        <nav className="ops-subnav" aria-label="Administração de pessoas">
+          <button
+            type="button"
+            className={adminSection === "perfis" ? "is-active" : ""}
+            onClick={() => setAdminSection("perfis")}
+          >
+            Perfis e mentoradas
+          </button>
+          <button
+            type="button"
+            className={adminSection === "acessos" ? "is-active" : ""}
+            onClick={() => setAdminSection("acessos")}
+          >
+            Acessos
+          </button>
+          <button
+            type="button"
+            className={adminSection === "turmas" ? "is-active" : ""}
+            onClick={() => setAdminSection("turmas")}
+          >
+            Turmas
+          </button>
+        </nav>
+
+        {adminSection === "acessos" ? (
+          <div className="ops-table-wrap ops-admin-panel">
+            <div className="section-heading">
+              <div>
+                <h2>Gestão de acessos</h2>
+                <p>Convites, status e credenciais, separados das matrículas.</p>
+              </div>
+              <button type="button" onClick={() => setMemberOpen(true)}>
+                <Plus size={16} /> Cadastrar pessoa
+              </button>
+            </div>
+            <table className="ops-table">
+              <thead>
+                <tr>
+                  <th>Pessoa</th>
+                  <th>Tipo</th>
+                  <th>Status</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {dir?.access.map((entry) => (
+                  <tr key={entry.id}>
+                    <td>
+                      <strong>{entry.name}</strong>
+                      <small>{entry.email}</small>
+                    </td>
+                    <td>{entry.role === "mentee" ? "Mentorada" : "Mentora · Administradora"}</td>
+                    <td>
+                      <span className={`ops-tag ops-tag--${entry.status}`}>
+                        {entry.status === "ativo"
+                          ? "Ativo"
+                          : entry.status === "revogado"
+                            ? "Revogado"
+                            : "Convite pendente"}
+                      </span>
+                    </td>
+                    <td className="ops-actions">
+                      {entry.email ? (
+                        <button type="button" onClick={() => void reset(entry.email, entry.name)}>
+                          Enviar nova senha
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const enabled = entry.status === "revogado";
+                          if (
+                            !window.confirm(
+                              `${enabled ? "Ativar" : "Revogar"} o acesso de ${entry.name}?`,
+                            )
+                          )
+                            return;
+                          await updateAccessFn({ data: { accessId: entry.id, enabled } });
+                          await qc.invalidateQueries({ queryKey: ["directory"] });
+                        }}
+                      >
+                        {entry.status === "revogado" ? "Ativar acesso" : "Revogar acesso"}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
+
+        <div className="section-heading" hidden={adminSection !== "turmas"}>
           <div>
             <h2>Turmas</h2>
           </div>
@@ -1539,8 +1753,10 @@ function MembersPanel() {
             <Plus size={16} /> Nova turma
           </button>
         </div>
-        {cohortOpen ? <CohortForm onDone={() => setCohortOpen(false)} /> : null}
-        <div className="ops-cohorts">
+        {cohortOpen && adminSection === "turmas" ? (
+          <CohortForm onDone={() => setCohortOpen(false)} />
+        ) : null}
+        <div className="ops-cohorts" hidden={adminSection !== "turmas"}>
           {dir?.cohorts.map((c) => (
             <article key={c.id} className="admin-card">
               <strong>{c.name}</strong>
@@ -1558,7 +1774,7 @@ function MembersPanel() {
           ))}
         </div>
 
-        <div className="section-heading ops-gap">
+        <div className="section-heading ops-gap" hidden={adminSection !== "perfis"}>
           <div>
             <h2>Pilares e assuntos</h2>
             <p>Opções usadas no cadastro das mentoras.</p>
@@ -1567,8 +1783,10 @@ function MembersPanel() {
             <Plus size={16} /> Novo pilar ou assunto
           </button>
         </div>
-        {specialtyOpen ? <SpecialtyForm onDone={() => setSpecialtyOpen(false)} /> : null}
-        <div className="ops-specialties">
+        {specialtyOpen && adminSection === "perfis" ? (
+          <SpecialtyForm onDone={() => setSpecialtyOpen(false)} />
+        ) : null}
+        <div className="ops-specialties" hidden={adminSection !== "perfis"}>
           {dir?.specialties.map((specialty) => (
             <span key={specialty.id}>
               {specialty.name}
@@ -1577,7 +1795,7 @@ function MembersPanel() {
           ))}
         </div>
 
-        <div className="section-heading ops-gap">
+        <div className="section-heading ops-gap" hidden={adminSection !== "perfis"}>
           <div>
             <h2>Mentoradas</h2>
             <p>Avanço na trilha e status da entrega do mês atual.</p>
@@ -1586,16 +1804,15 @@ function MembersPanel() {
             <Plus size={16} /> Cadastrar pessoa
           </button>
         </div>
-        <div className="ops-table-wrap">
+        <div className="ops-table-wrap" hidden={adminSection !== "perfis"}>
           <table className="ops-table">
             <thead>
               <tr>
                 <th>Mentorada</th>
                 <th>Turma</th>
-                <th>Mentora</th>
                 <th>Avanço</th>
                 <th>Entrega do mês</th>
-                <th>Acesso</th>
+                <th>Matrícula</th>
                 <th />
               </tr>
             </thead>
@@ -1606,13 +1823,11 @@ function MembersPanel() {
                     <button
                       type="button"
                       className="x-namebtn"
-                      onClick={() => setGoalsOf({ id: e.id, name: e.name })}
-                      title="Ver RISE 90"
+                      onClick={() => setProfile(e.id)}
+                      title="Abrir perfil completo"
                     >
                       <strong>{e.name}</strong>
-                      <small>
-                        {e.email || e.profession ? `${e.email || e.profession} · ` : ""}RISE 90
-                      </small>
+                      <small>{e.profession || e.email}</small>
                     </button>
                   </td>
                   <td>
@@ -1624,19 +1839,6 @@ function MembersPanel() {
                       {dir.cohorts.map((c) => (
                         <option key={c.id} value={c.id}>
                           {c.name}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td>
-                    <select
-                      value={e.mentorId ?? ""}
-                      onChange={(ev) => void update(e.id, { mentorId: ev.target.value || null })}
-                    >
-                      <option value="">Não definida</option>
-                      {dir.staff.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.name}
                         </option>
                       ))}
                     </select>
@@ -1683,18 +1885,8 @@ function MembersPanel() {
                         Desativar
                       </button>
                     ) : null}
-                    <button
-                      type="button"
-                      disabled={!e.email}
-                      onClick={() => e.email && void reset(e.email, e.name)}
-                    >
-                      Enviar nova senha
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setAssessmentOf({ id: e.id, name: e.name })}
-                    >
-                      Mapeamento
+                    <button type="button" onClick={() => setProfile(e.id)}>
+                      Abrir perfil
                     </button>
                   </td>
                 </tr>
@@ -1702,15 +1894,16 @@ function MembersPanel() {
             </tbody>
           </table>
         </div>
-        <div className="section-heading ops-gap">
+        <div className="section-heading ops-gap" hidden={adminSection !== "perfis"}>
           <div>
             <h2>Equipe</h2>
             <p>Mentoras com acesso administrativo completo.</p>
           </div>
         </div>
-        <div className="ops-cohorts">
+        <div className="ops-cohorts" hidden={adminSection !== "perfis"}>
           {dir?.staff.map((s) => (
             <article key={s.id} className="admin-card">
+              <Avatar name={s.name} url={s.avatarUrl} size={56} />
               <strong>{s.name}</strong>
               <small className="ops-muted">{s.email}</small>
               <span>
@@ -1722,20 +1915,6 @@ function MembersPanel() {
         </div>
       </section>
       {memberOpen ? <MemberForm onDone={() => setMemberOpen(false)} /> : null}
-      {goalsOf ? (
-        <Rise90StaffDrawer
-          enrollmentId={goalsOf.id}
-          name={goalsOf.name}
-          onClose={() => setGoalsOf(null)}
-        />
-      ) : null}
-      {assessmentOf ? (
-        <AssessmentMentorDrawer
-          enrollmentId={assessmentOf.id}
-          name={assessmentOf.name}
-          onClose={() => setAssessmentOf(null)}
-        />
-      ) : null}
     </main>
   );
 }
@@ -1792,14 +1971,18 @@ function StaffOverview({ onView }: { onView: (v: StaffView) => void }) {
         </div>
         <div className="people-table">
           {dir?.enrollments.map((e) => (
-            <article key={e.id}>
-              <span className="profile-avatar">
-                {e.name
-                  .split(" ")
-                  .map((p) => p[0])
-                  .slice(0, 2)
-                  .join("")}
-              </span>
+            <article
+              key={e.id}
+              onClick={() => {
+                const url = new URL(window.location.href);
+                url.searchParams.set("view", "alunas");
+                url.searchParams.set("mentee", e.id);
+                url.searchParams.set("tab", "visao-geral");
+                window.history.pushState({}, "", url);
+                onView("alunas");
+              }}
+            >
+              <Avatar name={e.name} url={e.avatarUrl} size={48} />
               <div>
                 <strong>{e.name}</strong>
                 <small>
