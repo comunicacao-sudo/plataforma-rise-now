@@ -4412,35 +4412,70 @@ hr,
   max-width: 760px;
 }
 
-/* Home da mentorada: usa exatamente o fundo fixo oficial da plataforma.
-   O hero não aplica uma segunda arte, gradiente ou ilustração por cima do fundo. */
-.platform-shell--mentee[data-theme="dark"] .next-step-hero {
-  background: transparent;
-}
-.platform-shell--mentee[data-theme="dark"] .next-step-hero__art {
-  display: none;
-}
-.platform-shell--mentee[data-theme="dark"] .next-step-hero::after {
-  display: none;
-}
-
-/* Home da mentorada — arte escura oficial aprovada. */
+/* Home da mentorada — a arte especial pertence SOMENTE ao hero.
+   O restante da página volta a usar o fundo oficial da plataforma. */
 .platform-shell--mentee[data-theme="dark"] .mentee-home-view {
   min-height: calc(100vh - 72px);
-  background-color: #26312f;
-  background-image: url("/brand/mentee-home-dark.webp");
-  background-position: top center;
-  background-size: cover;
-  background-repeat: no-repeat;
-  background-attachment: fixed;
-}
-.platform-shell--mentee[data-theme="dark"] .mentee-home-view .dashboard-body {
   background: transparent;
 }
-@media (max-width: 820px) {
-  .platform-shell--mentee[data-theme="dark"] .mentee-home-view {
-    background-attachment: scroll;
-    background-position: top center;
+
+.platform-shell--mentee[data-theme="dark"] .next-step-hero {
+  background: #26312f;
+}
+
+.platform-shell--mentee[data-theme="dark"] .next-step-hero__art {
+  display: block;
+  background-color: #26312f;
+  background-image:
+    url("/brand/mentee-home-dark.webp"),
+    url("/brand/platform-dark.png");
+  background-repeat: no-repeat, no-repeat;
+  background-position: right center, center center;
+  /*
+   * A arte aprovada atual tem 800x450. Em vez de esticá-la como "cover" sobre
+   * toda a página, mantemos a escala controlada para preservar a nitidez.
+   * O PNG oficial da plataforma funciona como base de alta resolução.
+   */
+  background-size: min(62vw, 1100px) auto, cover;
+}
+
+.platform-shell--mentee[data-theme="dark"] .next-step-hero::after {
+  display: block;
+  background: linear-gradient(
+    90deg,
+    rgba(38, 49, 47, 0.34) 0%,
+    rgba(38, 49, 47, 0.14) 42%,
+    rgba(38, 49, 47, 0) 70%
+  );
+}
+
+.platform-shell--mentee[data-theme="dark"] .mentee-home-view .dashboard-body {
+  /*
+   * Transparente de propósito: quem aparece daqui para baixo é o fundo oficial
+   * configurado no .platform-shell[data-theme="dark"].
+   */
+  background: transparent;
+}
+
+@media (max-width: 900px) {
+  .platform-shell--mentee[data-theme="dark"] .next-step-hero__art {
+    background-position: 72% center, center center;
+    background-size: auto 100%, cover;
+  }
+}
+
+@media (max-width: 640px) {
+  .platform-shell--mentee[data-theme="dark"] .next-step-hero__art {
+    background-position: 72% center, center center;
+    background-size: auto 78%, cover;
+  }
+  .platform-shell--mentee[data-theme="dark"] .next-step-hero::after {
+    background: linear-gradient(
+      180deg,
+      rgba(38, 49, 47, 0.08) 0%,
+      rgba(38, 49, 47, 0.34) 58%,
+      rgba(38, 49, 47, 0.62) 100%
+    );
   }
 }
 
