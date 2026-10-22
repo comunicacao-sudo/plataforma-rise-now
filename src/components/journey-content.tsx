@@ -26,7 +26,10 @@ import {
   getJourneyStudyState,
   saveJourneyContentNote,
   saveJourneyContentProgress,
+  getStageQuestionnaireResponse,
+  submitStageQuestionnaire,
   type JourneyContentItem,
+  type StageQuestion,
 } from "@/lib/content.functions";
 
 type JourneyMarker = {
@@ -61,6 +64,104 @@ function formatTime(value: number) {
   const total = Math.max(0, Math.floor(value));
   const minutes = Math.floor(total / 60);
   return `${String(minutes).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
+
+function StageQuestionnaire({
+  contentId,
+  questions,
+}: {
+  contentId: string;
+  questions: StageQuestion[];
+}) {
+  const load = useServerFn(getStageQuestionnaireResponse);
+  const submit = useServerFn(submitStageQuestionnaire);
+  const qc = useQueryClient();
+  const query = useQuery({
+    queryKey: ["stage-questionnaire", contentId],
+    queryFn: () => load({ data: { contentId } }),
+  });
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (query.data?.answers) setAnswers(query.data.answers);
+  }, [query.data?.answers]);
+
+  async function send() {
+    setBusy(true);
+    setMessage("");
+    try {
+      await submit({ data: { contentId, answers } });
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["stage-questionnaire", contentId] }),
+        qc.invalidateQueries({ queryKey: ["journey-study"] }),
+        qc.invalidateQueries({ queryKey: ["journey-content-library"] }),
+      ]);
+      setMessage("Questionário enviado com sucesso.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Não foi possível enviar o questionário.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="lesson-summary">
+      <h2>
+        <FileQuestion size={22} /> Questionário
+      </h2>
+      <div className="ops-form">
+        {questions.map((question, index) => (
+          <label className="ops-field" key={question.id}>
+            <span>
+              {index + 1}. {question.prompt}
+              {question.required ? " *" : ""}
+            </span>
+            {question.type === "long_text" ? (
+              <textarea
+                rows={5}
+                value={answers[question.id] ?? ""}
+                onChange={(event) =>
+                  setAnswers((current) => ({ ...current, [question.id]: event.target.value }))
+                }
+              />
+            ) : question.type === "single_choice" ? (
+              <select
+                value={answers[question.id] ?? ""}
+                onChange={(event) =>
+                  setAnswers((current) => ({ ...current, [question.id]: event.target.value }))
+                }
+              >
+                <option value="">Selecione</option>
+                {question.options.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                value={answers[question.id] ?? ""}
+                onChange={(event) =>
+                  setAnswers((current) => ({ ...current, [question.id]: event.target.value }))
+                }
+              />
+            )}
+          </label>
+        ))}
+        {message ? <p className="form-message">{message}</p> : null}
+        <button
+          className="button button--primary"
+          type="button"
+          onClick={() => void send()}
+          disabled={busy}
+        >
+          {busy ? "Enviando…" : query.data?.submitted ? "Atualizar respostas" : "Enviar respostas"}
+        </button>
+      </div>
+    </section>
+  );
 }
 
 export function useJourneyContentLibrary(enabled = true) {
@@ -546,7 +647,11 @@ export function JourneyContentLessonPage({
   )
     return <RiseAssessmentExperience stepKey={item.stepKey} onBack={onBack} />;
 
-  if (item.format === "questionnaire" || item.format === "form")
+  if (
+    (item.format === "questionnaire" || item.format === "form") &&
+    !item.questionnaireId &&
+    item.questionnaireUrl
+  )
     return (
       <main className="inner-page questionnaire-page recorded-background">
         <div className="page-width">
@@ -560,19 +665,11 @@ export function JourneyContentLessonPage({
             <h1>{item.title}</h1>
             <p>{item.description}</p>
           </header>
-          {item.questionnaireUrl ? (
-            <iframe
-              title={item.title}
-              src={item.questionnaireUrl}
-              sandbox="allow-forms allow-scripts allow-same-origin allow-popups"
-            />
-          ) : (
-            <div className="journey-content-state">
-              <FileQuestion size={30} />
-              <h2>Questionário em breve</h2>
-              <p>A aplicação ainda não foi vinculada a esta etapa.</p>
-            </div>
-          )}
+          <iframe
+            title={item.title}
+            src={item.questionnaireUrl}
+            sandbox="allow-forms allow-scripts allow-same-origin allow-popups"
+          />
         </div>
       </main>
     );
@@ -614,7 +711,8 @@ export function JourneyContentLessonPage({
         </header>
         <div className="recorded-lesson__workspace">
           <section className="recorded-lesson__main">
-            <div className="recorded-player">
+            {(item.resourceType === "r2" || item.mediaUrl) ? (
+              <div className="recorded-player">
               {item.resourceType === "r2" && r2Loading ? (
                 <div className="recorded-player__empty">
                   <span className="eyebrow eyebrow--gold">Acesso privado</span>
@@ -651,7 +749,8 @@ export function JourneyContentLessonPage({
                   <p>Nenhum player é simulado enquanto o vídeo não estiver disponível.</p>
                 </div>
               )}
-            </div>
+              </div>
+            ) : null}
             <section className="lesson-summary">
               <h2>
                 <FileText size={22} /> Resumo executivo
@@ -693,6 +792,12 @@ export function JourneyContentLessonPage({
                 )}
               </div>
             </section>
+            {item.questionnaireId && item.questionnaire?.questions?.length ? (
+              <StageQuestionnaire
+                contentId={item.questionnaireId}
+                questions={item.questionnaire.questions}
+              />
+            ) : null}
           </section>
           <JourneyNotebook item={item} currentTime={currentTime} player={player} />
         </div>
