@@ -24,10 +24,13 @@ import {
   FREQUENCY_OPTIONS,
   IMPORTANCE_OPTIONS,
   calculateAssessment,
+  type AIAssessmentInterpretation,
+  type AIAssessmentView,
   type CalculatedAssessmentResult,
 } from "@/lib/assessment";
 import {
   completeAssessment,
+  generateAssessmentInterpretation,
   getMentorAssessmentProfile,
   getMyAssessmentProfile,
   getMyAssessmentState,
@@ -124,12 +127,125 @@ function EmptyAI({ type }: { type: "actions" | "questions" | "communication" | "
   );
 }
 
+function AIInterpretationPanel({
+  analysis,
+  mentor,
+  busy,
+  onGenerate,
+}: {
+  analysis?: AIAssessmentView | null;
+  mentor: boolean;
+  busy: boolean;
+  onGenerate: (force: boolean) => void;
+}) {
+  const output = analysis?.output as Partial<AIAssessmentInterpretation> | null | undefined;
+  if (!analysis || analysis.status === "unavailable")
+    return (
+      <section className="assessment-ai-panel assessment-ai-panel--pending">
+        <Sparkles size={24} />
+        <div>
+          <span>Interpretação RISE</span>
+          <h3>Análise pronta para ser gerada</h3>
+          <p>
+            As pontuações determinísticas já estão preservadas. A interpretação usa somente esse
+            resultado.
+          </p>
+        </div>
+        <button type="button" disabled={busy} onClick={() => onGenerate(false)}>
+          {busy ? "Gerando…" : "Gerar interpretação"}
+        </button>
+      </section>
+    );
+  if (analysis.status === "pending")
+    return (
+      <section className="assessment-ai-panel assessment-ai-panel--pending">
+        <Sparkles size={24} />
+        <div>
+          <span>Interpretação RISE</span>
+          <h3>Análise em processamento</h3>
+          <p>O mapeamento já está concluído e suas pontuações não serão alteradas.</p>
+        </div>
+      </section>
+    );
+  if (analysis.status === "failed")
+    return (
+      <section className="assessment-ai-panel assessment-ai-panel--failed">
+        <Sparkles size={24} />
+        <div>
+          <span>Interpretação RISE</span>
+          <h3>A análise detalhada continua pendente</h3>
+          <p>O resultado matemático foi salvo normalmente. Nenhum texto substituto foi criado.</p>
+        </div>
+        {analysis.canRetry ? (
+          <button type="button" disabled={busy} onClick={() => onGenerate(false)}>
+            {busy ? "Tentando…" : "Tentar novamente"}
+          </button>
+        ) : null}
+      </section>
+    );
+  if (!output?.summary_for_mentee) return null;
+
+  const sections: Array<[keyof AIAssessmentInterpretation, string]> = [
+    ["strengths", "Forças observadas"],
+    ["competencies", "Competências em evidência"],
+    ["development_points", "Pontos de desenvolvimento"],
+    ["attention_points", "Pontos de atenção"],
+    ["behavior_patterns", "Padrões comportamentais"],
+    ["development_recommendations", "Recomendações de desenvolvimento"],
+    ["mentor_guidance", "Orientações para a mentoria"],
+  ];
+  return (
+    <section className="assessment-ai-panel assessment-ai-panel--generated">
+      <header>
+        <div>
+          <Sparkles size={24} />
+          <span>Interpretação RISE · {analysis.promptVersion}</span>
+        </div>
+        {mentor && analysis.canRetry ? (
+          <button type="button" disabled={busy} onClick={() => onGenerate(true)}>
+            {busy ? "Regenerando…" : "Regenerar interpretação"}
+          </button>
+        ) : null}
+      </header>
+      <h3>{output.profile_essence ?? "Leitura personalizada"}</h3>
+      <p>{output.summary_for_mentee}</p>
+      <div className="assessment-ai-panel__grid">
+        {sections.map(([key, title]) => {
+          const values = output[key];
+          if (!Array.isArray(values) || !values.length || key === "evidence_notes") return null;
+          return (
+            <article key={key}>
+              <strong>{title}</strong>
+              <ul>
+                {(values as string[]).map((value) => (
+                  <li key={value}>{value}</li>
+                ))}
+              </ul>
+            </article>
+          );
+        })}
+      </div>
+      {mentor && output.evidence_notes?.length ? (
+        <details>
+          <summary>Evidências para revisão da equipe</summary>
+          {output.evidence_notes.map((item) => (
+            <p key={`${item.note}-${item.evidence_ids.join("-")}`}>
+              {item.note} <small>{item.evidence_ids.join(", ")}</small>
+            </p>
+          ))}
+        </details>
+      ) : null}
+    </section>
+  );
+}
+
 function AssessmentReport({
   result,
   full,
   attempt,
   attempts = [],
   plans = [],
+  aiAnalysis,
   mentor = false,
   enrollmentId,
   onChanged,
@@ -139,6 +255,7 @@ function AssessmentReport({
   attempt: AttemptView;
   attempts?: AttemptView[];
   plans?: DevelopmentPlanView[];
+  aiAnalysis?: AIAssessmentView | null;
   mentor?: boolean;
   enrollmentId?: string | undefined;
   onChanged?: (() => void) | undefined;
@@ -146,8 +263,10 @@ function AssessmentReport({
   const [tab, setTab] = useState<ReportTab>("Visão geral");
   const [previewRelease, setPreviewRelease] = useState(false);
   const release = useServerFn(releaseAssessmentReport);
+  const generateAI = useServerFn(generateAssessmentInterpretation);
   const savePlan = useServerFn(saveAssessmentDevelopmentPlan);
   const [busy, setBusy] = useState(false);
+  const [aiBusy, setAiBusy] = useState(false);
   const [planOpen, setPlanOpen] = useState(false);
   const [plan, setPlan] = useState({
     priorityFocus: "",
@@ -213,6 +332,22 @@ function AssessmentReport({
       setBusy(false);
     }
   }
+  async function generateInterpretation(force: boolean) {
+    if (
+      force &&
+      !window.confirm(
+        "Gerar novamente esta interpretação? A versão atual será substituída, sem alterar nenhuma pontuação.",
+      )
+    )
+      return;
+    setAiBusy(true);
+    try {
+      await generateAI({ data: { attemptId: attempt.id, force } });
+      onChanged?.();
+    } finally {
+      setAiBusy(false);
+    }
+  }
 
   return (
     <div className="assessment-report">
@@ -249,6 +384,12 @@ function AssessmentReport({
           </button>
         </div>
       ) : null}
+      <AIInterpretationPanel
+        analysis={aiAnalysis ?? null}
+        mentor={mentor}
+        busy={aiBusy}
+        onGenerate={(force) => void generateInterpretation(force)}
+      />
       <nav className="assessment-tabs" aria-label="Seções do mapeamento">
         {visibleTabs.map((item) => (
           <button
@@ -917,6 +1058,8 @@ function AssessmentProfilePage({
               attempt={latest}
               attempts={query.data?.attempts ?? []}
               plans={query.data?.plans ?? []}
+              aiAnalysis={query.data?.aiAnalysis ?? null}
+              onChanged={() => void query.refetch()}
             />
             {onRetake ? (
               <div className="assessment-retake">
@@ -992,6 +1135,7 @@ export function AssessmentMentorContent({
           attempt={query.data.latest}
           attempts={query.data.attempts ?? []}
           plans={query.data.plans ?? []}
+          aiAnalysis={query.data.aiAnalysis ?? null}
           onChanged={() => void query.refetch()}
         />
       ) : (
@@ -1066,6 +1210,7 @@ export function AssessmentVisualPreview() {
             assessment_version: result.assessmentVersion,
             report_status: "full_report_locked",
           }}
+          aiAnalysis={null}
         />
       </div>
     </main>

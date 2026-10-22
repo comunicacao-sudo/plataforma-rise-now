@@ -5,6 +5,9 @@ export const getMyAssessmentState: any = createEdgeFunction("getMyAssessmentStat
 export const startAssessment: any = createEdgeFunction("startAssessment");
 export const saveAssessmentAnswer: any = createEdgeFunction("saveAssessmentAnswer");
 export const completeAssessment: any = createEdgeFunction("completeAssessment");
+export const generateAssessmentInterpretation: any = createEdgeFunction(
+  "generateAssessmentInterpretation",
+);
 export const getMyAssessmentProfile: any = createEdgeFunction("getMyAssessmentProfile");
 export const getMentorAssessmentProfile: any = createEdgeFunction("getMentorAssessmentProfile");
 export const releaseAssessmentReport: any = createEdgeFunction("releaseAssessmentReport");

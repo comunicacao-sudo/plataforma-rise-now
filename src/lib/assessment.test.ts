@@ -3,11 +3,15 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
+  AI_MENTEE_RELEASE_SECTIONS,
   ASSESSMENT_QUESTIONS,
   ASSESSMENT_VERSION,
+  PROMPT_VERSION,
   SCORING_VERSION,
   calculateAssessment,
   filterAssessmentResultForAudience,
+  parseAIAssessmentInterpretation,
+  projectAIAssessmentSections,
 } from "./assessment";
 
 const answers = (value: number) =>
@@ -101,4 +105,57 @@ test("etapa do mapeamento permanece logo após o Mapa de Esclarecimento", () => 
   assert.match(sql, /Mapa de Esclarecimento/i);
   assert.match(sql, /assessment_position <> map_position \+ 1/i);
   assert.match(sql, /set position = map_position \+ 1/i);
+});
+
+const aiFixture = {
+  summary_for_mentee: "Resumo seguro para a mentorada.",
+  profile_essence: "Essência exploratória do perfil.",
+  strengths: ["Força baseada no resultado."],
+  competencies: ["Competência observada."],
+  development_points: ["Ponto de desenvolvimento."],
+  attention_points: ["Ponto de atenção."],
+  behavior_patterns: ["Padrão relatado."],
+  development_recommendations: ["Recomendação prática."],
+  mentor_guidance: ["Orientação exclusiva para a mentoria."],
+  evidence_notes: [{ note: "Leitura apoiada pelas respostas.", evidence_ids: ["N01", "A01"] }],
+};
+
+test("contrato da interpretação aceita somente a saída estruturada completa", () => {
+  assert.deepEqual(parseAIAssessmentInterpretation(aiFixture), aiFixture);
+  assert.throws(
+    () => parseAIAssessmentInterpretation({ ...aiFixture, strengths: "não é um array" }),
+    /formato inválido/i,
+  );
+  assert.throws(
+    () => parseAIAssessmentInterpretation({ ...aiFixture, summary_for_mentee: "" }),
+    /resumos obrigatórios/i,
+  );
+});
+
+test("projeção da mentorada nunca inclui orientação privada nem notas de evidência", () => {
+  const projected = projectAIAssessmentSections(aiFixture, AI_MENTEE_RELEASE_SECTIONS);
+  assert.equal(projected.summary_for_mentee, aiFixture.summary_for_mentee);
+  assert.equal("mentor_guidance" in projected, false);
+  assert.equal("evidence_notes" in projected, false);
+});
+
+test("integração de IA usa Responses API no backend e mantém idempotência no banco", () => {
+  const backend = readFileSync(
+    new URL("../../supabase/functions/rise-backend/index.ts", import.meta.url),
+    "utf8",
+  );
+  const migration = readFileSync(
+    new URL("../../drizzle/migrations/0031_assessment_ai_idempotency.sql", import.meta.url),
+    "utf8",
+  );
+  assert.match(backend, /https:\/\/api\.openai\.com\/v1\/responses/);
+  assert.match(backend, /Deno\.env\.get\("OPENAI_API_KEY"\)/);
+  assert.match(backend, /Deno\.env\.get\("OPENAI_MODEL"\)/);
+  assert.match(backend, /type:\s*"json_schema"/);
+  assert.match(backend, /strict:\s*true/);
+  assert.match(backend, /store:\s*false/);
+  assert.match(backend, /queueAssessmentAISafely/);
+  assert.match(migration, /unique index/i);
+  assert.match(migration, /attempt_id, audience, prompt_version/i);
+  assert.equal(PROMPT_VERSION, "rise-insights-1.0");
 });

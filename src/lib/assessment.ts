@@ -1,6 +1,143 @@
 export const ASSESSMENT_VERSION = "rise-behavioral-1.0";
 export const SCORING_VERSION = "rise-scoring-1.0";
-export const PROMPT_VERSION = "rise-insights-pending-1.0";
+export const PROMPT_VERSION = "rise-insights-1.0";
+export const AI_OUTPUT_SCHEMA_VERSION = "rise-ai-output-1.0";
+
+export const AI_MENTEE_RELEASE_SECTIONS = [
+  "summary_for_mentee",
+  "profile_essence",
+  "strengths",
+  "competencies",
+  "development_points",
+  "attention_points",
+  "behavior_patterns",
+  "development_recommendations",
+] as const;
+
+export const AI_MENTOR_SECTIONS = [
+  ...AI_MENTEE_RELEASE_SECTIONS,
+  "mentor_guidance",
+  "evidence_notes",
+] as const;
+
+export type AIAssessmentEvidenceNote = {
+  note: string;
+  evidence_ids: string[];
+};
+
+export type AIAssessmentInterpretation = {
+  summary_for_mentee: string;
+  profile_essence: string;
+  strengths: string[];
+  competencies: string[];
+  development_points: string[];
+  attention_points: string[];
+  behavior_patterns: string[];
+  development_recommendations: string[];
+  mentor_guidance: string[];
+  evidence_notes: AIAssessmentEvidenceNote[];
+};
+
+export type StoredAIAssessmentInterpretation = AIAssessmentInterpretation & {
+  _meta: {
+    model: string;
+    prompt_version: string;
+    schema_version: string;
+    response_id: string;
+  };
+};
+
+export type AIAssessmentView = {
+  status: "pending" | "generated" | "failed" | "unavailable";
+  promptVersion: string;
+  generatedAt: string | null;
+  authorizedSections: string[];
+  output: Partial<AIAssessmentInterpretation> | StoredAIAssessmentInterpretation | null;
+  canRetry: boolean;
+};
+
+export const AI_ASSESSMENT_OUTPUT_JSON_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: [...AI_MENTOR_SECTIONS],
+  properties: {
+    summary_for_mentee: { type: "string", minLength: 1 },
+    profile_essence: { type: "string", minLength: 1 },
+    strengths: { type: "array", items: { type: "string", minLength: 1 } },
+    competencies: { type: "array", items: { type: "string", minLength: 1 } },
+    development_points: { type: "array", items: { type: "string", minLength: 1 } },
+    attention_points: { type: "array", items: { type: "string", minLength: 1 } },
+    behavior_patterns: { type: "array", items: { type: "string", minLength: 1 } },
+    development_recommendations: {
+      type: "array",
+      items: { type: "string", minLength: 1 },
+    },
+    mentor_guidance: { type: "array", items: { type: "string", minLength: 1 } },
+    evidence_notes: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["note", "evidence_ids"],
+        properties: {
+          note: { type: "string", minLength: 1 },
+          evidence_ids: { type: "array", items: { type: "string", minLength: 1 } },
+        },
+      },
+    },
+  },
+} as const;
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every(isNonEmptyString);
+}
+
+export function parseAIAssessmentInterpretation(value: unknown): AIAssessmentInterpretation {
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    throw new Error("A interpretação da IA não corresponde ao contrato esperado.");
+  const candidate = value as Record<string, unknown>;
+  const arrayFields = AI_MENTOR_SECTIONS.filter(
+    (field) =>
+      field !== "summary_for_mentee" && field !== "profile_essence" && field !== "evidence_notes",
+  );
+  if (
+    !isNonEmptyString(candidate["summary_for_mentee"]) ||
+    !isNonEmptyString(candidate["profile_essence"])
+  )
+    throw new Error("A interpretação da IA não contém os resumos obrigatórios.");
+  if (arrayFields.some((field) => !isStringArray(candidate[field])))
+    throw new Error("A interpretação da IA contém uma seção em formato inválido.");
+  if (
+    !Array.isArray(candidate["evidence_notes"]) ||
+    candidate["evidence_notes"].some(
+      (item) =>
+        !item ||
+        typeof item !== "object" ||
+        Array.isArray(item) ||
+        !isNonEmptyString((item as Record<string, unknown>)["note"]) ||
+        !isStringArray((item as Record<string, unknown>)["evidence_ids"]),
+    )
+  )
+    throw new Error("As evidências da interpretação da IA estão em formato inválido.");
+  return candidate as AIAssessmentInterpretation;
+}
+
+export function projectAIAssessmentSections(
+  output: AIAssessmentInterpretation | StoredAIAssessmentInterpretation,
+  sections: readonly string[],
+): Partial<AIAssessmentInterpretation> {
+  const allowed = new Set(sections);
+  return Object.fromEntries(
+    AI_MENTOR_SECTIONS.filter((section) => allowed.has(section)).map((section) => [
+      section,
+      output[section],
+    ]),
+  ) as Partial<AIAssessmentInterpretation>;
+}
 
 export type AssessmentPerspective = "natural" | "adapted" | "motivation" | "leadership";
 
