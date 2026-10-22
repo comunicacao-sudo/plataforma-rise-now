@@ -32,14 +32,14 @@ function base64Metadata(value: string) {
 }
 
 function uploadMetadata(options: ResumableUploadOptions) {
-  return [
+  const metadata: Array<readonly [string, string]> = [
     ["bucketName", options.bucketName],
     ["objectName", options.objectPath],
     ["contentType", options.file.type || "application/octet-stream"],
     ["cacheControl", "3600"],
-  ]
-    .map(([key, value]) => `${key} ${base64Metadata(value)}`)
-    .join(",");
+  ];
+
+  return metadata.map(([key, value]) => `${key} ${base64Metadata(value)}`).join(",");
 }
 
 function abortError() {
@@ -80,7 +80,7 @@ async function createUpload(options: ResumableUploadOptions) {
       "Upload-Metadata": uploadMetadata(options),
       "x-signature": options.token,
     },
-    signal: options.signal,
+    signal: options.signal ?? null,
   });
 
   if (!response.ok) {
@@ -103,7 +103,7 @@ async function getServerOffset(uploadUrl: string, token: string, signal?: AbortS
       "Tus-Resumable": TUS_VERSION,
       "x-signature": token,
     },
-    signal,
+    signal: signal ?? null,
   });
 
   if (!response.ok) throw new Error("Não foi possível consultar o ponto de retomada do upload.");
@@ -192,8 +192,9 @@ export async function uploadSignedResumable(options: ResumableUploadOptions) {
     let lastError: unknown = null;
 
     for (let attempt = 0; attempt < RETRY_DELAYS.length && !completedChunk; attempt += 1) {
-      if (RETRY_DELAYS[attempt]) {
-        await sleep(RETRY_DELAYS[attempt], options.signal);
+      const retryDelay = RETRY_DELAYS[attempt] ?? 0;
+      if (retryDelay) {
+        await sleep(retryDelay, options.signal);
       }
 
       const end = Math.min(offset + CHUNK_SIZE, options.file.size);

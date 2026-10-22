@@ -7821,7 +7821,7 @@ hr,
 }
 .platform-shell .next-step-hero__art {
   background-color: #26312f;
-  background-image: url("/brand/mentee-next-step-dark.webp");
+  background-image: url("/images/rise-next-step-bg.png");
   background-repeat: no-repeat;
   background-position: center center;
   background-size: cover;
@@ -7929,7 +7929,7 @@ hr,
   color: #d7b07a;
 }
 .platform-shell[data-theme="light"] .next-step-hero__art {
-  background-image: url("/brand/mentee-next-step-dark.webp");
+  background-image: url("/images/rise-next-step-bg.png");
 }
 .platform-shell[data-theme="light"] .next-step-hero {
   background: #26312f;

@@ -153,10 +153,7 @@ function StepForm({
     }));
   }
 
-  async function upload(
-    file: File,
-    kind: "cover-light" | "cover-dark" | "media" | "material",
-  ) {
+  async function upload(file: File, kind: "cover-light" | "cover-dark" | "media" | "material") {
     setUploading(kind);
     setUploadError("");
     try {
@@ -176,8 +173,7 @@ function StepForm({
           file,
           token: signed.token,
           onProgress: (uploadedBytes, totalBytes) => {
-            const percentage =
-              totalBytes > 0 ? Math.round((uploadedBytes / totalBytes) * 100) : 0;
+            const percentage = totalBytes > 0 ? Math.round((uploadedBytes / totalBytes) * 100) : 0;
             setUploadProgress(Math.max(0, Math.min(100, percentage)));
           },
         });
@@ -312,8 +308,9 @@ function StepForm({
         <fieldset className="journey-cover-fieldset">
           <legend>Capas do card</legend>
           <p className="journey-field-help">
-            Cadastre uma arte para cada tema. A plataforma exibe automaticamente a capa correspondente
-            ao tema claro ou escuro escolhido por mentorados e mentoras. PNG, JPG ou WebP.
+            Cadastre uma arte para cada tema. A plataforma exibe automaticamente a capa
+            correspondente ao tema claro ou escuro escolhido por mentorados e mentoras. PNG, JPG ou
+            WebP.
           </p>
 
           <div className="journey-theme-cover">
@@ -321,7 +318,7 @@ function StepForm({
               <strong>Tema claro</strong>
               <span>Usada quando a plataforma estiver no tema claro</span>
             </div>
-            {step.coverUrlLight ?? step.coverUrl ? (
+            {(step.coverUrlLight ?? step.coverUrl) ? (
               <div className="journey-cover-preview">
                 <img
                   src={step.coverUrlLight ?? step.coverUrl ?? ""}
@@ -360,7 +357,7 @@ function StepForm({
               <strong>Tema escuro</strong>
               <span>Usada quando a plataforma estiver no tema escuro</span>
             </div>
-            {step.coverUrlDark ?? step.coverUrl ? (
+            {(step.coverUrlDark ?? step.coverUrl) ? (
               <div className="journey-cover-preview">
                 <img
                   src={step.coverUrlDark ?? step.coverUrl ?? ""}
@@ -508,9 +505,7 @@ function StepForm({
               própria RISE.
             </p>
           ) : (
-            <p className="journey-field-help">
-              Questionários abrem dentro da plataforma.
-            </p>
+            <p className="journey-field-help">Questionários abrem dentro da plataforma.</p>
           )}
           {showMeeting ? (
             <label>
