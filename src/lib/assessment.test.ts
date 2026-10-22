@@ -159,3 +159,20 @@ test("integração de IA usa Responses API no backend e mantém idempotência no
   assert.match(migration, /attempt_id, audience, prompt_version/i);
   assert.equal(PROMPT_VERSION, "rise-insights-1.0");
 });
+
+test("backend usa os nomes reais dos parâmetros dos RPCs da jornada", () => {
+  const backend = readFileSync(
+    new URL("../../supabase/functions/rise-backend/index.ts", import.meta.url),
+    "utf8",
+  );
+  assert.match(
+    backend,
+    /rpc\("save_journey_draft",\s*\{\s*p_pillar_id:[\s\S]*?p_expected_revision:[\s\S]*?p_steps:/,
+  );
+  assert.match(
+    backend,
+    /rpc\("publish_journey_draft",\s*\{\s*p_pillar_id:[\s\S]*?p_expected_revision:[\s\S]*?p_apply_active:/,
+  );
+  assert.doesNotMatch(backend, /rpc\("save_journey_draft",\s*\{\s*_pillar_id:/);
+  assert.doesNotMatch(backend, /rpc\("publish_journey_draft",\s*\{\s*_pillar_id:/);
+});
