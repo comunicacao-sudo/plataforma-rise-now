@@ -74,7 +74,7 @@ function ContentForm({
   pillarId: string;
   step: JourneyDraftStep;
   initial: StageContentItem | null;
-  defaultType?: StageContentItem["contentType"];
+  defaultType?: StageContentItem["contentType"] | undefined;
   cohorts: Array<{ id: string; name: string }>;
   mentees: Array<{ id: string; name: string }>;
   onDone: () => void;
