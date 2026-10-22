@@ -66,6 +66,7 @@ function ContentForm({
   pillarId,
   step,
   initial,
+  defaultType,
   cohorts,
   mentees,
   onDone,
@@ -73,6 +74,7 @@ function ContentForm({
   pillarId: string;
   step: JourneyDraftStep;
   initial: StageContentItem | null;
+  defaultType?: StageContentItem["contentType"];
   cohorts: Array<{ id: string; name: string }>;
   mentees: Array<{ id: string; name: string }>;
   onDone: () => void;
@@ -82,7 +84,7 @@ function ContentForm({
   const qc = useQueryClient();
 
   const [contentType, setContentType] = useState<StageContentItem["contentType"]>(
-    initial?.contentType ?? "video",
+    initial?.contentType ?? defaultType ?? "video",
   );
   const [title, setTitle] = useState(initial?.title ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
@@ -604,28 +606,8 @@ function StageContentManager({
         <ContentForm
           pillarId={pillarId}
           step={step}
-          initial={
-            editing === "new"
-              ? ({
-                  id: "",
-                  pillarId,
-                  stepKey: step.stableKey,
-                  contentType: newType,
-                  title: "",
-                  description: "",
-                  durationMinutes: null,
-                  mediaPath: null,
-                  filePath: null,
-                  externalUrl: null,
-                  questionnaire: { questions: [] },
-                  accessScope: "general",
-                  cohortId: null,
-                  menteeId: null,
-                  position: 0,
-                  active: true,
-                } as StageContentItem)
-              : editing
-          }
+          initial={editing === "new" ? null : editing}
+          defaultType={editing === "new" ? newType : undefined}
           cohorts={cohorts}
           mentees={mentees}
           onDone={() => setEditing(null)}
