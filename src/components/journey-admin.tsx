@@ -623,8 +623,8 @@ export function JourneyAdmin() {
     <main className="inner-page journey-editor-page">
       <div className="page-intro page-width">
         <span className="eyebrow eyebrow--gold">Administração da jornada</span>
-        <h1>Gestão de conteúdos</h1>
-        <p>Organize etapas, capas, aulas, questionários e públicos sem editar código.</p>
+        <h1>Gestão da jornada</h1>
+        <p>Organize a estrutura das etapas, ordem, identificação, capas e textos da jornada.</p>
       </div>
       <section className="page-width journey-editor-toolbar">
         <div>
