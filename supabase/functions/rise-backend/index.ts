@@ -2,6 +2,15 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.117.2";
 import {
+  AbortMultipartUploadCommand,
+  CompleteMultipartUploadCommand,
+  CreateMultipartUploadCommand,
+  GetObjectCommand,
+  S3Client,
+  UploadPartCommand,
+} from "npm:@aws-sdk/client-s3@3.1152.0";
+import { getSignedUrl } from "npm:@aws-sdk/s3-request-presigner@3.1152.0";
+import {
   AI_ASSESSMENT_OUTPUT_JSON_SCHEMA,
   AI_MENTEE_RELEASE_SECTIONS,
   AI_MENTOR_SECTIONS,
@@ -27,6 +36,64 @@ const json = (body: unknown, status = 200) =>
   });
 const fail = (message: string, status = 400) => json({ error: message }, status);
 const env = (name: string) => Deno.env.get(name)?.trim() || null;
+
+const R2_PREFIX = "r2:";
+const R2_MAX_VIDEO_BYTES = 5 * 1024 * 1024 * 1024;
+const R2_PART_SIZE = 16 * 1024 * 1024;
+const R2_GET_URL_SECONDS = 6 * 60 * 60;
+
+function r2Config() {
+  const accountId = env("R2_ACCOUNT_ID");
+  const accessKeyId = env("R2_ACCESS_KEY_ID");
+  const secretAccessKey = env("R2_SECRET_ACCESS_KEY");
+  const bucket = env("R2_BUCKET");
+  if (!accountId || !accessKeyId || !secretAccessKey || !bucket) {
+    throw new Error(
+      "Cloudflare R2 ainda não está configurado. Adicione R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY e R2_BUCKET nos secrets do backend.",
+    );
+  }
+  return { accountId, accessKeyId, secretAccessKey, bucket };
+}
+
+function r2Client() {
+  const config = r2Config();
+  return new S3Client({
+    region: "auto",
+    endpoint: `https://${config.accountId}.r2.cloudflarestorage.com`,
+    credentials: {
+      accessKeyId: config.accessKeyId,
+      secretAccessKey: config.secretAccessKey,
+    },
+  });
+}
+
+function isR2Path(path: unknown): path is string {
+  return typeof path === "string" && path.startsWith(R2_PREFIX);
+}
+
+function r2KeyFromPath(path: string) {
+  return path.slice(R2_PREFIX.length);
+}
+
+function assertR2UploadKey(c: Context, key: string) {
+  const prefix = `media/${c.userId}/`;
+  if (!key.startsWith(prefix) || key.includes("..")) {
+    throw new Error("Caminho de upload do Cloudflare inválido.");
+  }
+}
+
+async function signedR2Get(path: string) {
+  if (!isR2Path(path)) return null;
+  const config = r2Config();
+  return await getSignedUrl(
+    r2Client(),
+    new GetObjectCommand({
+      Bucket: config.bucket,
+      Key: r2KeyFromPath(path),
+    }),
+    { expiresIn: R2_GET_URL_SECONDS },
+  );
+}
 
 function keyFromJson(name: string) {
   const raw = env(name);
@@ -675,7 +742,13 @@ async function loadLibrary(userId: string) {
     const locked =
       s.month_number > enrollment.current_month ||
       (!!s.release_at && Date.parse(s.release_at) > now);
-    if (!locked && typeof s.media_path === "string" && s.media_path) assetPaths.push(s.media_path);
+    if (
+      !locked &&
+      typeof s.media_path === "string" &&
+      s.media_path &&
+      !isR2Path(s.media_path)
+    )
+      assetPaths.push(s.media_path);
     if (!locked && Array.isArray(s.materials)) {
       for (const material of s.materials) {
         if (typeof material?.filePath === "string" && material.filePath) {
@@ -685,6 +758,22 @@ async function loadLibrary(userId: string) {
     }
   }
   const signedUrls = await signedBatch(assetPaths);
+  const r2SignedUrls = new Map<string, string | null>();
+  await Promise.all(
+    allowed.map(async (s: any) => {
+      const locked =
+        s.month_number > enrollment.current_month ||
+        (!!s.release_at && Date.parse(s.release_at) > now);
+      if (!locked && isR2Path(s.media_path)) {
+        try {
+          r2SignedUrls.set(s.media_path, await signedR2Get(s.media_path));
+        } catch (error) {
+          console.error("Cloudflare R2 signed URL error", error);
+          r2SignedUrls.set(s.media_path, null);
+        }
+      }
+    }),
+  );
 
   const items = allowed.map((s: any) => {
     const p = versions.get(s.version_id) ?? { name: "Jornada", position: 999 };
@@ -692,7 +781,11 @@ async function loadLibrary(userId: string) {
       s.month_number > enrollment.current_month ||
       (!!s.release_at && Date.parse(s.release_at) > now);
     const mediaUrl =
-      !locked && typeof s.media_path === "string" ? (signedUrls.get(s.media_path) ?? null) : null;
+      !locked && typeof s.media_path === "string"
+        ? isR2Path(s.media_path)
+          ? (r2SignedUrls.get(s.media_path) ?? null)
+          : (signedUrls.get(s.media_path) ?? null)
+        : null;
     const materials = locked
       ? []
       : (Array.isArray(s.materials) ? s.materials : []).map((m: any, i: number) => ({
@@ -763,6 +856,129 @@ async function requireContent(c: Context, stepKey: string) {
 }
 async function contentAction(c: Context, action: string, d: any) {
   if (action === "getJourneyContentLibrary") return loadLibrary(c.userId);
+
+  if (action === "createR2MultipartUpload") {
+    await requireStaff(c);
+    const video = ["video/mp4", "video/webm", "video/quicktime"].includes(d.contentType);
+    const size = Number(d.size ?? 0);
+    if (!video) throw new Error("A gravação deve ser MP4, WebM ou MOV.");
+    if (!Number.isFinite(size) || size <= 0 || size > R2_MAX_VIDEO_BYTES)
+      throw new Error("Cada aula pode ter no máximo 5 GB.");
+
+    const ext =
+      String(d.fileName)
+        .split(".")
+        .pop()
+        ?.toLowerCase()
+        .replace(/[^a-z0-9]/g, "") || "mp4";
+    const key = `media/${c.userId}/${crypto.randomUUID()}.${ext}`;
+    const config = r2Config();
+    const result = await r2Client().send(
+      new CreateMultipartUploadCommand({
+        Bucket: config.bucket,
+        Key: key,
+        ContentType: d.contentType,
+      }),
+    );
+    if (!result.UploadId) throw new Error("O Cloudflare não iniciou o upload multipart.");
+    return {
+      path: `${R2_PREFIX}${key}`,
+      key,
+      uploadId: result.UploadId,
+      partSize: R2_PART_SIZE,
+    };
+  }
+
+  if (action === "getR2UploadPartUrls") {
+    await requireStaff(c);
+    const key = String(d.key ?? "");
+    const uploadId = String(d.uploadId ?? "");
+    const partNumbers = Array.isArray(d.partNumbers)
+      ? d.partNumbers.map((value: unknown) => Number(value))
+      : [];
+    assertR2UploadKey(c, key);
+    if (!uploadId || !partNumbers.length || partNumbers.length > 50)
+      throw new Error("Lote de partes do upload inválido.");
+    if (
+      partNumbers.some(
+        (partNumber: number) =>
+          !Number.isInteger(partNumber) || partNumber < 1 || partNumber > 10_000,
+      )
+    )
+      throw new Error("Número de parte do upload inválido.");
+
+    const config = r2Config();
+    const client = r2Client();
+    const parts = await Promise.all(
+      partNumbers.map(async (partNumber: number) => ({
+        partNumber,
+        url: await getSignedUrl(
+          client,
+          new UploadPartCommand({
+            Bucket: config.bucket,
+            Key: key,
+            UploadId: uploadId,
+            PartNumber: partNumber,
+          }),
+          { expiresIn: 60 * 60 },
+        ),
+      })),
+    );
+    return { parts };
+  }
+
+  if (action === "completeR2MultipartUpload") {
+    await requireStaff(c);
+    const key = String(d.key ?? "");
+    const uploadId = String(d.uploadId ?? "");
+    assertR2UploadKey(c, key);
+    const parts = Array.isArray(d.parts)
+      ? d.parts
+          .map((part: any) => ({
+            PartNumber: Number(part.partNumber),
+            ETag: String(part.etag ?? ""),
+          }))
+          .filter(
+            (part: any) =>
+              Number.isInteger(part.PartNumber) &&
+              part.PartNumber > 0 &&
+              part.PartNumber <= 10_000 &&
+              part.ETag,
+          )
+          .sort((a: any, b: any) => a.PartNumber - b.PartNumber)
+      : [];
+    if (!uploadId || !parts.length) throw new Error("Upload multipart incompleto.");
+
+    const config = r2Config();
+    await r2Client().send(
+      new CompleteMultipartUploadCommand({
+        Bucket: config.bucket,
+        Key: key,
+        UploadId: uploadId,
+        MultipartUpload: { Parts: parts },
+      }),
+    );
+    return { ok: true, path: `${R2_PREFIX}${key}` };
+  }
+
+  if (action === "abortR2MultipartUpload") {
+    await requireStaff(c);
+    const key = String(d.key ?? "");
+    const uploadId = String(d.uploadId ?? "");
+    assertR2UploadKey(c, key);
+    if (!uploadId) throw new Error("Upload multipart inválido.");
+
+    const config = r2Config();
+    await r2Client().send(
+      new AbortMultipartUploadCommand({
+        Bucket: config.bucket,
+        Key: key,
+        UploadId: uploadId,
+      }),
+    );
+    return { ok: true };
+  }
+
   if (action === "createJourneyUpload") {
     await requireStaff(c);
     const image = ["image/png", "image/jpeg", "image/webp"].includes(d.contentType);
@@ -1835,6 +2051,10 @@ const groups = {
     "addJourneyContentMarker",
     "saveJourneyContentProgress",
     "createJourneyUpload",
+    "createR2MultipartUpload",
+    "getR2UploadPartUrls",
+    "completeR2MultipartUpload",
+    "abortR2MultipartUpload",
   ]),
   assessment: new Set([
     "getMyAssessmentState",
