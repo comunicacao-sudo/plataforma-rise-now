@@ -38,7 +38,7 @@ function uploadMetadata(options: ResumableUploadOptions) {
     ["contentType", options.file.type || "application/octet-stream"],
     ["cacheControl", "3600"],
   ]
-    .map(([key, value]) => `${key} ${base64Metadata(value)}`)
+    .map(([key, value]) => `${key} ${base64Metadata(value ?? "")}`)
     .join(",");
 }
 
