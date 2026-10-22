@@ -8125,9 +8125,8 @@ hr,
 
 /* 2026-10-22 Home da mentorada: arte do broto só no hero, resto com fundo padrão */
 .platform-shell--mentee[data-theme="dark"] .mentee-home-view {
-  background: #26312f;
+  background: transparent;
   background-image: none;
-  background-attachment: scroll;
 }
 .platform-shell--mentee[data-theme="dark"] .app-header {
   background: linear-gradient(to bottom, rgba(38, 49, 47, 0.92), rgba(38, 49, 47, 0.5), transparent);
@@ -8147,7 +8146,7 @@ hr,
 }
 .platform-shell--mentee[data-theme="dark"] .next-step-hero::after {
   display: block;
-  background: linear-gradient(180deg, transparent 72%, #26312f 100%);
+  background: linear-gradient(180deg, transparent 80%, rgba(38, 49, 47, 0.6) 100%);
 }
 .platform-shell--mentee[data-theme="dark"] .next-step-hero__copy {
   width: min(720px, 50vw);
