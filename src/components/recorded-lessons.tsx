@@ -53,7 +53,11 @@ function embedFor(url: string) {
   const drive = url.match(/drive\.google\.com\/file\/d\/([\w-]+)/);
   if (drive)
     return { type: "frame" as const, src: `https://drive.google.com/file/d/${drive[1]}/preview` };
-  if (/\.(mp4|webm|mov)(\?|$)/i.test(url)) return { type: "video" as const, src: url };
+  if (
+    /\.(mp4|webm|mov)(\?|$)/i.test(url) ||
+    /^https:\/\/rise-now-r2\.rise-now-pamaris\.workers\.dev\/media\?ticket=/i.test(url)
+  )
+    return { type: "video" as const, src: url };
   return { type: "frame" as const, src: url };
 }
 
