@@ -8048,3 +8048,32 @@ hr,
 .platform-shell:not([data-theme]) .journey-content-cover__image--dark {
   display: block !important;
 }
+
+
+/* Resumable lesson video upload */
+.journey-upload-progress {
+  position: relative;
+  min-height: 34px;
+  overflow: hidden;
+  border: 1px solid var(--platform-line);
+  border-radius: 999px;
+  background: var(--platform-surface-soft);
+}
+.journey-upload-progress > span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  min-width: 2px;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--primary) 72%, transparent);
+  transition: width 180ms ease;
+}
+.journey-upload-progress > small {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  min-height: 32px;
+  place-items: center;
+  color: var(--platform-title);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
