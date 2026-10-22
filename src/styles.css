@@ -4081,10 +4081,18 @@ hr,
   padding: 0.45rem 0.6rem;
   font-size: 0.85rem;
 }
+.ops-actions-cell {
+  vertical-align: middle;
+}
 .ops-actions {
   display: flex;
+  align-items: center;
+  justify-content: flex-end;
   gap: 0.4rem;
   flex-wrap: wrap;
+}
+.ops-access-enrollment {
+  margin-top: 0.25rem;
 }
 .ops-actions button {
   padding: 0.35rem 0.65rem;
