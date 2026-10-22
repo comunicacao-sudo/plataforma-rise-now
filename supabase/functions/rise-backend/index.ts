@@ -2,12 +2,18 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.117.2";
 import {
+  AI_ASSESSMENT_OUTPUT_JSON_SCHEMA,
+  AI_MENTEE_RELEASE_SECTIONS,
+  AI_MENTOR_SECTIONS,
+  AI_OUTPUT_SCHEMA_VERSION,
   ASSESSMENT_QUESTIONS,
   ASSESSMENT_VERSION,
   PROMPT_VERSION,
   SCORING_VERSION,
   calculateAssessment,
   filterAssessmentResultForAudience,
+  parseAIAssessmentInterpretation,
+  projectAIAssessmentSections,
 } from "../../../src/lib/assessment.ts";
 
 const cors = {
@@ -535,8 +541,7 @@ async function journeyAction(c: Context, action: string, d: any) {
     required: s.required,
     monthNumber: s.month_number,
     coverPath: s.cover_path,
-    coverUrl:
-      typeof s.cover_path === "string" ? (coverUrls.get(s.cover_path) ?? null) : null,
+    coverUrl: typeof s.cover_path === "string" ? (coverUrls.get(s.cover_path) ?? null) : null,
     mediaPath: s.media_path,
     summary: s.summary ?? "",
     topics: s.topics ?? [],
@@ -675,9 +680,7 @@ async function loadLibrary(userId: string) {
       s.month_number > enrollment.current_month ||
       (!!s.release_at && Date.parse(s.release_at) > now);
     const mediaUrl =
-      !locked && typeof s.media_path === "string"
-        ? (signedUrls.get(s.media_path) ?? null)
-        : null;
+      !locked && typeof s.media_path === "string" ? (signedUrls.get(s.media_path) ?? null) : null;
     const materials = locked
       ? []
       : (Array.isArray(s.materials) ? s.materials : []).map((m: any, i: number) => ({
@@ -685,8 +688,7 @@ async function loadLibrary(userId: string) {
           title: String(m.title ?? "Material de apoio"),
           url: typeof m.url === "string" ? m.url : null,
           filePath: typeof m.filePath === "string" ? m.filePath : null,
-          fileUrl:
-            typeof m.filePath === "string" ? (signedUrls.get(m.filePath) ?? null) : null,
+          fileUrl: typeof m.filePath === "string" ? (signedUrls.get(m.filePath) ?? null) : null,
         }));
     const state = byStep.get(s.stable_key);
     const resource = mediaUrl ?? s.resource_url ?? null;
@@ -707,8 +709,7 @@ async function loadLibrary(userId: string) {
       monthNumber: s.month_number,
       pillarName: p.name,
       position: p.position * 1000 + s.position,
-      coverUrl:
-        typeof s.cover_path === "string" ? (signedUrls.get(s.cover_path) ?? null) : null,
+      coverUrl: typeof s.cover_path === "string" ? (signedUrls.get(s.cover_path) ?? null) : null,
       mediaUrl: !locked && videoFormats.has(s.format) ? resource : null,
       questionnaireUrl:
         !locked && ["questionnaire", "form"].includes(s.format) ? s.resource_url : null,
@@ -906,6 +907,276 @@ async function plans(c: Context, attemptId: string, includePrivate: boolean) {
   const byId = new Map((notes ?? []).map((x: any) => [x.plan_id, x.content]));
   return visible.map((x: any) => ({ ...x, internal_notes: byId.get(x.id) ?? "" }));
 }
+
+const OPENAI_RESPONSES_ENDPOINT = "https://api.openai.com/v1/responses";
+const AI_AUDIENCE = "mentor_full";
+const AI_RESPONSE_FORMAT_NAME = "rise_assessment_interpretation";
+const AI_INSTRUCTIONS = `Você interpreta resultados já calculados do Mapeamento de Desenvolvimento RISE.
+O cálculo é definitivo e foi feito pelo algoritmo RISE. Nunca recalcule, corrija, estime, normalize ou invente pontuações.
+Use somente os resultados fornecidos. Não faça diagnóstico clínico, não rotule a pessoa e não trate tendências como verdades absolutas.
+Escreva em português brasileiro, com linguagem respeitosa, objetiva e útil para desenvolvimento profissional.
+Cada afirmação deve ser compatível com os scores e evidências recebidos. Em evidence_notes, cite somente evidence_ids presentes na entrada.
+summary_for_mentee deve ser um resumo seguro e acolhedor. mentor_guidance e evidence_notes são exclusivos da equipe até revisão.
+Retorne exclusivamente o JSON definido pelo schema.`;
+
+function assessmentEvidenceIds(result: any) {
+  const ids = new Set<string>();
+  for (const collection of [
+    result.indicators,
+    result.competencies,
+    result.comparisons,
+    result.motivations,
+    result.leadership,
+    result.strengths,
+    result.development,
+  ]) {
+    for (const item of collection ?? []) {
+      for (const id of item.evidence ?? item.itemIds ?? []) if (typeof id === "string") ids.add(id);
+    }
+  }
+  return [...ids].sort();
+}
+
+function assessmentAIInput(result: any) {
+  return {
+    methodology: {
+      assessment_version: result.assessmentVersion,
+      scoring_version: result.scoringVersion,
+      scale: "Scores determinísticos de 1 a 5. Diferenças são Adaptado menos Natural.",
+      constraints: [
+        "Os scores não podem ser alterados.",
+        "A interpretação é exploratória e não diagnóstica.",
+        "Natural e Adaptado são perspectivas de autorrelato.",
+      ],
+    },
+    calculated_result: {
+      indicators: result.indicators,
+      competencies: result.competencies,
+      comparisons: result.comparisons,
+      motivations: result.motivations,
+      leadership: result.leadership,
+      strengths: result.strengths,
+      development: result.development,
+      summary: result.summary,
+      limitations: result.limitations,
+    },
+    allowed_evidence_ids: assessmentEvidenceIds(result),
+  };
+}
+
+function responseOutputText(payload: any) {
+  for (const item of payload?.output ?? []) {
+    for (const content of item?.content ?? []) {
+      if (content?.type === "refusal") throw new Error("A OpenAI recusou esta interpretação.");
+      if (content?.type === "output_text" && typeof content.text === "string") return content.text;
+    }
+  }
+  throw new Error("A OpenAI não retornou a interpretação estruturada.");
+}
+
+async function requestAssessmentInterpretation(result: any) {
+  const apiKey = Deno.env.get("OPENAI_API_KEY")?.trim();
+  const model = Deno.env.get("OPENAI_MODEL")?.trim();
+  if (!apiKey) throw new Error("OPENAI_API_KEY não configurada no backend.");
+  if (!model) throw new Error("OPENAI_MODEL não configurado no backend.");
+
+  const response = await fetch(OPENAI_RESPONSES_ENDPOINT, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model,
+      store: false,
+      reasoning: { effort: "low" },
+      max_output_tokens: 6000,
+      instructions: AI_INSTRUCTIONS,
+      input: JSON.stringify(assessmentAIInput(result)),
+      text: {
+        format: {
+          type: "json_schema",
+          name: AI_RESPONSE_FORMAT_NAME,
+          strict: true,
+          schema: AI_ASSESSMENT_OUTPUT_JSON_SCHEMA,
+        },
+      },
+    }),
+    signal: AbortSignal.timeout(90_000),
+  });
+  if (!response.ok)
+    throw new Error(`A OpenAI retornou HTTP ${response.status} para a geração da interpretação.`);
+  const payload = await response.json();
+  if (payload?.status !== "completed")
+    throw new Error(
+      `A OpenAI encerrou a geração com status ${String(payload?.status ?? "desconhecido")}.`,
+    );
+  const interpretation = parseAIAssessmentInterpretation(JSON.parse(responseOutputText(payload)));
+  return {
+    ...interpretation,
+    _meta: {
+      model,
+      prompt_version: PROMPT_VERSION,
+      schema_version: AI_OUTPUT_SCHEMA_VERSION,
+      response_id: String(payload.id ?? ""),
+    },
+  };
+}
+
+async function runAssessmentAIGeneration(rowId: string, attemptId: string, result: any) {
+  try {
+    const output = await requestAssessmentInterpretation(result);
+    const { error } = await admin
+      .from("assessment_ai_outputs")
+      .update({ status: "generated", output, generated_at: new Date().toISOString() })
+      .eq("id", rowId)
+      .eq("status", "pending");
+    if (error) throw new Error(error.message);
+    console.info("assessment_ai_generated", { attemptId, promptVersion: PROMPT_VERSION });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Falha não identificada.";
+    console.error("assessment_ai_failed", { attemptId, promptVersion: PROMPT_VERSION, message });
+    await admin
+      .from("assessment_ai_outputs")
+      .update({ status: "failed", output: null, generated_at: null })
+      .eq("id", rowId)
+      .eq("status", "pending");
+  }
+}
+
+async function findAssessmentAIOutput(attemptId: string, promptVersion?: string) {
+  let query = admin
+    .from("assessment_ai_outputs")
+    .select("*")
+    .eq("attempt_id", attemptId)
+    .eq("audience", AI_AUDIENCE);
+  if (promptVersion) query = query.eq("prompt_version", promptVersion);
+  const { data, error } = await query
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+async function createAssessmentAIOutput(attemptId: string, result: any) {
+  const evidenceIds = assessmentEvidenceIds(result);
+  const { data, error } = await admin
+    .from("assessment_ai_outputs")
+    .insert({
+      attempt_id: attemptId,
+      audience: AI_AUDIENCE,
+      prompt_version: PROMPT_VERSION,
+      status: "pending",
+      authorized_sections: [...AI_MENTEE_RELEASE_SECTIONS],
+      evidence_ids: evidenceIds,
+      output: null,
+      generated_at: null,
+    })
+    .select("*")
+    .single();
+  if (!error) return { row: data, shouldGenerate: true };
+  if (error.code !== "23505") throw new Error(error.message);
+  const existing = await findAssessmentAIOutput(attemptId, PROMPT_VERSION);
+  return { row: existing, shouldGenerate: false };
+}
+
+async function queueAssessmentAI(attemptId: string, result: any) {
+  const { row, shouldGenerate } = await createAssessmentAIOutput(attemptId, result);
+  if (!row || !shouldGenerate) return row;
+  const task = runAssessmentAIGeneration(row.id, attemptId, result);
+  const edgeRuntime = (globalThis as any).EdgeRuntime;
+  if (edgeRuntime?.waitUntil) edgeRuntime.waitUntil(task);
+  else await task;
+  return row;
+}
+
+async function queueAssessmentAISafely(attemptId: string, result: any) {
+  try {
+    return await queueAssessmentAI(attemptId, result);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Falha não identificada.";
+    console.error("assessment_ai_queue_failed", {
+      attemptId,
+      promptVersion: PROMPT_VERSION,
+      message,
+    });
+    return null;
+  }
+}
+
+async function assessmentAIView(attemptId: string, options: { staff: boolean; released: boolean }) {
+  const row = await findAssessmentAIOutput(attemptId);
+  if (!row)
+    return {
+      status: "unavailable",
+      promptVersion: PROMPT_VERSION,
+      generatedAt: null,
+      authorizedSections: [],
+      output: null,
+      canRetry: true,
+    };
+  let output = null;
+  if (row.status === "generated" && row.output) {
+    if (options.staff) output = row.output;
+    else if (options.released)
+      output = projectAIAssessmentSections(row.output, row.authorized_sections ?? []);
+    else output = projectAIAssessmentSections(row.output, ["summary_for_mentee"]);
+  }
+  return {
+    status: row.status,
+    promptVersion: row.prompt_version,
+    generatedAt: row.generated_at,
+    authorizedSections: options.staff
+      ? [...AI_MENTOR_SECTIONS]
+      : options.released
+        ? (row.authorized_sections ?? [])
+        : ["summary_for_mentee"],
+    output,
+    canRetry: row.status === "failed" || (options.staff && row.status === "generated"),
+  };
+}
+
+async function generateAssessmentAIExplicitly(c: Context, d: any) {
+  const staff = await isStaff(c);
+  const attempt = staff
+    ? (await c.admin.from("assessment_attempts").select("*").eq("id", d.attemptId).maybeSingle())
+        .data
+    : await ownAttempt(c, d.attemptId);
+  if (!attempt || attempt.status !== "completed" || !attempt.calculated_result)
+    throw new Error("O mapeamento precisa estar concluído antes da interpretação.");
+  if (d.force && !staff)
+    throw new Error("A regeneração de uma interpretação concluída é restrita à equipe RISE NOW.");
+
+  let row = await findAssessmentAIOutput(attempt.id, PROMPT_VERSION);
+  if (!row) {
+    const created = await createAssessmentAIOutput(attempt.id, attempt.calculated_result);
+    row = created.row;
+    if (created.shouldGenerate && row)
+      await runAssessmentAIGeneration(row.id, attempt.id, attempt.calculated_result);
+  } else if (row.status === "failed" || (row.status === "generated" && d.force)) {
+    const { data, error } = await c.admin
+      .from("assessment_ai_outputs")
+      .update({ status: "pending", output: null, generated_at: null })
+      .eq("id", row.id)
+      .neq("status", "pending")
+      .select("*")
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (data) {
+      row = data;
+      await runAssessmentAIGeneration(row.id, attempt.id, attempt.calculated_result);
+    }
+  }
+  await audit(c, d.force ? "assessment_ai_regenerated" : "assessment_ai_retried", attempt.id, {
+    promptVersion: PROMPT_VERSION,
+  });
+  return assessmentAIView(attempt.id, {
+    staff,
+    released: attempt.report_status === "full_report_released",
+  });
+}
+
 async function assessmentAction(c: Context, action: string, d: any) {
   if (action === "getMyAssessmentState") {
     const enrollment = await ownEnrollment(c);
@@ -986,11 +1257,13 @@ async function assessmentAction(c: Context, action: string, d: any) {
   }
   if (action === "completeAssessment") {
     const attempt = await ownAttempt(c, d.attemptId);
-    if (attempt.status === "completed" && attempt.calculated_result)
+    if (attempt.status === "completed" && attempt.calculated_result) {
+      await queueAssessmentAISafely(attempt.id, attempt.calculated_result);
       return publicAssessment(
         attempt.calculated_result,
         attempt.report_status === "full_report_released",
       );
+    }
     const { data: responses, error } = await c.admin
       .from("assessment_responses")
       .select("item_id, value")
@@ -1041,6 +1314,7 @@ async function assessmentAction(c: Context, action: string, d: any) {
       ]);
       await notifyStageCompleted(attempt.enrollment_id, c.userId, d.stepKey);
     }
+    await queueAssessmentAISafely(attempt.id, result);
     return publicAssessment(result, false);
   }
   if (action === "getMyAssessmentProfile") {
@@ -1065,8 +1339,15 @@ async function assessmentAction(c: Context, action: string, d: any) {
       latest,
       attempts: mapped.map(({ calculated_result: _r, ...x }: any) => x),
       plans: latest ? await plans(c, latest.id, false) : [],
+      aiAnalysis: latest
+        ? await assessmentAIView(latest.id, {
+            staff: false,
+            released: latest.report_status === "full_report_released",
+          })
+        : null,
     };
   }
+  if (action === "generateAssessmentInterpretation") return generateAssessmentAIExplicitly(c, d);
   await requireStaff(c);
   if (action === "getMentorAssessmentProfile") {
     const { data: enrollment, error: ee } = await c.admin
@@ -1089,6 +1370,9 @@ async function assessmentAction(c: Context, action: string, d: any) {
       latest,
       attempts: (attempts ?? []).map(({ calculated_result: _r, ...x }: any) => x),
       plans: latest ? await plans(c, latest.id, true) : [],
+      aiAnalysis: latest
+        ? await assessmentAIView(latest.id, { staff: true, released: true })
+        : null,
     };
   }
   if (action === "releaseAssessmentReport") {
@@ -1530,6 +1814,7 @@ const groups = {
     "startAssessment",
     "saveAssessmentAnswer",
     "completeAssessment",
+    "generateAssessmentInterpretation",
     "getMyAssessmentProfile",
     "getMentorAssessmentProfile",
     "releaseAssessmentReport",

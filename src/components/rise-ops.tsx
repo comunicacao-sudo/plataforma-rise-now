@@ -1732,7 +1732,10 @@ function MembersPanel() {
                       <td className="ops-actions-cell">
                         <div className="ops-actions">
                           {entry.email ? (
-                            <button type="button" onClick={() => void reset(entry.email, entry.name)}>
+                            <button
+                              type="button"
+                              onClick={() => void reset(entry.email, entry.name)}
+                            >
                               Enviar nova senha
                             </button>
                           ) : null}

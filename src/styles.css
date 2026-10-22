@@ -3214,6 +3214,90 @@ hr,
   color: rgba(255, 248, 236, 0.55);
   font-size: 0.82rem;
 }
+.assessment-ai-panel {
+  display: grid;
+  gap: 0.9rem;
+  margin: 1rem 0;
+  padding: 1.15rem;
+  border: 1px solid rgba(235, 192, 99, 0.28);
+  border-radius: 0.9rem;
+  background: rgba(27, 9, 9, 0.82);
+}
+.assessment-ai-panel--pending,
+.assessment-ai-panel--failed {
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+}
+.assessment-ai-panel > svg,
+.assessment-ai-panel header svg {
+  color: #e7be61;
+}
+.assessment-ai-panel span {
+  color: #e2bb60;
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.assessment-ai-panel h3,
+.assessment-ai-panel p {
+  margin: 0;
+}
+.assessment-ai-panel p,
+.assessment-ai-panel li {
+  color: rgba(255, 248, 236, 0.76);
+  line-height: 1.55;
+}
+.assessment-ai-panel button {
+  border: 1px solid rgba(235, 192, 99, 0.45);
+  border-radius: 0.65rem;
+  padding: 0.7rem 0.9rem;
+  background: rgba(235, 192, 99, 0.12);
+  color: #f8df9c;
+  cursor: pointer;
+}
+.assessment-ai-panel button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+.assessment-ai-panel--failed {
+  border-color: rgba(214, 169, 77, 0.38);
+}
+.assessment-ai-panel header,
+.assessment-ai-panel header > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+}
+.assessment-ai-panel__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+.assessment-ai-panel__grid article {
+  padding: 0.9rem;
+  border-radius: 0.7rem;
+  background: rgba(255, 255, 255, 0.035);
+}
+.assessment-ai-panel__grid ul {
+  margin: 0.55rem 0 0;
+  padding-left: 1.1rem;
+}
+.assessment-ai-panel details {
+  padding-top: 0.8rem;
+  border-top: 1px solid rgba(235, 192, 99, 0.18);
+}
+.assessment-ai-panel summary {
+  color: #f8df9c;
+  cursor: pointer;
+}
+.assessment-ai-panel details p {
+  margin-top: 0.65rem;
+}
+.assessment-ai-panel details small {
+  display: block;
+  color: rgba(255, 248, 236, 0.45);
+}
 .assessment-section__actions {
   display: flex;
   justify-content: space-between;
@@ -3427,6 +3511,9 @@ hr,
     align-items: flex-start;
     flex-direction: column;
   }
+  .assessment-ai-panel__grid {
+    grid-template-columns: 1fr;
+  }
 }
 @media (max-width: 620px) {
   .assessment-page {
@@ -3478,6 +3565,18 @@ hr,
   .assessment-ai-grid,
   .assessment-form-grid {
     grid-template-columns: 1fr;
+  }
+  .assessment-ai-panel--pending,
+  .assessment-ai-panel--failed {
+    grid-template-columns: auto 1fr;
+  }
+  .assessment-ai-panel--pending button,
+  .assessment-ai-panel--failed button {
+    grid-column: 1 / -1;
+  }
+  .assessment-ai-panel header {
+    align-items: flex-start;
+    flex-direction: column;
   }
   .assessment-form-grid label.is-wide {
     grid-column: auto;
@@ -6922,8 +7021,6 @@ hr,
     flex-basis: 100%;
   }
 }
-
-
 /* 2026-10 authenticated theme bridge: remove legacy burgundy surfaces */
 .platform-shell .next-step-hero {
   color: var(--platform-title);
@@ -6943,11 +7040,7 @@ hr,
   background-size: cover;
 }
 .platform-shell .next-step-hero::after {
-  background: linear-gradient(
-    180deg,
-    rgba(38, 49, 47, 0.06),
-    rgba(38, 49, 47, 0.18)
-  );
+  background: linear-gradient(180deg, rgba(38, 49, 47, 0.06), rgba(38, 49, 47, 0.18));
 }
 .platform-shell .next-step-hero__eyebrow {
   border-color: var(--platform-line-strong);
@@ -7101,12 +7194,11 @@ hr,
 /* RISE 90 and supporting cards use the same surfaces as the rest of the platform. */
 .platform-shell .x-ruler {
   border-color: var(--platform-line-strong);
-  background:
-    linear-gradient(
-      135deg,
-      color-mix(in srgb, var(--platform-surface-strong) 94%, transparent),
-      color-mix(in srgb, var(--platform-surface) 86%, transparent)
-    );
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--platform-surface-strong) 94%, transparent),
+    color-mix(in srgb, var(--platform-surface) 86%, transparent)
+  );
   box-shadow: 0 18px 44px var(--platform-shadow);
 }
 .platform-shell .x-ruler__head div,
