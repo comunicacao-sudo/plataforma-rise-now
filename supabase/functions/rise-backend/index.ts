@@ -740,23 +740,10 @@ async function loadLibrary(userId: string) {
       !stageMediaPath.startsWith("r2:")
     )
       assetPaths.push(stageMediaPath);
-    else if (
-      !locked &&
-      typeof s.media_path === "string" &&
-      s.media_path &&
-      !s.media_path.startsWith("r2:")
-    )
-      assetPaths.push(s.media_path);
     if (!locked && stageMaterials.length) {
       for (const material of stageMaterials) {
         if (typeof material?.file_path === "string" && material.file_path) {
           assetPaths.push(material.file_path);
-        }
-      }
-    } else if (!locked && Array.isArray(s.materials)) {
-      for (const material of s.materials) {
-        if (typeof material?.filePath === "string" && material.filePath) {
-          assetPaths.push(material.filePath);
         }
       }
     }
@@ -777,7 +764,7 @@ async function loadLibrary(userId: string) {
     const effectiveMediaPath =
       typeof stageVideo?.media_path === "string" && stageVideo.media_path
         ? stageVideo.media_path
-        : s.media_path;
+        : null;
     const effectiveExternalVideo =
       typeof stageVideo?.external_url === "string" && stageVideo.external_url
         ? stageVideo.external_url
@@ -792,34 +779,20 @@ async function loadLibrary(userId: string) {
         : effectiveExternalVideo ??
           (typeof effectiveMediaPath === "string" && effectiveMediaPath && !r2Media
             ? (signedUrls.get(effectiveMediaPath) ?? null)
-            : !stageVideo && videoFormats.has(s.format)
-              ? s.resource_url
-              : null);
+            : null);
     const materials = locked
       ? []
-      : stageMaterials.length
-        ? stageMaterials.map((m: any) => ({
-            id: String(m.id),
-            title: String(m.title ?? "Material de apoio"),
-            url: typeof m.external_url === "string" ? m.external_url : null,
-            filePath: typeof m.file_path === "string" ? m.file_path : null,
-            fileUrl:
-              typeof m.file_path === "string" ? (signedUrls.get(m.file_path) ?? null) : null,
-          }))
-        : (Array.isArray(s.materials) ? s.materials : []).map((m: any, i: number) => ({
-            id: String(m.id ?? `${s.stable_key}-${i}`),
-            title: String(m.title ?? "Material de apoio"),
-            url: typeof m.url === "string" ? m.url : null,
-            filePath: typeof m.filePath === "string" ? m.filePath : null,
-            fileUrl: typeof m.filePath === "string" ? (signedUrls.get(m.filePath) ?? null) : null,
-          }));
+      : stageMaterials.map((m: any) => ({
+          id: String(m.id),
+          title: String(m.title ?? "Material de apoio"),
+          url: typeof m.external_url === "string" ? m.external_url : null,
+          filePath: typeof m.file_path === "string" ? m.file_path : null,
+          fileUrl:
+            typeof m.file_path === "string" ? (signedUrls.get(m.file_path) ?? null) : null,
+        }));
     const state = byStep.get(s.stable_key);
     const questionnaireUrl =
-      !locked && stageQuestionnaire
-        ? (stageQuestionnaire.external_url ?? null)
-        : !locked && ["questionnaire", "form"].includes(s.format)
-          ? s.resource_url
-          : null;
+      !locked && stageQuestionnaire ? (stageQuestionnaire.external_url ?? null) : null;
     const hasStageContent = !!stageVideo || !!stageQuestionnaire || stageMaterials.length > 0;
     const hasResource = videoFormats.has(s.format)
       ? hasStageContent || r2Media || !!mediaUrl
@@ -833,7 +806,9 @@ async function loadLibrary(userId: string) {
         ? r2Media
           ? "r2"
           : "external"
-        : s.resource_type,
+        : s.resource_type === "rise_assessment"
+          ? "rise_assessment"
+          : null,
       format: s.format,
       description: s.description ?? "",
       summary: s.summary || s.description || "",
