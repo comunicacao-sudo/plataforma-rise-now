@@ -61,6 +61,7 @@ export type StaffView =
   | "agenda"
   | "entregas"
   | "alunas"
+  | "turmas-acessos"
   | "whatsapp";
 
 const statusLabels: Record<string, string> = {
@@ -1767,7 +1768,7 @@ function MenteeProfilePage({
   );
 }
 
-function MembersPanel() {
+function MembersPanel({ mode }: { mode: "students" | "access" }) {
   const qc = useQueryClient();
   const { data: dir } = useDirectory();
   const updateFn = useServerFn(updateEnrollment);
@@ -1777,7 +1778,9 @@ function MembersPanel() {
   const [editingCohort, setEditingCohort] = useState<RiseDirectory["cohorts"][number] | null>(null);
   const [specialtyOpen, setSpecialtyOpen] = useState(false);
   const [memberOpen, setMemberOpen] = useState(false);
-  const [adminSection, setAdminSection] = useState<"perfis" | "acessos" | "turmas">("perfis");
+  const [adminSection, setAdminSection] = useState<"perfis" | "acessos" | "turmas">(
+    mode === "students" ? "perfis" : "acessos",
+  );
   const [selectedMentee, setSelectedMentee] = useState(() =>
     new URLSearchParams(window.location.search).get("mentee"),
   );
@@ -1787,9 +1790,16 @@ function MembersPanel() {
   });
 
   useEffect(() => {
+    setAdminSection(mode === "students" ? "perfis" : "acessos");
+    if (mode !== "students") {
+      setSelectedMentee(null);
+    }
+  }, [mode]);
+
+  useEffect(() => {
     const sync = () => {
       const params = new URLSearchParams(window.location.search);
-      setSelectedMentee(params.get("mentee"));
+      setSelectedMentee(mode === "students" ? params.get("mentee") : null);
       const requested = params.get("tab") as MenteeProfileTab;
       setProfileTab(
         menteeProfileTabs.some((item) => item.id === requested) ? requested : "visao-geral",
@@ -1797,7 +1807,7 @@ function MembersPanel() {
     };
     window.addEventListener("popstate", sync);
     return () => window.removeEventListener("popstate", sync);
-  }, []);
+  }, [mode]);
 
   function setProfile(enrollmentId: string | null, tab: MenteeProfileTab = "visao-geral") {
     const url = new URL(window.location.href);
@@ -1840,7 +1850,10 @@ function MembersPanel() {
       (s) => s.enrollment_id === enrollmentId && s.deliverable?.phase?.month_number === month,
     )?.status ?? "nao_iniciada";
 
-  const activeEnrollment = dir?.enrollments.find((entry) => entry.id === selectedMentee);
+  const activeEnrollment =
+    mode === "students"
+      ? dir?.enrollments.find((entry) => entry.id === selectedMentee)
+      : undefined;
   if (activeEnrollment)
     return (
       <MenteeProfilePage
@@ -1855,33 +1868,32 @@ function MembersPanel() {
     <main className="inner-page">
       <Intro
         eyebrow="Gestão"
-        title="Pessoas, acessos e turmas"
-        copy="Administre cada conceito em sua área, usando os mesmos perfis oficiais."
+        title={mode === "students" ? "Alunas" : "Turmas e acessos"}
+        copy={
+          mode === "students"
+            ? "Perfis, acompanhamento e informações das mentoradas."
+            : "Gerencie acessos da plataforma e organize as turmas."
+        }
       />
       <section className="page-width ops-section">
-        <nav className="ops-subnav" aria-label="Administração de pessoas">
-          <button
-            type="button"
-            className={adminSection === "perfis" ? "is-active" : ""}
-            onClick={() => setAdminSection("perfis")}
-          >
-            Perfis e mentoradas
-          </button>
-          <button
-            type="button"
-            className={adminSection === "acessos" ? "is-active" : ""}
-            onClick={() => setAdminSection("acessos")}
-          >
-            Acessos
-          </button>
-          <button
-            type="button"
-            className={adminSection === "turmas" ? "is-active" : ""}
-            onClick={() => setAdminSection("turmas")}
-          >
-            Turmas
-          </button>
-        </nav>
+        {mode === "access" ? (
+          <nav className="ops-subnav" aria-label="Administração de acessos e turmas">
+            <button
+              type="button"
+              className={adminSection === "acessos" ? "is-active" : ""}
+              onClick={() => setAdminSection("acessos")}
+            >
+              Acessos
+            </button>
+            <button
+              type="button"
+              className={adminSection === "turmas" ? "is-active" : ""}
+              onClick={() => setAdminSection("turmas")}
+            >
+              Turmas
+            </button>
+          </nav>
+        ) : null}
 
         {adminSection === "acessos" ? (
           <div className="ops-table-wrap ops-admin-panel">
@@ -2260,7 +2272,8 @@ export function StaffArea({ view, onView }: { view: StaffView; onView: (v: Staff
   if (view === "conteudos") return <JourneyContentAdmin />;
   if (view === "agenda") return <StaffAgenda />;
   if (view === "entregas") return <ReviewPanel />;
-  if (view === "alunas") return <MembersPanel />;
+  if (view === "alunas") return <MembersPanel mode="students" />;
+  if (view === "turmas-acessos") return <MembersPanel mode="access" />;
   if (view === "whatsapp") return <WhatsAppAdmin />;
   return <StaffOverview onView={onView} />;
 }
