@@ -878,23 +878,38 @@ export function JourneyAdmin() {
     setBusy("publish");
     setMessage("");
     try {
-      let revision = data.revision;
-      if (dirty) {
-        const result = await save({
-          data: { pillarId: selectedPillarId, expectedRevision: revision, steps },
-        });
-        revision = result.revision;
-      }
-      await publish({
-        data: { pillarId: selectedPillarId, expectedRevision: revision, applyActive },
+      // Always persist the exact editor state immediately before publishing.
+      // This keeps the newly published version and the fresh draft clone identical,
+      // so every unchanged step can immediately display the "Publicado" tag.
+      const saved = await save({
+        data: {
+          pillarId: selectedPillarId,
+          expectedRevision: data.revision,
+          steps,
+        },
       });
+
+      await publish({
+        data: {
+          pillarId: selectedPillarId,
+          expectedRevision: saved.revision,
+          applyActive,
+        },
+      });
+
       setLocalSteps(null);
       setPublishOpen(false);
       setApplyActive(true);
+
       await Promise.all([
         qc.invalidateQueries({ queryKey: ["journey-editor"] }),
         qc.invalidateQueries({ queryKey: ["next-journey-step"] }),
       ]);
+      await qc.refetchQueries({
+        queryKey: ["journey-editor", pillarId],
+        type: "active",
+      });
+
       setMessage("Alterações publicadas com sucesso.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Não foi possível publicar.");
