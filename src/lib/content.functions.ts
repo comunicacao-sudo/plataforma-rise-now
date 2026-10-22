@@ -36,6 +36,8 @@ export type JourneyContentItem = {
   pillarName: string;
   position: number;
   coverUrl: string | null;
+  coverUrlLight: string | null;
+  coverUrlDark: string | null;
   mediaUrl: string | null;
   questionnaireUrl: string | null;
   scheduledAt: string | null;
