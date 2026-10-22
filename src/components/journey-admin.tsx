@@ -82,13 +82,21 @@ function emptyStep(): JourneyDraftStep {
 }
 
 function draftStepSignature(step: JourneyDraftStep) {
-  const {
-    coverUrl: _coverUrl,
-    coverUrlLight: _coverUrlLight,
-    coverUrlDark: _coverUrlDark,
-    ...stableFields
-  } = step;
-  return JSON.stringify(stableFields);
+  return JSON.stringify({
+    stableKey: step.stableKey,
+    title: step.title,
+    format: step.format,
+    impactLead: step.impactLead,
+    impactHighlight: step.impactHighlight,
+    impactTail: step.impactTail,
+    description: step.description,
+    monthNumber: step.monthNumber,
+    coverPath: step.coverPath,
+    coverPathLight: step.coverPathLight,
+    coverPathDark: step.coverPathDark,
+    summary: step.summary,
+    topics: step.topics,
+  });
 }
 
 function StepForm({
