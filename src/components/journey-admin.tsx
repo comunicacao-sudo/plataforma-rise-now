@@ -21,6 +21,7 @@ import { NextStepHero } from "@/components/journey-next-step";
 import { supabase } from "@/integrations/supabase/client";
 import { getDirectory } from "@/lib/admin.functions";
 import { createJourneyUpload } from "@/lib/content.functions";
+import { uploadSignedResumable } from "@/lib/resumable-storage-upload";
 import {
   confirmJourneyStep,
   getJourneyEditor,
@@ -119,6 +120,7 @@ function StepForm({
     "" | "cover-light" | "cover-dark" | "media" | "material"
   >("");
   const [uploadError, setUploadError] = useState("");
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const previewObjects = useRef<{ light: string | null; dark: string | null }>({
     light: null,
     dark: null,
@@ -166,6 +168,23 @@ function StepForm({
           size: file.size,
         },
       });
+      if (kind === "media") {
+        setUploadProgress(0);
+        await uploadSignedResumable({
+          bucketName: "journey-content",
+          objectPath: signed.path,
+          file,
+          token: signed.token,
+          onProgress: (uploadedBytes, totalBytes) => {
+            const percentage =
+              totalBytes > 0 ? Math.round((uploadedBytes / totalBytes) * 100) : 0;
+            setUploadProgress(Math.max(0, Math.min(100, percentage)));
+          },
+        });
+        setStep((current) => ({ ...current, mediaPath: signed.path, resourceType: "storage" }));
+        return;
+      }
+
       const { error } = await supabase.storage
         .from("journey-content")
         .uploadToSignedUrl(signed.path, signed.token, file, { contentType: file.type });
@@ -193,8 +212,6 @@ function StepForm({
                 coverUrl: current.coverUrl ?? preview,
               },
         );
-      } else if (kind === "media") {
-        setStep((current) => ({ ...current, mediaPath: signed.path, resourceType: "storage" }));
       } else {
         setStep((current) => ({
           ...current,
@@ -212,6 +229,7 @@ function StepForm({
     } catch (error) {
       setUploadError(error instanceof Error ? error.message : "Não foi possível enviar o arquivo.");
     } finally {
+      if (kind === "media") setUploadProgress(null);
       setUploading("");
     }
   }
@@ -492,7 +510,9 @@ function StepForm({
                   <ImagePlus size={18} />
                 )}
                 <span>
-                  {uploading === "media" ? "Enviando gravação…" : "Enviar arquivo de vídeo privado"}
+                  {uploading === "media"
+                    ? `Enviando gravação… ${uploadProgress ?? 0}%`
+                    : "Enviar arquivo de vídeo privado"}
                 </span>
                 <input
                   type="file"
@@ -504,6 +524,19 @@ function StepForm({
                   }}
                 />
               </label>
+              {uploading === "media" && uploadProgress !== null ? (
+                <div
+                  className="journey-upload-progress"
+                  role="progressbar"
+                  aria-label="Progresso do envio do vídeo"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={uploadProgress}
+                >
+                  <span style={{ width: `${uploadProgress}%` }} />
+                  <small>{uploadProgress}% enviado</small>
+                </div>
+              ) : null}
               {step.mediaPath ? (
                 <div className="journey-uploaded-file">
                   <span>Vídeo privado armazenado</span>
@@ -516,7 +549,8 @@ function StepForm({
           ) : null}
           <p className="journey-field-help">
             Questionários abrem dentro da plataforma. Para vídeos privados, prefira o upload acima
-            em vez de uma URL pública permanente.
+            em vez de uma URL pública permanente. O envio de vídeo é feito em partes e retoma
+            automaticamente após oscilações temporárias de conexão.
           </p>
           {showMeeting ? (
             <label>
