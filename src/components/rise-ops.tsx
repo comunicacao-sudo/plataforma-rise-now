@@ -1782,7 +1782,7 @@ function MembersPanel({ mode }: { mode: "students" | "access" }) {
     mode === "students" ? "perfis" : "acessos",
   );
   const [selectedMentee, setSelectedMentee] = useState(() =>
-    new URLSearchParams(window.location.search).get("mentee"),
+    mode === "students" ? new URLSearchParams(window.location.search).get("mentee") : null,
   );
   const [profileTab, setProfileTab] = useState<MenteeProfileTab>(() => {
     const requested = new URLSearchParams(window.location.search).get("tab") as MenteeProfileTab;
