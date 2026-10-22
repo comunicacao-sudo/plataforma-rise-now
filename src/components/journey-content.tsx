@@ -75,24 +75,34 @@ export function useJourneyContentLibrary(enabled = true) {
 }
 
 function ContentCover({ item }: { item: JourneyContentItem }) {
+  const lightCoverUrl =
+    item.coverUrlLight ?? (!item.coverUrlDark ? (item.coverUrl ?? null) : null);
+  const darkCoverUrl =
+    item.coverUrlDark ?? (!item.coverUrlLight ? (item.coverUrl ?? null) : null);
+  const hasCover = !!(lightCoverUrl || darkCoverUrl);
+
   return (
     <div className="journey-content-cover">
-      {item.coverUrlLight || item.coverUrlDark || item.coverUrl ? (
+      {hasCover ? (
         <>
-          <img
-            className="journey-content-cover__image journey-content-cover__image--light"
-            src={item.coverUrlLight ?? item.coverUrl ?? item.coverUrlDark ?? ""}
-            alt=""
-            loading="lazy"
-            decoding="async"
-          />
-          <img
-            className="journey-content-cover__image journey-content-cover__image--dark"
-            src={item.coverUrlDark ?? item.coverUrl ?? item.coverUrlLight ?? ""}
-            alt=""
-            loading="lazy"
-            decoding="async"
-          />
+          {lightCoverUrl ? (
+            <img
+              className="journey-content-cover__image journey-content-cover__image--light"
+              src={lightCoverUrl}
+              alt=""
+              loading="lazy"
+              decoding="async"
+            />
+          ) : null}
+          {darkCoverUrl ? (
+            <img
+              className="journey-content-cover__image journey-content-cover__image--dark"
+              src={darkCoverUrl}
+              alt=""
+              loading="lazy"
+              decoding="async"
+            />
+          ) : null}
         </>
       ) : (
         <div aria-hidden="true" />
@@ -101,7 +111,7 @@ function ContentCover({ item }: { item: JourneyContentItem }) {
         <span>{availabilityLabel(item)}</span>
       ) : isVideo(item) ? (
         <Play size={25} fill="currentColor" aria-hidden="true" />
-      ) : !(item.coverUrlLight || item.coverUrlDark || item.coverUrl) ? (
+      ) : !hasCover ? (
         <FileQuestion size={25} aria-hidden="true" />
       ) : null}
     </div>
