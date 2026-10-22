@@ -490,14 +490,24 @@ async function journeyAction(c: Context, action: string, d: any) {
       .eq("program_id", selected.program_id)
       .eq("status", "ativa"),
   ]);
-  const comparable = (s: any) => {
-    const normalized: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(s ?? {})) {
-      if (["id", "version_id", "created_at", "updated_at", "position"].includes(key)) continue;
-      normalized[key] = typeof value === "string" ? value.trim() : value;
-    }
-    return JSON.stringify(normalized);
-  };
+  const comparable = (s: any) =>
+    JSON.stringify({
+      stable_key: s?.stable_key ?? null,
+      title: typeof s?.title === "string" ? s.title.trim() : s?.title ?? null,
+      format: s?.format ?? null,
+      impact_lead: typeof s?.impact_lead === "string" ? s.impact_lead.trim() : s?.impact_lead ?? "",
+      impact_highlight:
+        typeof s?.impact_highlight === "string" ? s.impact_highlight.trim() : s?.impact_highlight ?? "",
+      impact_tail: typeof s?.impact_tail === "string" ? s.impact_tail.trim() : s?.impact_tail ?? "",
+      description:
+        typeof s?.description === "string" ? s.description.trim() : s?.description ?? "",
+      month_number: s?.month_number ?? 1,
+      cover_path: s?.cover_path ?? null,
+      cover_path_light: s?.cover_path_light ?? null,
+      cover_path_dark: s?.cover_path_dark ?? null,
+      summary: typeof s?.summary === "string" ? s.summary.trim() : s?.summary ?? "",
+      topics: Array.isArray(s?.topics) ? s.topics : [],
+    });
   const publishedByKey = new Map(
     (publishedSteps ?? []).map((s: any, index: number) => [
       s.stable_key,
