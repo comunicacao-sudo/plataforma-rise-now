@@ -490,19 +490,27 @@ async function journeyAction(c: Context, action: string, d: any) {
       .eq("program_id", selected.program_id)
       .eq("status", "ativa"),
   ]);
-  const comparable = (s: any) =>
-    JSON.stringify({
-      ...s,
-      id: undefined,
-      version_id: undefined,
-      created_at: undefined,
-      updated_at: undefined,
-    });
+  const comparable = (s: any) => {
+    const normalized: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(s ?? {})) {
+      if (["id", "version_id", "created_at", "updated_at", "position"].includes(key)) continue;
+      normalized[key] = typeof value === "string" ? value.trim() : value;
+    }
+    return JSON.stringify(normalized);
+  };
   const publishedByKey = new Map(
-    (publishedSteps ?? []).map((s: any) => [s.stable_key, comparable(s)]),
+    (publishedSteps ?? []).map((s: any, index: number) => [
+      s.stable_key,
+      { signature: comparable(s), order: index },
+    ]),
   );
   const publishedStepKeys = (steps ?? [])
-    .filter((s: any) => publishedByKey.get(s.stable_key) === comparable(s))
+    .filter((s: any, index: number) => {
+      const published = publishedByKey.get(s.stable_key) as
+        | { signature: string; order: number }
+        | undefined;
+      return !!published && published.order === index && published.signature === comparable(s);
+    })
     .map((s: any) => s.stable_key);
   const confirmableKeys = (steps ?? [])
     .filter((s: any) => s.completion_rule === "mentor_confirmation")
