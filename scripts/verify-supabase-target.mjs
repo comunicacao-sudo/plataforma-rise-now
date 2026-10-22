@@ -88,7 +88,7 @@ requireCondition(
   new RegExp(`project_id\\s*=\\s*"${OFFICIAL_PROJECT_REF}"`).test(supabaseConfig),
   "supabase/config.toml must target the official project.",
 );
-warn(
+requireCondition(
   drizzleConfig.includes("SUPABASE_DB_URL") && !drizzleConfig.includes("LOVABLE_DB_MIGRATION_URL"),
   "Migration tooling must use only the guarded SUPABASE_DB_URL.",
 );
@@ -116,9 +116,9 @@ if (databaseUrl) {
     const parsed = new URL(databaseUrl);
     officialDatabaseTarget = targetsOfficialSupabaseProject(parsed);
   } catch {
-    warnings.push("SUPABASE_DB_URL is not a valid URL.");
+    failures.push("SUPABASE_DB_URL is not a valid URL.");
   }
-  warn(officialDatabaseTarget, `SUPABASE_DB_URL must target ${OFFICIAL_PROJECT_REF}.`);
+  requireCondition(officialDatabaseTarget, `SUPABASE_DB_URL must target ${OFFICIAL_PROJECT_REF}.`);
 }
 
 const sourceFiles = [
@@ -137,10 +137,7 @@ for (const relativePath of sourceFiles) {
     failures.push(`${relativePath} references the retired Supabase project.`);
   }
   if (
-    (relativePath === "vite.config.ts" ||
-      (relativePath.startsWith(`src${path.sep}`) &&
-        // Platform-generated server-only file; never bundled for the browser (checked below via --bundle).
-        !relativePath.endsWith(`client.server.ts`))) &&
+    (relativePath === "vite.config.ts" || relativePath.startsWith(`src${path.sep}`)) &&
     content.includes("SUPABASE_SERVICE_ROLE_KEY")
   ) {
     failures.push(`${relativePath} exposes an administrative Supabase variable to the app.`);
@@ -151,9 +148,10 @@ for (const relativePath of sourceFiles) {
 }
 
 if (CHECK_BUNDLE) {
-  const bundleRoot = [path.join(".output", "public"), path.join("dist", "client")].find((p) =>
-    existsSync(path.join(ROOT, p)),
-  ) ?? path.join("dist", "client");
+  const bundleRoot =
+    [path.join(".output", "public"), path.join("dist", "client")].find((p) =>
+      existsSync(path.join(ROOT, p)),
+    ) ?? path.join("dist", "client");
   requireCondition(
     existsSync(path.join(ROOT, bundleRoot)),
     "Production bundle (dist/client or .output/public) is missing.",
@@ -190,4 +188,3 @@ if (failures.length) {
 console.log(
   `Supabase target verified: ${OFFICIAL_PROJECT_REF}${CHECK_BUNDLE ? " (including bundle)" : ""}.`,
 );
-

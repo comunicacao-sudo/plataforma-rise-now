@@ -74,26 +74,43 @@ const officialMentors = new Set([
 
 async function getDirectory(c: Context) {
   await requireStaff(c);
-  const [mentorRoles, cohorts, phases, specialties, enrollments] = await Promise.all([
-    c.admin
-      .from("user_roles")
-      .select(
-        "role, profile:profiles(id, full_name, email, title, staff_type, primary_specialty_id)",
-      )
-      .in("role", ["mentor", "admin"]),
-    c.admin.from("cohorts").select("*").order("created_at"),
-    c.admin
-      .from("phases")
-      .select("id, month_number, title, pillar, lessons(id, title, kind, position)")
-      .order("month_number"),
-    c.admin.from("mentor_specialties").select("id, name, category").order("category").order("name"),
-    c.admin
-      .from("enrollments")
-      .select(
-        "id, status, progress_pct, current_month, cohort_id, mentor_id, mentee:profiles!enrollments_mentee_id_fkey(id, display_name, full_name, email, profession, profession_visible)",
-      )
-      .order("created_at"),
-  ]);
+  const [mentorRoles, cohorts, phases, specialties, enrollments, allowed, authUsers] =
+    await Promise.all([
+      c.admin
+        .from("user_roles")
+        .select(
+          "role, profile:profiles(id, full_name, email, title, staff_type, primary_specialty_id, avatar_url, phone, contact_email)",
+        )
+        .in("role", ["mentor", "admin"]),
+      c.admin.from("cohorts").select("*").order("created_at"),
+      c.admin
+        .from("phases")
+        .select("id, month_number, title, pillar, lessons(id, title, kind, position)")
+        .order("month_number"),
+      c.admin
+        .from("mentor_specialties")
+        .select("id, name, category")
+        .order("category")
+        .order("name"),
+      c.admin
+        .from("enrollments")
+        .select(
+          "id, status, progress_pct, current_month, cohort_id, mentee:profiles!enrollments_mentee_id_fkey(id, display_name, full_name, email, profession, profession_visible, avatar_url, phone, contact_email)",
+        )
+        .order("created_at"),
+      c.admin
+        .from("allowed_emails")
+        .select("id, email, full_name, role, status, created_at")
+        .order("created_at"),
+      c.admin.auth.admin.listUsers({ page: 1, perPage: 1000 }),
+    ]);
+  if (mentorRoles.error) throw new Error(mentorRoles.error.message);
+  if (cohorts.error) throw new Error(cohorts.error.message);
+  if (phases.error) throw new Error(phases.error.message);
+  if (specialties.error) throw new Error(specialties.error.message);
+  if (enrollments.error) throw new Error(enrollments.error.message);
+  if (allowed.error) throw new Error(allowed.error.message);
+  if (authUsers.error) throw new Error(authUsers.error.message);
   const specialtyById = new Map((specialties.data ?? []).map((x: any) => [x.id, x.name]));
   const staff = (mentorRoles.data ?? [])
     .flatMap((row: any) => {
@@ -108,6 +125,9 @@ async function getDirectory(c: Context) {
           staffType: p.staff_type,
           specialtyId: p.primary_specialty_id,
           specialty: specialtyById.get(p.primary_specialty_id) ?? p.title ?? null,
+          avatarUrl: p.avatar_url ?? null,
+          phone: p.phone ?? null,
+          contactEmail: p.contact_email ?? null,
         },
       ];
     })
@@ -116,6 +136,26 @@ async function getDirectory(c: Context) {
     isAdmin: true,
     me: c.userId,
     staff,
+    access: (allowed.data ?? []).map((entry: any) => {
+      const user = authUsers.data?.users?.find(
+        (candidate: any) =>
+          String(candidate.email).toLowerCase() === String(entry.email).toLowerCase(),
+      );
+      return {
+        id: entry.id,
+        userId: user?.id ?? null,
+        name: entry.full_name || String(entry.email).split("@")[0],
+        email: entry.email,
+        role: entry.role,
+        status:
+          entry.status !== "approved" || user?.banned_until
+            ? "revogado"
+            : user?.confirmed_at
+              ? "ativo"
+              : "aguardando",
+        createdAt: entry.created_at,
+      };
+    }),
     specialties: specialties.data ?? [],
     cohorts: cohorts.data ?? [],
     phases: (phases.data ?? []).map((p: any) => ({
@@ -128,11 +168,13 @@ async function getDirectory(c: Context) {
       progress: e.progress_pct,
       month: e.current_month,
       cohortId: e.cohort_id,
-      mentorId: e.mentor_id,
       menteeId: e.mentee?.id,
       name: e.mentee?.full_name || e.mentee?.display_name || "",
       email: e.mentee?.email ?? "",
       profession: e.mentee?.profession_visible ? (e.mentee?.profession ?? "") : "",
+      avatarUrl: e.mentee?.avatar_url ?? null,
+      phone: e.mentee?.phone ?? null,
+      contactEmail: e.mentee?.contact_email ?? null,
     })),
   };
 }
@@ -165,7 +207,7 @@ async function createMember(c: Context, d: any) {
     { onConflict: "email" },
   );
   if (inviteRowError) throw new Error(inviteRowError.message);
-  const appBase = env("APP_BASE_URL") ?? "https://mentoriarisenow.lovable.app";
+  const appBase = env("APP_BASE_URL") ?? "https://board.mentoriarisenow.com.br";
   const { data: created, error } = await c.admin.auth.admin.inviteUserByEmail(email, {
     redirectTo: new URL("/reset-password", appBase).toString(),
     data: {
@@ -175,32 +217,41 @@ async function createMember(c: Context, d: any) {
       staff_type: d.memberType === "mentee" ? null : "mentor",
     },
   });
-  if (error || !created.user)
+  if (error || !created.user) {
+    await c.admin.from("allowed_emails").update({ status: "revoked" }).eq("email", email);
     return { ok: false, error: error?.message ?? "Não foi possível enviar o convite." };
-  await c.admin
+  }
+  const { error: profileContactError } = await c.admin
     .from("profiles")
     .update({ phone: d.phone ?? null })
     .eq("id", created.user.id);
+  if (profileContactError) throw new Error(profileContactError.message);
   if (d.memberType === "mentee") {
-    const { data: program } = await c.admin.from("programs").select("id").limit(1).maybeSingle();
-    if (program)
-      await c.admin
-        .from("enrollments")
-        .insert({
-          mentee_id: created.user.id,
-          program_id: program.id,
-          cohort_id: d.cohortId ?? null,
-          mentor_id: d.mentorId ?? null,
-        });
+    const { data: program, error: programError } = await c.admin
+      .from("programs")
+      .select("id")
+      .limit(1)
+      .maybeSingle();
+    if (programError) throw new Error(programError.message);
+    if (program) {
+      const { error: enrollmentError } = await c.admin.from("enrollments").insert({
+        mentee_id: created.user.id,
+        program_id: program.id,
+        cohort_id: d.cohortId ?? null,
+        mentor_id: null,
+      });
+      if (enrollmentError) throw new Error(enrollmentError.message);
+    }
   } else {
-    const { data: specialty } = d.specialtyId
+    const { data: specialty, error: specialtyError } = d.specialtyId
       ? await c.admin
           .from("mentor_specialties")
           .select("name")
           .eq("id", d.specialtyId)
           .maybeSingle()
-      : { data: null };
-    await c.admin
+      : { data: null, error: null };
+    if (specialtyError) throw new Error(specialtyError.message);
+    const { error: profileRoleError } = await c.admin
       .from("profiles")
       .update({
         staff_type: "mentor",
@@ -209,42 +260,12 @@ async function createMember(c: Context, d: any) {
         title: specialty?.name ? `Mentora de ${specialty.name}` : "Mentora",
       })
       .eq("id", created.user.id);
+    if (profileRoleError) throw new Error(profileRoleError.message);
   }
   await audit(c, "member_invited", email, {
     memberType: d.memberType,
     specialtyId: d.specialtyId ?? null,
   });
-  if (d.phone) {
-    try {
-      const fallbackUrl = new URL("/reset-password", appBase).toString();
-      const { data: recovery } = await c.admin.auth.admin.generateLink({
-        type: "recovery",
-        email,
-        options: { redirectTo: fallbackUrl },
-      });
-      if (recovery.properties?.action_link) {
-        const recipient = {
-          id: created.user.id,
-          name: String(d.fullName).trim(),
-          phone: d.phone,
-          role: d.memberType === "mentee" ? "mentee" : "mentor",
-        } as WhatsAppRecipient;
-        await transactionalWhatsApp({
-          type: "account_created",
-          recipient,
-          referenceType: "profile",
-          referenceId: created.user.id,
-          idempotencyKey: `account_created:${created.user.id}`,
-          targetUrl: recovery.properties.action_link,
-          safeTargetUrl: fallbackUrl,
-          message: `Olá, ${recipient.name}! ✨\n\nSeu acesso à RISE NOW foi criado. Use este link seguro para definir sua senha:\n${recovery.properties.action_link}`,
-          safeMessage: `Olá, ${recipient.name}! ✨\n\nSeu acesso à RISE NOW foi criado. Abra a plataforma para definir sua senha:\n${fallbackUrl}`,
-        });
-      }
-    } catch (notificationError) {
-      console.error("[WhatsApp] Account notification failed", notificationError);
-    }
-  }
   return { ok: true };
 }
 
@@ -268,7 +289,6 @@ async function updateEnrollment(c: Context, d: any) {
   await requireStaff(c);
   const patch: any = {};
   if (d.cohortId !== undefined) patch.cohort_id = d.cohortId;
-  if (d.mentorId !== undefined) patch.mentor_id = d.mentorId;
   if (d.status) patch.status = d.status;
   const { data, error } = await c.admin
     .from("enrollments")
@@ -277,11 +297,42 @@ async function updateEnrollment(c: Context, d: any) {
     .select("mentee_id")
     .single();
   if (error) throw new Error(error.message);
-  if (d.status)
-    await c.admin.auth.admin.updateUserById(data.mentee_id, {
+  if (d.status) {
+    const { error: authError } = await c.admin.auth.admin.updateUserById(data.mentee_id, {
       ban_duration: d.status === "ativa" ? "none" : "876000h",
     });
+    if (authError) throw new Error(authError.message);
+  }
   await audit(c, "enrollment_updated", d.enrollmentId, patch);
+  return { ok: true };
+}
+
+async function updateAccess(c: Context, d: any) {
+  await requireStaff(c);
+  const enabled = d.enabled === true;
+  const { data: invite, error } = await c.admin
+    .from("allowed_emails")
+    .update({ status: enabled ? "approved" : "revoked" })
+    .eq("id", d.accessId)
+    .select("email")
+    .single();
+  if (error) throw new Error(error.message);
+  const { data: users, error: usersError } = await c.admin.auth.admin.listUsers({
+    page: 1,
+    perPage: 1000,
+  });
+  if (usersError) throw new Error(usersError.message);
+  const user = users.users.find(
+    (candidate: any) =>
+      String(candidate.email).toLowerCase() === String(invite.email).toLowerCase(),
+  );
+  if (user) {
+    const { error: authError } = await c.admin.auth.admin.updateUserById(user.id, {
+      ban_duration: enabled ? "none" : "876000h",
+    });
+    if (authError) throw new Error(authError.message);
+  }
+  await audit(c, enabled ? "access_activated" : "access_revoked", d.accessId);
   return { ok: true };
 }
 
@@ -298,157 +349,9 @@ async function resetMemberPassword(c: Context, d: any) {
   return { ok: true };
 }
 
-type WhatsAppRecipient = {
-  id: string;
-  name: string;
-  phone: string | null;
-  role: "mentee" | "mentor" | "admin";
-};
-async function whatsappRecipient(
-  userId: string,
-  role: WhatsAppRecipient["role"],
-): Promise<WhatsAppRecipient | null> {
-  const { data } = await admin
-    .from("profiles")
-    .select("id, full_name, display_name, phone")
-    .eq("id", userId)
-    .maybeSingle();
-  return data
-    ? {
-        id: data.id,
-        name: data.display_name || data.full_name || "Participante RISE",
-        phone: data.phone,
-        role,
-      }
-    : null;
-}
-async function whatsappMentors(menteeId: string, stepKey: string): Promise<WhatsAppRecipient[]> {
-  const ids = new Set<string>();
-  const [{ data: enrollments }, { data: steps }] = await Promise.all([
-    admin
-      .from("enrollments")
-      .select("mentor_id")
-      .eq("mentee_id", menteeId)
-      .neq("status", "desativada"),
-    admin
-      .from("journey_steps")
-      .select("version:journey_versions!inner(pillar:journey_pillars!inner(mentor_id))")
-      .eq("stable_key", stepKey)
-      .limit(20),
-  ]);
-  for (const row of enrollments ?? []) if (row.mentor_id) ids.add(row.mentor_id);
-  for (const row of steps ?? [])
-    if (row.version?.pillar?.mentor_id) ids.add(row.version.pillar.mentor_id);
-  return (await Promise.all([...ids].map((id) => whatsappRecipient(id, "mentor")))).filter(
-    Boolean,
-  ) as WhatsAppRecipient[];
-}
-async function transactionalWhatsApp(input: {
-  type: string;
-  recipient: WhatsAppRecipient;
-  referenceType: string;
-  referenceId: string;
-  idempotencyKey: string;
-  message: string;
-  targetUrl: string;
-  safeMessage?: string;
-  safeTargetUrl?: string;
-}) {
-  const { data: settings } = await admin
-    .from("whatsapp_settings")
-    .select("*")
-    .eq("id", "primary")
-    .maybeSingle();
-  const enabled: Record<string, boolean> = {
-    account_created: !!settings?.enabled_account_created,
-    stage_completed_mentee: !!settings?.enabled_stage_completed_mentee,
-    stage_completed_mentor: !!settings?.enabled_stage_completed_mentor,
-  };
-  if (!enabled[input.type] || !input.recipient.phone) return;
-  const digits = input.recipient.phone.replace(/\D/g, "").replace(/^0+/, "");
-  if (digits.length < 10) return;
-  const phone = digits.startsWith("55") ? digits : `55${digits}`;
-  const { data: log, error } = await admin
-    .from("whatsapp_notifications")
-    .insert({
-      event_type: input.type,
-      recipient_user_id: input.recipient.id,
-      recipient_role: input.recipient.role,
-      phone,
-      message: input.safeMessage ?? input.message,
-      target_url: input.safeTargetUrl ?? input.targetUrl,
-      reference_type: input.referenceType,
-      reference_id: input.referenceId,
-      idempotency_key: input.idempotencyKey,
-      status: "pending",
-    })
-    .select("id")
-    .single();
-  if (error?.code === "23505") return;
-  if (error) throw new Error(error.message);
-  try {
-    const response = await waha("/api/sendText", {
-      method: "POST",
-      body: JSON.stringify({
-        session: wahaConfig().session,
-        chatId: `${phone}@c.us`,
-        text: input.message,
-      }),
-    });
-    const body = await response.json().catch(() => ({}));
-    const providerId = body.id ?? body.key?.id ?? body._data?.id?.id ?? body._data?.id ?? null;
-    await admin
-      .from("whatsapp_notifications")
-      .update({
-        status: "sent",
-        provider_message_id: providerId,
-        sent_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", log.id);
-  } catch (error) {
-    await admin
-      .from("whatsapp_notifications")
-      .update({
-        status: "failed",
-        error_message: error instanceof Error ? error.message : "Falha no envio.",
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", log.id);
-  }
-}
-async function notifyStageCompleted(enrollmentId: string, menteeId: string, stepKey: string) {
-  try {
-    const [{ data: step }, mentee, mentors] = await Promise.all([
-      admin.from("journey_steps").select("title").eq("stable_key", stepKey).limit(1).maybeSingle(),
-      whatsappRecipient(menteeId, "mentee"),
-      whatsappMentors(menteeId, stepKey),
-    ]);
-    const title = step?.title ?? "Etapa da jornada";
-    const base = wahaConfig().appBase ?? "https://mentoriarisenow.lovable.app";
-    if (mentee)
-      await transactionalWhatsApp({
-        type: "stage_completed_mentee",
-        recipient: mentee,
-        referenceType: "journey_step",
-        referenceId: stepKey,
-        idempotencyKey: `stage_completed_mentee:${enrollmentId}:${stepKey}`,
-        targetUrl: `${base}/?view=jornada&step=${encodeURIComponent(stepKey)}`,
-        message: `Olá, ${mentee.name}! ✨\n\nVocê concluiu *${title}*. Seu progresso já foi atualizado na RISE NOW.\n\nContinue sua jornada:\n${base}/?view=jornada&step=${encodeURIComponent(stepKey)}`,
-      });
-    for (const mentor of mentors)
-      await transactionalWhatsApp({
-        type: "stage_completed_mentor",
-        recipient: mentor,
-        referenceType: "journey_step",
-        referenceId: stepKey,
-        idempotencyKey: `stage_completed_mentor:${enrollmentId}:${stepKey}:${mentor.id}`,
-        targetUrl: `${base}/?view=gestao-jornada&step=${encodeURIComponent(stepKey)}`,
-        message: `Olá, ${mentor.name}! ✨\n\n${mentee?.name ?? "Uma mentorada"} concluiu *${title}*.\n\nAcompanhe na plataforma:\n${base}/?view=gestao-jornada&step=${encodeURIComponent(stepKey)}`,
-      });
-  } catch (error) {
-    console.error("[WhatsApp] Stage completion notification failed", error);
-  }
+async function notifyStageCompleted(_enrollmentId: string, _menteeId: string, _stepKey: string) {
+  // Provider intentionally unavailable. Events remain represented by the existing
+  // templates/tables, but no message or pending log is created without a real provider.
 }
 
 async function journeyAction(c: Context, action: string, d: any) {
@@ -485,18 +388,16 @@ async function journeyAction(c: Context, action: string, d: any) {
       .eq("mentee_id", c.userId)
       .maybeSingle();
     if (!enrollment) throw new Error("Matrícula não encontrada.");
-    const { error } = await c.db
-      .from("journey_step_progress")
-      .upsert(
-        {
-          enrollment_id: d.enrollmentId,
-          step_key: d.stepKey,
-          status: "in_progress",
-          started_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "enrollment_id,step_key" },
-      );
+    const { error } = await c.db.from("journey_step_progress").upsert(
+      {
+        enrollment_id: d.enrollmentId,
+        step_key: d.stepKey,
+        status: "in_progress",
+        started_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "enrollment_id,step_key" },
+    );
     if (error) throw new Error(error.message);
     return { ok: true };
   }
@@ -512,20 +413,18 @@ async function journeyAction(c: Context, action: string, d: any) {
         .maybeSingle(),
       c.admin.from("enrollments").select("mentee_id").eq("id", d.enrollmentId).single(),
     ]);
-    const { error } = await c.admin
-      .from("journey_step_progress")
-      .upsert(
-        {
-          enrollment_id: d.enrollmentId,
-          step_key: d.stepKey,
-          status: "completed",
-          completed_at: now,
-          confirmed_by: c.userId,
-          confirmation_source: "mentor",
-          updated_at: now,
-        },
-        { onConflict: "enrollment_id,step_key" },
-      );
+    const { error } = await c.admin.from("journey_step_progress").upsert(
+      {
+        enrollment_id: d.enrollmentId,
+        step_key: d.stepKey,
+        status: "completed",
+        completed_at: now,
+        confirmed_by: c.userId,
+        confirmation_source: "mentor",
+        updated_at: now,
+      },
+      { onConflict: "enrollment_id,step_key" },
+    );
     if (error) throw new Error(error.message);
     if (previous?.status !== "completed" && enrollment?.mentee_id)
       await notifyStageCompleted(d.enrollmentId, enrollment.mentee_id, d.stepKey);
@@ -901,18 +800,16 @@ async function contentAction(c: Context, action: string, d: any) {
     };
   }
   if (action === "saveJourneyContentNote") {
-    const { error } = await c.admin
-      .from("journey_content_notes")
-      .upsert(
-        {
-          enrollment_id: library.enrollmentId,
-          step_key: d.stepKey,
-          user_id: c.userId,
-          content: String(d.content ?? "").slice(0, 30000),
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "user_id,step_key" },
-      );
+    const { error } = await c.admin.from("journey_content_notes").upsert(
+      {
+        enrollment_id: library.enrollmentId,
+        step_key: d.stepKey,
+        user_id: c.userId,
+        content: String(d.content ?? "").slice(0, 30000),
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id,step_key" },
+    );
     if (error) throw new Error(error.message);
     return { ok: true };
   }
@@ -941,21 +838,19 @@ async function contentAction(c: Context, action: string, d: any) {
     const completed =
       !!old?.completed ||
       (!!d.ended && d.durationSeconds > 0 && d.currentSeconds >= d.durationSeconds * 0.9);
-    const { error } = await c.admin
-      .from("journey_content_progress")
-      .upsert(
-        {
-          enrollment_id: library.enrollmentId,
-          step_key: d.stepKey,
-          user_id: c.userId,
-          current_seconds: d.currentSeconds,
-          duration_seconds: d.durationSeconds ?? null,
-          completed,
-          completed_at: completed ? new Date().toISOString() : null,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "enrollment_id,step_key" },
-      );
+    const { error } = await c.admin.from("journey_content_progress").upsert(
+      {
+        enrollment_id: library.enrollmentId,
+        step_key: d.stepKey,
+        user_id: c.userId,
+        current_seconds: d.currentSeconds,
+        duration_seconds: d.durationSeconds ?? null,
+        completed,
+        completed_at: completed ? new Date().toISOString() : null,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "enrollment_id,step_key" },
+    );
     if (error) throw new Error(error.message);
     if (!old?.completed && completed)
       await notifyStageCompleted(library.enrollmentId, c.userId, d.stepKey);
@@ -1071,18 +966,16 @@ async function assessmentAction(c: Context, action: string, d: any) {
     const attempt = await ownAttempt(c, d.attemptId);
     if (attempt.status !== "in_progress") throw new Error("Esta aplicação já foi concluída.");
     const q = ASSESSMENT_QUESTIONS[index];
-    const { error } = await c.admin
-      .from("assessment_responses")
-      .upsert(
-        {
-          attempt_id: d.attemptId,
-          item_id: d.itemId,
-          perspective: q.perspective,
-          value: d.value,
-          answered_at: new Date().toISOString(),
-        },
-        { onConflict: "attempt_id,item_id" },
-      );
+    const { error } = await c.admin.from("assessment_responses").upsert(
+      {
+        attempt_id: d.attemptId,
+        item_id: d.itemId,
+        perspective: q.perspective,
+        value: d.value,
+        answered_at: new Date().toISOString(),
+      },
+      { onConflict: "attempt_id,item_id" },
+    );
     if (error) throw new Error(error.message);
     const currentIndex = Math.min(index + 1, ASSESSMENT_QUESTIONS.length - 1);
     await c.admin
@@ -1122,33 +1015,29 @@ async function assessmentAction(c: Context, action: string, d: any) {
     if (ue) throw new Error(ue.message);
     if (d.stepKey) {
       await Promise.all([
-        c.admin
-          .from("journey_content_progress")
-          .upsert(
-            {
-              enrollment_id: attempt.enrollment_id,
-              user_id: c.userId,
-              step_key: d.stepKey,
-              current_seconds: 0,
-              completed: true,
-              completed_at: now,
-              updated_at: now,
-            },
-            { onConflict: "enrollment_id,step_key" },
-          ),
-        c.admin
-          .from("journey_step_progress")
-          .upsert(
-            {
-              enrollment_id: attempt.enrollment_id,
-              step_key: d.stepKey,
-              status: "completed",
-              completed_at: now,
-              confirmation_source: "assessment_system",
-              updated_at: now,
-            },
-            { onConflict: "enrollment_id,step_key" },
-          ),
+        c.admin.from("journey_content_progress").upsert(
+          {
+            enrollment_id: attempt.enrollment_id,
+            user_id: c.userId,
+            step_key: d.stepKey,
+            current_seconds: 0,
+            completed: true,
+            completed_at: now,
+            updated_at: now,
+          },
+          { onConflict: "enrollment_id,step_key" },
+        ),
+        c.admin.from("journey_step_progress").upsert(
+          {
+            enrollment_id: attempt.enrollment_id,
+            step_key: d.stepKey,
+            status: "completed",
+            completed_at: now,
+            confirmation_source: "assessment_system",
+            updated_at: now,
+          },
+          { onConflict: "enrollment_id,step_key" },
+        ),
       ]);
       await notifyStageCompleted(attempt.enrollment_id, c.userId, d.stepKey);
     }
@@ -1323,17 +1212,15 @@ async function decrypt(value: string) {
   return JSON.parse(new TextDecoder().decode(plain));
 }
 async function saveGoogle(userId: string, tokens: any) {
-  const { error } = await admin
-    .from("app_user_connections")
-    .upsert(
-      {
-        user_id: userId,
-        connector_id: "google_calendar",
-        connection_key_ciphertext: await encrypt(tokens),
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "user_id,connector_id" },
-    );
+  const { error } = await admin.from("app_user_connections").upsert(
+    {
+      user_id: userId,
+      connector_id: "google_calendar",
+      connection_key_ciphertext: await encrypt(tokens),
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "user_id,connector_id" },
+  );
   if (error) throw new Error(error.message);
 }
 async function googleTokens(userId: string) {
@@ -1572,76 +1459,23 @@ async function googleAction(c: Context, action: string, d: any) {
   return { ok: true, joinUrl };
 }
 
-function wahaConfig() {
-  return {
-    baseUrl: env("WAHA_BASE_URL")?.replace(/\/$/, "") ?? null,
-    apiKey: env("WAHA_API_KEY"),
-    session: env("WAHA_SESSION_NAME") ?? "rise-principal",
-    appBase: env("APP_BASE_URL") ?? "https://mentoriarisenow.lovable.app",
-  };
-}
-async function waha(path: string, init: RequestInit = {}) {
-  const cfg = wahaConfig();
-  if (!cfg.baseUrl || !cfg.apiKey) throw new Error("WAHA ainda não configurado.");
-  const headers = new Headers(init.headers);
-  headers.set("X-Api-Key", cfg.apiKey);
-  if (init.body) headers.set("Content-Type", "application/json");
-  const response = await fetch(`${cfg.baseUrl}${path}`, { ...init, headers });
-  if (!response.ok) throw new Error(`WAHA respondeu ${response.status}.`);
-  return response;
-}
 async function whatsappAction(c: Context, action: string, d: any) {
   await requireStaff(c);
-  const cfg = wahaConfig();
   if (action === "saveWhatsAppSettings") {
     const { error } = await c.admin
       .from("whatsapp_settings")
       .update({
-        enabled_account_created: !!d.accountCreated,
-        enabled_meeting_reminder: !!d.meetingReminder,
-        enabled_stage_released: !!d.stageReleased,
-        enabled_stage_completed_mentee: !!d.stageCompletedMentee,
-        enabled_stage_completed_mentor: !!d.stageCompletedMentor,
+        enabled_account_created: false,
+        enabled_meeting_reminder: false,
+        enabled_stage_released: false,
+        enabled_stage_completed_mentee: false,
+        enabled_stage_completed_mentor: false,
         meeting_reminder_hours: Math.max(1, Math.min(168, Number(d.meetingReminderHours))),
         updated_by: c.userId,
       })
       .eq("id", "primary");
     if (error) throw new Error(error.message);
-    return { ok: true };
-  }
-  if (action === "startWhatsAppSession") {
-    await waha("/api/sessions/start", {
-      method: "POST",
-      body: JSON.stringify({ name: cfg.session, config: { proxy: null, debug: false } }),
-    });
-    return { ok: true };
-  }
-  if (action === "restartWhatsAppSession") {
-    await waha(`/api/sessions/${encodeURIComponent(cfg.session)}/restart`, { method: "POST" });
-    return { ok: true };
-  }
-  if (action === "disconnectWhatsAppSession") {
-    await waha(`/api/sessions/${encodeURIComponent(cfg.session)}/logout`, { method: "POST" });
-    return { ok: true };
-  }
-  if (action === "getWhatsAppQrCode") {
-    const response = await waha(`/api/${encodeURIComponent(cfg.session)}/auth/qr?format=image`);
-    const blob = new Uint8Array(await response.arrayBuffer());
-    return {
-      ok: true,
-      qrCode: `data:${response.headers.get("content-type") ?? "image/png"};base64,${b64(blob)}`,
-    };
-  }
-  if (action === "sendWhatsAppTest") {
-    const digits = String(d.phone ?? "")
-      .replace(/\D/g, "")
-      .replace(/^0+/, "");
-    const chatId = `${digits.startsWith("55") ? digits : `55${digits}`}@c.us`;
-    await waha("/api/sendText", {
-      method: "POST",
-      body: JSON.stringify({ session: cfg.session, chatId, text: d.message }),
-    });
-    return { ok: true };
+    return { ok: true, providerConfigured: false };
   }
   if (action === "getWhatsAppAdminState") {
     const { data: s } = await c.admin
@@ -1649,38 +1483,17 @@ async function whatsappAction(c: Context, action: string, d: any) {
       .select("*")
       .eq("id", "primary")
       .maybeSingle();
-    let session: any = { name: cfg.session, engine: "GOWS", status: "STOPPED", phone: null };
-    let qrCode = null;
-    if (cfg.baseUrl && cfg.apiKey) {
-      try {
-        const response = await waha(`/api/sessions/${encodeURIComponent(cfg.session)}`);
-        const x = await response.json();
-        session = {
-          name: cfg.session,
-          engine: x.config?.engine ?? "GOWS",
-          status: x.status ?? "STOPPED",
-          phone: x.me?.id ?? null,
-        };
-        if (session.status === "SCAN_QR_CODE") {
-          const q = await waha(`/api/${encodeURIComponent(cfg.session)}/auth/qr?format=image`);
-          qrCode = `data:${q.headers.get("content-type") ?? "image/png"};base64,${b64(new Uint8Array(await q.arrayBuffer()))}`;
-        }
-      } catch {
-        /* report stopped */
-      }
-    }
     return {
-      configured: !!cfg.baseUrl && !!cfg.apiKey && !!cfg.appBase,
+      configured: false,
+      provider: null,
       settings: {
-        accountCreated: !!s?.enabled_account_created,
-        meetingReminder: !!s?.enabled_meeting_reminder,
-        stageReleased: !!s?.enabled_stage_released,
-        stageCompletedMentee: !!s?.enabled_stage_completed_mentee,
-        stageCompletedMentor: !!s?.enabled_stage_completed_mentor,
+        accountCreated: false,
+        meetingReminder: false,
+        stageReleased: false,
+        stageCompletedMentee: false,
+        stageCompletedMentor: false,
         meetingReminderHours: s?.meeting_reminder_hours ?? 24,
       },
-      session,
-      qrCode,
     };
   }
   throw new Error("Ação WhatsApp inválida.");
@@ -1692,6 +1505,7 @@ const groups = {
     "createMember",
     "createMentorSpecialty",
     "updateEnrollment",
+    "updateAccess",
     "resetMemberPassword",
   ]),
   journey: new Set([
@@ -1730,15 +1544,7 @@ const groups = {
     "updateMeeting",
     "cancelMeeting",
   ]),
-  whatsapp: new Set([
-    "getWhatsAppAdminState",
-    "saveWhatsAppSettings",
-    "startWhatsAppSession",
-    "restartWhatsAppSession",
-    "disconnectWhatsAppSession",
-    "getWhatsAppQrCode",
-    "sendWhatsAppTest",
-  ]),
+  whatsapp: new Set(["getWhatsAppAdminState", "saveWhatsAppSettings"]),
 };
 
 Deno.serve(async (request: Request) => {
@@ -1760,7 +1566,9 @@ Deno.serve(async (request: Request) => {
               ? await createMentorSpecialty(c, d)
               : action === "updateEnrollment"
                 ? await updateEnrollment(c, d)
-                : await resetMemberPassword(c, d);
+                : action === "updateAccess"
+                  ? await updateAccess(c, d)
+                  : await resetMemberPassword(c, d);
     else if (groups.journey.has(action)) result = await journeyAction(c, action, d);
     else if (groups.content.has(action)) result = await contentAction(c, action, d);
     else if (groups.assessment.has(action)) result = await assessmentAction(c, action, d);

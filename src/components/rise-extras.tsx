@@ -15,7 +15,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { mentors } from "@/data/rise-content";
@@ -828,6 +828,27 @@ export function Rise90Live({ enrollmentId }: { enrollmentId: string }) {
   );
 }
 
+export function Rise90StaffContent({ enrollmentId, name }: { enrollmentId: string; name: string }) {
+  const { data: goals = [] } = useGoals(enrollmentId);
+  return (
+    <div className="rise90-staff-content">
+      <span className="eyebrow eyebrow--gold">RISE 90</span>
+      <h2>{name}</h2>
+      <MenteeContactCard enrollmentId={enrollmentId} />
+      <CycleRuler goals={goals} />
+      <div className="goal-list">
+        {goals.map((g) => (
+          <GoalCard key={g.id} goal={g} enrollmentId={enrollmentId} editable={false} />
+        ))}
+        {!goals.length ? (
+          <p className="ops-muted">Ela ainda não definiu as metas do ciclo.</p>
+        ) : null}
+      </div>
+      <GuidanceNotes enrollmentId={enrollmentId} />
+    </div>
+  );
+}
+
 export function Rise90StaffDrawer({
   enrollmentId,
   name,
@@ -837,7 +858,6 @@ export function Rise90StaffDrawer({
   name: string;
   onClose: () => void;
 }) {
-  const { data: goals = [] } = useGoals(enrollmentId);
   return (
     <div
       className="modal-backdrop"
@@ -854,19 +874,7 @@ export function Rise90StaffDrawer({
           <X size={21} />
         </button>
         <div className="content-modal__body">
-          <span className="eyebrow eyebrow--gold">RISE 90</span>
-          <h2>{name}</h2>
-          <MenteeContactCard enrollmentId={enrollmentId} />
-          <CycleRuler goals={goals} />
-          <div className="goal-list">
-            {goals.map((g) => (
-              <GoalCard key={g.id} goal={g} enrollmentId={enrollmentId} editable={false} />
-            ))}
-            {!goals.length ? (
-              <p className="ops-muted">Ela ainda não definiu as metas do ciclo.</p>
-            ) : null}
-          </div>
-          <GuidanceNotes enrollmentId={enrollmentId} />
+          <Rise90StaffContent enrollmentId={enrollmentId} name={name} />
         </div>
       </section>
     </div>
@@ -1017,17 +1025,153 @@ export function Avatar({
   url?: string | null | undefined;
   size?: number;
 }) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [url]);
   const initials = name
     .split(" ")
     .map((p) => p[0])
     .slice(0, 2)
     .join("");
-  return url ? (
-    <img className="x-avatar" src={url} alt={name} style={{ width: size, height: size }} />
+  return url && !failed ? (
+    <img
+      className="x-avatar"
+      src={url}
+      alt={name}
+      style={{ width: size, height: size }}
+      onError={() => setFailed(true)}
+    />
   ) : (
     <span className="profile-avatar x-avatar" style={{ width: size, height: size }}>
       {initials}
     </span>
+  );
+}
+
+type CropPosition = { x: number; y: number };
+
+function AvatarCropEditor({
+  file,
+  onCancel,
+  onSave,
+}: {
+  file: File;
+  onCancel: () => void;
+  onSave: (file: File) => Promise<void>;
+}) {
+  const imageUrl = useMemo(() => URL.createObjectURL(file), [file]);
+  const imageRef = useRef<HTMLImageElement>(null);
+  const dragRef = useRef<{ x: number; y: number; origin: CropPosition } | null>(null);
+  const [position, setPosition] = useState<CropPosition>({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => () => URL.revokeObjectURL(imageUrl), [imageUrl]);
+
+  function move(event: React.PointerEvent<HTMLDivElement>) {
+    if (!dragRef.current) return;
+    setPosition({
+      x: dragRef.current.origin.x + event.clientX - dragRef.current.x,
+      y: dragRef.current.origin.y + event.clientY - dragRef.current.y,
+    });
+  }
+
+  async function crop() {
+    const image = imageRef.current;
+    if (!image?.naturalWidth || !image.naturalHeight) return;
+    setSaving(true);
+    const outputSize = 512;
+    const viewportSize = 300;
+    const baseScale = Math.max(
+      viewportSize / image.naturalWidth,
+      viewportSize / image.naturalHeight,
+    );
+    const displayedWidth = image.naturalWidth * baseScale * zoom;
+    const displayedHeight = image.naturalHeight * baseScale * zoom;
+    const sourceX = Math.max(0, (displayedWidth - viewportSize) / 2 - position.x);
+    const sourceY = Math.max(0, (displayedHeight - viewportSize) / 2 - position.y);
+    const sourceSize = viewportSize / (baseScale * zoom);
+    const canvas = document.createElement("canvas");
+    canvas.width = outputSize;
+    canvas.height = outputSize;
+    const context = canvas.getContext("2d");
+    if (!context) return setSaving(false);
+    context.drawImage(
+      image,
+      sourceX / (baseScale * zoom),
+      sourceY / (baseScale * zoom),
+      Math.min(sourceSize, image.naturalWidth),
+      Math.min(sourceSize, image.naturalHeight),
+      0,
+      0,
+      outputSize,
+      outputSize,
+    );
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, "image/webp", 0.88),
+    );
+    if (blob) await onSave(new File([blob], "avatar.webp", { type: "image/webp" }));
+    setSaving(false);
+  }
+
+  return (
+    <div className="modal-backdrop avatar-crop-backdrop" role="presentation">
+      <section className="content-modal avatar-crop-modal" role="dialog" aria-modal="true">
+        <div className="content-modal__body">
+          <span className="eyebrow eyebrow--gold">Foto de perfil</span>
+          <h2>Ajuste o enquadramento</h2>
+          <p>Arraste a imagem e use o zoom. A prévia circular mostra o resultado.</p>
+          <div
+            className="avatar-crop-viewport"
+            onPointerDown={(event) => {
+              event.currentTarget.setPointerCapture(event.pointerId);
+              dragRef.current = { x: event.clientX, y: event.clientY, origin: position };
+            }}
+            onPointerMove={move}
+            onPointerUp={() => (dragRef.current = null)}
+            onPointerCancel={() => (dragRef.current = null)}
+          >
+            <img
+              ref={imageRef}
+              src={imageUrl}
+              alt="Prévia da nova foto"
+              draggable={false}
+              style={{
+                transform: `translate(-50%, -50%) translate(${position.x}px, ${position.y}px) scale(${zoom})`,
+              }}
+            />
+            <span aria-hidden="true" />
+          </div>
+          <label className="avatar-zoom">
+            <span>Zoom</span>
+            <input
+              type="range"
+              min="1"
+              max="3"
+              step="0.05"
+              value={zoom}
+              onChange={(event) => setZoom(Number(event.target.value))}
+            />
+          </label>
+          <div className="content-modal__actions">
+            <button
+              className="button button--glass"
+              type="button"
+              onClick={onCancel}
+              disabled={saving}
+            >
+              Cancelar
+            </button>
+            <button
+              className="button button--primary"
+              type="button"
+              onClick={() => void crop()}
+              disabled={saving}
+            >
+              {saving ? "Salvando…" : "Salvar foto"}
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -1069,6 +1213,7 @@ export function ProfileModal({
   });
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
   useEffect(() => {
     if (p)
       setForm({
@@ -1088,21 +1233,39 @@ export function ProfileModal({
     (e: { target: { value: string } }) =>
       setForm({ ...form, [k]: e.target.value });
 
-  async function uploadPhoto(file: File) {
+  function preparePhoto(file: File) {
     if (!file.type.startsWith("image/")) return setMsg("Escolha uma imagem (JPG ou PNG).");
     if (file.size > 5 * 1024 * 1024) return setMsg("A foto precisa ter até 5 MB.");
+    setMsg("");
+    setPhotoFile(file);
+  }
+  async function uploadPhoto(file: File) {
     setBusy(true);
-    const path = `${p!.id}/${Date.now()}.${file.name.split(".").pop() ?? "jpg"}`;
+    const path = `${p!.id}/${Date.now()}.webp`;
     const { error } = await supabase.storage.from("avatars").upload(path, file, { upsert: true });
     if (error) {
       setBusy(false);
       return setMsg("Não foi possível enviar a foto.");
     }
     const url = supabase.storage.from("avatars").getPublicUrl(path).data.publicUrl;
-    await supabase.from("profiles").update({ avatar_url: url }).eq("id", p!.id);
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .update({ avatar_url: url })
+      .eq("id", p!.id);
+    if (profileError) {
+      setBusy(false);
+      return setMsg("A foto foi enviada, mas o perfil não pôde ser atualizado.");
+    }
+    qc.setQueryData<MyProfile | null>(["my-profile"], (current) =>
+      current ? { ...current, avatar_url: url } : current,
+    );
+    await Promise.all([
+      qc.invalidateQueries({ queryKey: ["directory"] }),
+      qc.invalidateQueries({ queryKey: ["mentee-public-profile"] }),
+    ]);
     setBusy(false);
+    setPhotoFile(null);
     setMsg("Foto atualizada.");
-    void qc.invalidateQueries();
   }
   async function save() {
     setMsg("");
@@ -1159,7 +1322,7 @@ export function ProfileModal({
                 onClick={() => setForm({ ...form, theme_preference: "dark" })}
               >
                 <Moon size={17} /> Escuro
-                <span>#1b0909</span>
+                <span>#26312F</span>
               </button>
               <button
                 type="button"
@@ -1168,7 +1331,7 @@ export function ProfileModal({
                 onClick={() => setForm({ ...form, theme_preference: "light" })}
               >
                 <Sun size={17} /> Claro
-                <span>#f2f0ef</span>
+                <span>#FFFFFF</span>
               </button>
             </div>
           </fieldset>
@@ -1184,7 +1347,7 @@ export function ProfileModal({
                 type="file"
                 accept="image/*"
                 hidden
-                onChange={(e) => e.target.files?.[0] && void uploadPhoto(e.target.files[0])}
+                onChange={(e) => e.target.files?.[0] && preparePhoto(e.target.files[0])}
               />
             </label>
           </div>
@@ -1273,6 +1436,13 @@ export function ProfileModal({
           </button>
         </div>
       </section>
+      {photoFile ? (
+        <AvatarCropEditor
+          file={photoFile}
+          onCancel={() => setPhotoFile(null)}
+          onSave={uploadPhoto}
+        />
+      ) : null}
     </div>
   );
 }

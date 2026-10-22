@@ -60,7 +60,7 @@ const assertSafeHttpUrl = (value: string, label: string) => {
 };
 
 /**
- * Normaliza telefones brasileiros comuns para o formato internacional usado pelo WAHA.
+ * Normaliza telefones brasileiros comuns para o formato internacional E.164.
  * Aceita números com ou sem +55, pontuação, zero de longa distância e operadora.
  */
 export function normalizeBrazilianPhone(

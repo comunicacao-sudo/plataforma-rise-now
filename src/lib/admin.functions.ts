@@ -12,6 +12,18 @@ export type RiseDirectory = {
     staffType: string | null;
     specialtyId: string | null;
     specialty: string | null;
+    avatarUrl: string | null;
+    phone: string | null;
+    contactEmail: string | null;
+  }>;
+  access: Array<{
+    id: string;
+    userId: string | null;
+    name: string;
+    email: string;
+    role: "admin" | "mentor" | "mentee";
+    status: "aguardando" | "ativo" | "revogado";
+    createdAt: string;
   }>;
   specialties: Array<{ id: string; name: string; category: string }>;
   cohorts: Array<{
@@ -34,11 +46,13 @@ export type RiseDirectory = {
     progress: number;
     month: number;
     cohortId: string | null;
-    mentorId: string | null;
     menteeId: string;
     name: string;
     email: string;
     profession: string;
+    avatarUrl: string | null;
+    phone: string | null;
+    contactEmail: string | null;
   }>;
 };
 
@@ -46,4 +60,5 @@ export const getDirectory = createEdgeFunction<undefined, RiseDirectory>("getDir
 export const createMember: any = createEdgeFunction("createMember");
 export const createMentorSpecialty: any = createEdgeFunction("createMentorSpecialty");
 export const updateEnrollment: any = createEdgeFunction("updateEnrollment");
+export const updateAccess: any = createEdgeFunction("updateAccess");
 export const resetMemberPassword: any = createEdgeFunction("resetMemberPassword");
