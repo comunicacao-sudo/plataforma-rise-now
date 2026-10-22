@@ -766,8 +766,11 @@ async function contentAction(c: Context, action: string, d: any) {
   if (action === "createJourneyUpload") {
     await requireStaff(c);
     const image = ["image/png", "image/jpeg", "image/webp"].includes(d.contentType);
+    const video = ["video/mp4", "video/webm", "video/quicktime"].includes(d.contentType);
     if (d.kind === "cover" && (!image || d.size > 12_000_000))
       throw new Error("A capa deve ser PNG, JPG ou WebP e ter no máximo 12 MB.");
+    if (d.kind === "media" && !video)
+      throw new Error("A gravação deve ser MP4, WebM ou MOV.");
     const ext =
       String(d.fileName)
         .split(".")
