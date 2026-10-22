@@ -20,14 +20,8 @@ import { useMemo, useRef, useState } from "react";
 import { NextStepHero } from "@/components/journey-next-step";
 import { supabase } from "@/integrations/supabase/client";
 import { getDirectory } from "@/lib/admin.functions";
-import {
-  abortR2MultipartUpload,
-  completeR2MultipartUpload,
-  createJourneyUpload,
-  createR2MultipartUpload,
-  getR2UploadPartUrls,
-} from "@/lib/content.functions";
-import { uploadR2Multipart } from "@/lib/r2-multipart-upload";
+import { createJourneyUpload } from "@/lib/content.functions";
+import { uploadSignedResumable } from "@/lib/resumable-storage-upload";
 import {
   confirmJourneyStep,
   getJourneyEditor,
@@ -121,10 +115,6 @@ function StepForm({
   onClose: () => void;
 }) {
   const createUpload = useServerFn(createJourneyUpload);
-  const createCloudflareUpload = useServerFn(createR2MultipartUpload);
-  const getCloudflarePartUrls = useServerFn(getR2UploadPartUrls);
-  const completeCloudflareUpload = useServerFn(completeR2MultipartUpload);
-  const abortCloudflareUpload = useServerFn(abortR2MultipartUpload);
   const [step, setStep] = useState(initial);
   const [uploading, setUploading] = useState<
     "" | "cover-light" | "cover-dark" | "media" | "material"
@@ -170,24 +160,6 @@ function StepForm({
     setUploading(kind);
     setUploadError("");
     try {
-      if (kind === "media") {
-        setUploadProgress(0);
-        const path = await uploadR2Multipart({
-          file,
-          createUpload: createCloudflareUpload,
-          getPartUrls: getCloudflarePartUrls,
-          completeUpload: completeCloudflareUpload,
-          abortUpload: abortCloudflareUpload,
-          onProgress: (uploadedBytes, totalBytes) => {
-            const percentage =
-              totalBytes > 0 ? Math.round((uploadedBytes / totalBytes) * 100) : 0;
-            setUploadProgress(Math.max(0, Math.min(100, percentage)));
-          },
-        });
-        setStep((current) => ({ ...current, mediaPath: path, resourceType: "r2" }));
-        return;
-      }
-
       const signed = await createUpload({
         data: {
           kind: kind === "cover-light" || kind === "cover-dark" ? "cover" : kind,
@@ -196,6 +168,22 @@ function StepForm({
           size: file.size,
         },
       });
+      if (kind === "media") {
+        setUploadProgress(0);
+        await uploadSignedResumable({
+          bucketName: "journey-content",
+          objectPath: signed.path,
+          file,
+          token: signed.token,
+          onProgress: (uploadedBytes, totalBytes) => {
+            const percentage =
+              totalBytes > 0 ? Math.round((uploadedBytes / totalBytes) * 100) : 0;
+            setUploadProgress(Math.max(0, Math.min(100, percentage)));
+          },
+        });
+        setStep((current) => ({ ...current, mediaPath: signed.path, resourceType: "storage" }));
+        return;
+      }
 
       const { error } = await supabase.storage
         .from("journey-content")
@@ -504,7 +492,7 @@ function StepForm({
             <span>
               {step.format === "questionnaire" || step.format === "form"
                 ? "URL do questionário"
-                : "URL do vídeo ou acesso"}
+                : "URL da aula (YouTube não listado)"}
             </span>
             <input
               type="url"
@@ -514,56 +502,16 @@ function StepForm({
             />
           </label>
           {showVideo ? (
-            <div className="journey-upload-group">
-              <label className="journey-upload">
-                {uploading === "media" ? (
-                  <LoaderCircle className="is-spinning" size={18} />
-                ) : (
-                  <ImagePlus size={18} />
-                )}
-                <span>
-                  {uploading === "media"
-                    ? `Enviando para Cloudflare… ${uploadProgress ?? 0}%`
-                    : "Enviar aula para Cloudflare R2"}
-                </span>
-                <input
-                  type="file"
-                  accept="video/mp4,video/webm,video/quicktime"
-                  disabled={uploading !== ""}
-                  onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    if (file) void upload(file, "media");
-                  }}
-                />
-              </label>
-              {uploading === "media" && uploadProgress !== null ? (
-                <div
-                  className="journey-upload-progress"
-                  role="progressbar"
-                  aria-label="Progresso do envio do vídeo"
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-valuenow={uploadProgress}
-                >
-                  <span style={{ width: `${uploadProgress}%` }} />
-                  <small>{uploadProgress}% enviado</small>
-                </div>
-              ) : null}
-              {step.mediaPath ? (
-                <div className="journey-uploaded-file">
-                  <span>Vídeo privado armazenado no Cloudflare R2</span>
-                  <button type="button" onClick={() => removeAsset("media")}>
-                    Remover
-                  </button>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-          <p className="journey-field-help">
-            Questionários abrem dentro da plataforma. As aulas gravadas são enviadas diretamente
-            para o Cloudflare R2 em partes; as chaves privadas ficam somente no backend e o mentorado
-            recebe um link temporário após a plataforma validar o acesso.
-          </p>
+            <p className="journey-field-help">
+              Para evitar uma nova assinatura de armazenamento, envie a aula ao YouTube como
+              <strong> Não listado</strong> e cole o link acima. O vídeo será reproduzido dentro da
+              própria RISE.
+            </p>
+          ) : (
+            <p className="journey-field-help">
+              Questionários abrem dentro da plataforma.
+            </p>
+          )}
           {showMeeting ? (
             <label>
               <span>Data e horário, quando global</span>
