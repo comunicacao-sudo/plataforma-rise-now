@@ -38,6 +38,10 @@ export type JourneyDraftStep = {
   monthNumber: number;
   coverPath: string | null;
   coverUrl?: string | null;
+  coverPathLight: string | null;
+  coverUrlLight?: string | null;
+  coverPathDark: string | null;
+  coverUrlDark?: string | null;
   mediaPath: string | null;
   summary: string;
   topics: string[];
