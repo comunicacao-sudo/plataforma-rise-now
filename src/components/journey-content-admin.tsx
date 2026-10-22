@@ -26,7 +26,7 @@ import {
   type StageQuestion,
 } from "@/lib/content.functions";
 import { getJourneyEditor, type JourneyDraftStep } from "@/lib/journey.functions";
-import { uploadLessonToR2 } from "@/lib/r2-worker";
+import { deleteLessonFromR2, uploadLessonToR2 } from "@/lib/r2-worker";
 
 const typeLabel: Record<StageContentItem["contentType"], string> = {
   video: "Aula gravada",
@@ -194,6 +194,20 @@ function ContentForm({
           active: true,
         },
       });
+
+      if (
+        initial?.mediaPath?.startsWith("r2:") &&
+        initial.mediaPath !== mediaPath
+      ) {
+        await deleteLessonFromR2(initial.mediaPath);
+      }
+      if (initial?.filePath && initial.filePath !== filePath) {
+        const { error: cleanupError } = await supabase.storage
+          .from("journey-content")
+          .remove([initial.filePath]);
+        if (cleanupError) throw cleanupError;
+      }
+
       await Promise.all([
         qc.invalidateQueries({ queryKey: ["stage-contents", pillarId] }),
         qc.invalidateQueries({ queryKey: ["journey-content-library"] }),
@@ -528,6 +542,9 @@ function StageContentManager({
     if (!window.confirm(`Remover “${item.title}” desta etapa?`)) return;
     setMessage("");
     try {
+      if (item.mediaPath?.startsWith("r2:")) {
+        await deleteLessonFromR2(item.mediaPath);
+      }
       await deleteFn({ data: { id: item.id } });
       await Promise.all([
         qc.invalidateQueries({ queryKey: ["stage-contents", pillarId] }),
