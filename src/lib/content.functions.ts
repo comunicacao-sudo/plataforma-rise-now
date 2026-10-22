@@ -83,3 +83,61 @@ export const saveJourneyContentNote: any = createEdgeFunction("saveJourneyConten
 export const addJourneyContentMarker: any = createEdgeFunction("addJourneyContentMarker");
 export const saveJourneyContentProgress: any = createEdgeFunction("saveJourneyContentProgress");
 export const createJourneyUpload: any = createEdgeFunction("createJourneyUpload");
+
+
+export type StageQuestion = {
+  id: string;
+  prompt: string;
+  type: "short_text" | "long_text" | "single_choice";
+  required: boolean;
+  options: string[];
+};
+
+export type StageContentItem = {
+  id: string;
+  pillarId: string;
+  stepKey: string;
+  contentType: "video" | "material" | "questionnaire";
+  title: string;
+  description: string;
+  durationMinutes: number | null;
+  mediaPath: string | null;
+  filePath: string | null;
+  externalUrl: string | null;
+  questionnaire: { questions: StageQuestion[] };
+  accessScope: "general" | "cohort" | "mentee";
+  cohortId: string | null;
+  menteeId: string | null;
+  position: number;
+  active: boolean;
+};
+
+export type AgendaMaterial = {
+  id: string;
+  title: string;
+  description: string;
+  fileUrl: string | null;
+  externalUrl: string | null;
+  stepTitle: string;
+  pillarName: string;
+  monthNumber: number;
+};
+
+export const getStageContents = createEdgeFunction<
+  { pillarId: string },
+  { items: StageContentItem[] }
+>("getStageContents");
+
+export const saveStageContent: any = createEdgeFunction("saveStageContent");
+export const deleteStageContent: any = createEdgeFunction("deleteStageContent");
+
+export const getMyAgendaMaterials = createEdgeFunction<undefined, { items: AgendaMaterial[] }>(
+  "getMyAgendaMaterials",
+);
+
+export const getStageQuestionnaireResponse = createEdgeFunction<
+  { contentId: string },
+  { answers: Record<string, string>; submitted: boolean } | null
+>("getStageQuestionnaireResponse");
+
+export const submitStageQuestionnaire: any = createEdgeFunction("submitStageQuestionnaire");
