@@ -10,6 +10,7 @@ import {
   FileCheck2,
   LockKeyhole,
   Paperclip,
+  Pencil,
   Plus,
   RefreshCw,
   Trash2,
@@ -1261,6 +1262,146 @@ function CohortForm({ onDone }: { onDone: () => void }) {
   );
 }
 
+function CohortEditor({
+  cohort,
+  memberCount,
+  onDone,
+}: {
+  cohort: RiseDirectory["cohorts"][number];
+  memberCount: number;
+  onDone: () => void;
+}) {
+  const qc = useQueryClient();
+  const [name, setName] = useState(cohort.name);
+  const [start, setStart] = useState(cohort.starts_on ?? "");
+  const [end, setEnd] = useState(cohort.ends_on ?? "");
+  const [busy, setBusy] = useState<"" | "save" | "delete">("");
+  const [msg, setMsg] = useState("");
+
+  async function save(event: React.FormEvent) {
+    event.preventDefault();
+    const cleanName = name.trim();
+    if (!cleanName) return setMsg("Dê um nome à turma.");
+    if (start && end && end < start)
+      return setMsg("A data final precisa ser igual ou posterior à data inicial.");
+
+    setBusy("save");
+    setMsg("");
+    const { error } = await supabase
+      .from("cohorts")
+      .update({
+        name: cleanName,
+        starts_on: start || null,
+        ends_on: end || null,
+      })
+      .eq("id", cohort.id);
+
+    if (error) {
+      setMsg("Não foi possível salvar as alterações da turma.");
+      setBusy("");
+      return;
+    }
+
+    await qc.invalidateQueries({ queryKey: ["directory"] });
+    setBusy("");
+    onDone();
+  }
+
+  async function remove() {
+    const detail =
+      memberCount > 0
+        ? ` Esta turma possui ${memberCount} mentorada(s); elas ficarão sem turma vinculada, mas não serão excluídas.`
+        : "";
+    if (
+      !window.confirm(
+        `Excluir a turma “${cohort.name}”?${detail} Esta ação não pode ser desfeita.`,
+      )
+    )
+      return;
+
+    setBusy("delete");
+    setMsg("");
+    const { error } = await supabase.from("cohorts").delete().eq("id", cohort.id);
+
+    if (error) {
+      setMsg("Não foi possível excluir a turma.");
+      setBusy("");
+      return;
+    }
+
+    await qc.invalidateQueries({ queryKey: ["directory"] });
+    setBusy("");
+    onDone();
+  }
+
+  return (
+    <div
+      className="modal-backdrop"
+      role="presentation"
+      onMouseDown={(event) => event.target === event.currentTarget && !busy && onDone()}
+    >
+      <section
+        className="content-modal ops-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Editar ${cohort.name}`}
+      >
+        <button
+          className="modal-close"
+          type="button"
+          onClick={onDone}
+          aria-label="Fechar"
+          disabled={!!busy}
+        >
+          <X size={21} />
+        </button>
+        <form className="content-modal__body ops-form" onSubmit={(event) => void save(event)}>
+          <span className="eyebrow eyebrow--gold">Gestão de turmas</span>
+          <h2>Editar turma</h2>
+
+          <Field label="Título da turma">
+            <input
+              required
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="Ex.: Turma 1, 2027"
+            />
+          </Field>
+
+          <div className="ops-grid2">
+            <Field label="Data de início">
+              <input type="date" value={start} onChange={(event) => setStart(event.target.value)} />
+            </Field>
+            <Field label="Data de fim">
+              <input type="date" value={end} onChange={(event) => setEnd(event.target.value)} />
+            </Field>
+          </div>
+
+          <p className="ops-muted">
+            {memberCount} mentorada(s) vinculada(s) a esta turma.
+          </p>
+          {msg ? <p className="form-message">{msg}</p> : null}
+
+          <div className="content-modal__actions">
+            <button
+              className="button button--glass"
+              type="button"
+              disabled={!!busy}
+              onClick={() => void remove()}
+            >
+              <Trash2 size={17} />
+              {busy === "delete" ? "Excluindo…" : "Excluir turma"}
+            </button>
+            <button className="button button--primary" type="submit" disabled={!!busy}>
+              {busy === "save" ? "Salvando…" : "Salvar alterações"}
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
+  );
+}
+
 function MemberForm({ onDone }: { onDone: () => void }) {
   const qc = useQueryClient();
   const { data: dir } = useDirectory();
@@ -1570,6 +1711,7 @@ function MembersPanel() {
   const updateAccessFn = useServerFn(updateAccess);
   const { data: subs = [] } = useSubmissions();
   const [cohortOpen, setCohortOpen] = useState(false);
+  const [editingCohort, setEditingCohort] = useState<RiseDirectory["cohorts"][number] | null>(null);
   const [specialtyOpen, setSpecialtyOpen] = useState(false);
   const [memberOpen, setMemberOpen] = useState(false);
   const [adminSection, setAdminSection] = useState<"perfis" | "acessos" | "turmas">("perfis");
@@ -1807,22 +1949,37 @@ function MembersPanel() {
           <CohortForm onDone={() => setCohortOpen(false)} />
         ) : null}
         <div className="ops-cohorts" hidden={adminSection !== "turmas"}>
-          {dir?.cohorts.map((c) => (
-            <article key={c.id} className="admin-card">
-              <strong>{c.name}</strong>
-              <small className="ops-muted">
-                {c.starts_on
-                  ? new Date(`${c.starts_on}T12:00`).toLocaleDateString("pt-BR")
-                  : "A definir"}{" "}
-                até{" "}
-                {c.ends_on
-                  ? new Date(`${c.ends_on}T12:00`).toLocaleDateString("pt-BR")
-                  : "A definir"}
-              </small>
-              <span>{dir.enrollments.filter((e) => e.cohortId === c.id).length} mentorada(s)</span>
-            </article>
-          ))}
+          {dir?.cohorts.map((c) => {
+            const memberCount = dir.enrollments.filter((e) => e.cohortId === c.id).length;
+            return (
+              <article key={c.id} className="admin-card">
+                <strong>{c.name}</strong>
+                <small className="ops-muted">
+                  {c.starts_on
+                    ? new Date(`${c.starts_on}T12:00`).toLocaleDateString("pt-BR")
+                    : "A definir"}{" "}
+                  até{" "}
+                  {c.ends_on
+                    ? new Date(`${c.ends_on}T12:00`).toLocaleDateString("pt-BR")
+                    : "A definir"}
+                </small>
+                <span>{memberCount} mentorada(s)</span>
+                <div className="ops-actions">
+                  <button type="button" onClick={() => setEditingCohort(c)}>
+                    <Pencil size={15} /> Editar
+                  </button>
+                </div>
+              </article>
+            );
+          })}
         </div>
+        {editingCohort ? (
+          <CohortEditor
+            cohort={editingCohort}
+            memberCount={dir?.enrollments.filter((e) => e.cohortId === editingCohort.id).length ?? 0}
+            onDone={() => setEditingCohort(null)}
+          />
+        ) : null}
 
         <div className="section-heading ops-gap" hidden={adminSection !== "perfis"}>
           <div>
