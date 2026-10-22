@@ -18,6 +18,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { RecordedPlayer, type PlayerController } from "@/components/recorded-lessons";
 import { RiseAssessmentExperience } from "@/components/rise-assessment";
+import { getR2PlaybackUrl } from "@/lib/r2-worker";
 import {
   addJourneyContentMarker,
   getJourneyContent,
@@ -354,7 +355,7 @@ function JourneyNotebook({
             setMarking(true);
             setMarkerError("");
           }}
-          disabled={!item.mediaUrl || !player.canSeek}
+          disabled={!(item.mediaUrl || item.resourceType === "r2") || !player.canSeek}
           title={!player.canSeek ? "Este player não oferece marcação de tempo" : undefined}
         >
           <Plus size={17} /> Marcar momento
@@ -468,6 +469,9 @@ export function JourneyContentLessonPage({
   });
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState<number | null>(null);
+  const [r2Url, setR2Url] = useState<string | null>(null);
+  const [r2Error, setR2Error] = useState("");
+  const [r2Loading, setR2Loading] = useState(false);
   const [player, setPlayer] = useState<PlayerController>({ canSeek: false, seek: () => undefined });
   const lastSaved = useRef(0);
   const item = query.data?.item;
@@ -476,8 +480,31 @@ export function JourneyContentLessonPage({
     window.scrollTo({ top: 0, behavior: "smooth" });
     setCurrentTime(0);
     setDuration(null);
+    setR2Url(null);
+    setR2Error("");
     lastSaved.current = 0;
   }, [stepKey]);
+
+  useEffect(() => {
+    if (!item || item.resourceType !== "r2") return;
+    let cancelled = false;
+    setR2Loading(true);
+    setR2Error("");
+    void getR2PlaybackUrl(item.stepKey)
+      .then((result) => {
+        if (!cancelled) setR2Url(result.url);
+      })
+      .catch((error) => {
+        if (!cancelled)
+          setR2Error(error instanceof Error ? error.message : "Não foi possível liberar esta aula.");
+      })
+      .finally(() => {
+        if (!cancelled) setR2Loading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [item]);
 
   async function persistProgress(seconds: number, ended = false) {
     if (!item) return;
@@ -588,9 +615,22 @@ export function JourneyContentLessonPage({
         <div className="recorded-lesson__workspace">
           <section className="recorded-lesson__main">
             <div className="recorded-player">
-              {item.mediaUrl ? (
+              {item.resourceType === "r2" && r2Loading ? (
+                <div className="recorded-player__empty">
+                  <span className="eyebrow eyebrow--gold">Acesso privado</span>
+                  <h2>Preparando sua aula…</h2>
+                  <p>A RISE está validando seu acesso ao vídeo no Cloudflare.</p>
+                </div>
+              ) : item.resourceType === "r2" && r2Error ? (
+                <div className="recorded-player__empty">
+                  <VideoOff size={36} />
+                  <span className="eyebrow eyebrow--gold">Acesso indisponível</span>
+                  <h2>Não foi possível liberar este vídeo.</h2>
+                  <p>{r2Error}</p>
+                </div>
+              ) : (item.resourceType === "r2" ? r2Url : item.mediaUrl) ? (
                 <RecordedPlayer
-                  url={item.mediaUrl}
+                  url={(item.resourceType === "r2" ? r2Url : item.mediaUrl) ?? ""}
                   initialTime={study.data?.currentSeconds ?? item.currentSeconds}
                   onEnded={() => void persistProgress(currentTime, true)}
                   onTime={(seconds) => {
