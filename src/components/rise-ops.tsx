@@ -8,6 +8,8 @@ import {
   Check,
   ExternalLink,
   FileCheck2,
+  FileText,
+  Link2,
   LockKeyhole,
   Paperclip,
   Pencil,
