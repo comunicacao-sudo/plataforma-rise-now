@@ -815,13 +815,14 @@ function HomeView({
     }
     if (
       highlightedStep.stepKey &&
-      [
-        "questionnaire",
-        "form",
-        "recorded_class",
-        "collective_recording",
-        "cohort_onboarding",
-      ].includes(highlightedStep.format ?? "")
+      (highlightedStep.hasStageContent ||
+        [
+          "questionnaire",
+          "form",
+          "recorded_class",
+          "collective_recording",
+          "cohort_onboarding",
+        ].includes(highlightedStep.format ?? ""))
     ) {
       onOpenContent(highlightedStep.stepKey);
       return;
