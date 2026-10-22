@@ -21,7 +21,7 @@ import { NextStepHero } from "@/components/journey-next-step";
 import { supabase } from "@/integrations/supabase/client";
 import { getDirectory } from "@/lib/admin.functions";
 import { createJourneyUpload } from "@/lib/content.functions";
-import { uploadSignedResumable } from "@/lib/resumable-storage-upload";
+import { uploadLessonToR2 } from "@/lib/r2-worker";
 import {
   confirmJourneyStep,
   getJourneyEditor,
@@ -164,6 +164,22 @@ function StepForm({
     setUploading(kind);
     setUploadError("");
     try {
+      if (kind === "media") {
+        setUploadProgress(0);
+        const mediaPath = await uploadLessonToR2(file, (uploadedBytes, totalBytes) => {
+          const percentage =
+            totalBytes > 0 ? Math.round((uploadedBytes / totalBytes) * 100) : 0;
+          setUploadProgress(Math.max(0, Math.min(100, percentage)));
+        });
+        setStep((current) => ({
+          ...current,
+          mediaPath,
+          resourceType: "r2",
+          resourceUrl: null,
+        }));
+        return;
+      }
+
       const signed = await createUpload({
         data: {
           kind: kind === "cover-light" || kind === "cover-dark" ? "cover" : kind,
@@ -172,22 +188,6 @@ function StepForm({
           size: file.size,
         },
       });
-      if (kind === "media") {
-        setUploadProgress(0);
-        await uploadSignedResumable({
-          bucketName: "journey-content",
-          objectPath: signed.path,
-          file,
-          token: signed.token,
-          onProgress: (uploadedBytes, totalBytes) => {
-            const percentage =
-              totalBytes > 0 ? Math.round((uploadedBytes / totalBytes) * 100) : 0;
-            setUploadProgress(Math.max(0, Math.min(100, percentage)));
-          },
-        });
-        setStep((current) => ({ ...current, mediaPath: signed.path, resourceType: "storage" }));
-        return;
-      }
 
       const { error } = await supabase.storage
         .from("journey-content")
@@ -504,25 +504,72 @@ function StepForm({
               />
             </label>
           ) : null}
-          <label>
-            <span>
-              {step.format === "questionnaire" || step.format === "form"
-                ? "URL do questionário"
-                : "URL da aula (YouTube não listado)"}
-            </span>
-            <input
-              type="url"
-              value={step.resourceUrl ?? ""}
-              onChange={(e) => update("resourceUrl", e.target.value || null)}
-              placeholder="https://"
-            />
-          </label>
-          {showVideo ? (
-            <p className="journey-field-help">
-              Para evitar uma nova assinatura de armazenamento, envie a aula ao YouTube como
-              <strong> Não listado</strong> e cole o link acima. O vídeo será reproduzido dentro da
-              própria RISE.
-            </p>
+          {step.format === "questionnaire" || step.format === "form" ? (
+            <label>
+              <span>URL do questionário</span>
+              <input
+                type="url"
+                value={step.resourceUrl ?? ""}
+                onChange={(e) => update("resourceUrl", e.target.value || null)}
+                placeholder="https://"
+              />
+            </label>
+          ) : showVideo ? (
+            <div className="journey-upload-group">
+              <label className="journey-upload">
+                <Plus size={18} />
+                <span>
+                  {uploading === "media"
+                    ? `Enviando aula para Cloudflare… ${uploadProgress ?? 0}%`
+                    : step.mediaPath?.startsWith("r2:")
+                      ? "Substituir vídeo no Cloudflare R2"
+                      : "Enviar vídeo para Cloudflare R2"}
+                </span>
+                <input
+                  type="file"
+                  accept="video/mp4,video/webm,video/quicktime"
+                  disabled={uploading !== ""}
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) void upload(file, "media");
+                  }}
+                />
+              </label>
+              {uploading === "media" && uploadProgress !== null ? (
+                <div
+                  className="journey-upload-progress"
+                  role="progressbar"
+                  aria-label="Progresso do envio da aula"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={uploadProgress}
+                >
+                  <span style={{ width: `${uploadProgress}%` }} />
+                  <small>{uploadProgress}% enviado</small>
+                </div>
+              ) : null}
+              {step.mediaPath?.startsWith("r2:") ? (
+                <div className="journey-uploaded-file">
+                  <span>Vídeo privado armazenado no Cloudflare R2</span>
+                  <button type="button" onClick={() => removeAsset("media")} disabled={uploading !== ""}>
+                    Remover vídeo
+                  </button>
+                </div>
+              ) : null}
+              <p className="journey-field-help">
+                A aula fica no bucket privado da RISE. O mentorado recebe acesso temporário somente
+                depois que a plataforma valida a permissão dele para esta etapa.
+              </p>
+              <label>
+                <span>URL externa alternativa (opcional)</span>
+                <input
+                  type="url"
+                  value={step.resourceUrl ?? ""}
+                  onChange={(e) => update("resourceUrl", e.target.value || null)}
+                  placeholder="https://"
+                />
+              </label>
+            </div>
           ) : (
             <p className="journey-field-help">
               Questionários abrem dentro da plataforma.
