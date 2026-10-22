@@ -68,6 +68,10 @@ function emptyStep(): JourneyDraftStep {
     monthNumber: 1,
     coverPath: null,
     coverUrl: null,
+    coverPathLight: null,
+    coverUrlLight: null,
+    coverPathDark: null,
+    coverUrlDark: null,
     mediaPath: null,
     summary: "",
     topics: [],
@@ -87,7 +91,12 @@ function toIso(value: string) {
 }
 
 function draftStepSignature(step: JourneyDraftStep) {
-  const { coverUrl: _coverUrl, ...stableFields } = step;
+  const {
+    coverUrl: _coverUrl,
+    coverUrlLight: _coverUrlLight,
+    coverUrlDark: _coverUrlDark,
+    ...stableFields
+  } = step;
   return JSON.stringify(stableFields);
 }
 
@@ -106,9 +115,14 @@ function StepForm({
 }) {
   const createUpload = useServerFn(createJourneyUpload);
   const [step, setStep] = useState(initial);
-  const [uploading, setUploading] = useState<"" | "cover" | "media" | "material">("");
+  const [uploading, setUploading] = useState<
+    "" | "cover-light" | "cover-dark" | "media" | "material"
+  >("");
   const [uploadError, setUploadError] = useState("");
-  const previewObject = useRef<string | null>(null);
+  const previewObjects = useRef<{ light: string | null; dark: string | null }>({
+    light: null,
+    dark: null,
+  });
   const update = <K extends keyof JourneyDraftStep>(key: K, value: JourneyDraftStep[K]) =>
     setStep((current) => ({ ...current, [key]: value }));
   const showMeeting = step.format === "live_group" || step.format === "individual_1_1";
@@ -137,13 +151,16 @@ function StepForm({
     }));
   }
 
-  async function upload(file: File, kind: "cover" | "media" | "material") {
+  async function upload(
+    file: File,
+    kind: "cover-light" | "cover-dark" | "media" | "material",
+  ) {
     setUploading(kind);
     setUploadError("");
     try {
       const signed = await createUpload({
         data: {
-          kind,
+          kind: kind === "cover-light" || kind === "cover-dark" ? "cover" : kind,
           fileName: file.name,
           contentType: file.type || "application/octet-stream",
           size: file.size,
@@ -153,14 +170,29 @@ function StepForm({
         .from("journey-content")
         .uploadToSignedUrl(signed.path, signed.token, file, { contentType: file.type });
       if (error) throw error;
-      if (kind === "cover") {
-        if (previewObject.current) URL.revokeObjectURL(previewObject.current);
-        previewObject.current = URL.createObjectURL(file);
-        setStep((current) => ({
-          ...current,
-          coverPath: signed.path,
-          coverUrl: previewObject.current,
-        }));
+      if (kind === "cover-light" || kind === "cover-dark") {
+        const theme = kind === "cover-light" ? "light" : "dark";
+        const previous = previewObjects.current[theme];
+        if (previous) URL.revokeObjectURL(previous);
+        const preview = URL.createObjectURL(file);
+        previewObjects.current[theme] = preview;
+        setStep((current) =>
+          theme === "light"
+            ? {
+                ...current,
+                coverPathLight: signed.path,
+                coverUrlLight: preview,
+                coverPath: current.coverPath ?? signed.path,
+                coverUrl: current.coverUrl ?? preview,
+              }
+            : {
+                ...current,
+                coverPathDark: signed.path,
+                coverUrlDark: preview,
+                coverPath: current.coverPath ?? signed.path,
+                coverUrl: current.coverUrl ?? preview,
+              },
+        );
       } else if (kind === "media") {
         setStep((current) => ({ ...current, mediaPath: signed.path, resourceType: "storage" }));
       } else {
@@ -184,9 +216,22 @@ function StepForm({
     }
   }
 
-  function removeAsset(kind: "cover" | "media") {
-    if (kind === "cover") setStep((current) => ({ ...current, coverPath: null, coverUrl: null }));
-    else setStep((current) => ({ ...current, mediaPath: null }));
+  function removeAsset(kind: "cover-light" | "cover-dark" | "media") {
+    if (kind === "cover-light") {
+      setStep((current) => ({
+        ...current,
+        coverPathLight: null,
+        coverUrlLight: null,
+      }));
+    } else if (kind === "cover-dark") {
+      setStep((current) => ({
+        ...current,
+        coverPathDark: null,
+        coverUrlDark: null,
+      }));
+    } else {
+      setStep((current) => ({ ...current, mediaPath: null }));
+    }
   }
 
   return (
@@ -246,38 +291,90 @@ function StepForm({
           </label>
         </fieldset>
 
-        <fieldset>
-          <legend>Capa do card</legend>
+        <fieldset className="journey-cover-fieldset">
+          <legend>Capas do card</legend>
           <p className="journey-field-help">
-            A imagem é exibida sem logo, texto ou decoração automática. Use PNG, JPG ou WebP.
+            Cadastre uma arte para cada tema. A plataforma exibe automaticamente a capa correspondente
+            ao tema claro ou escuro escolhido por mentorados e mentoras. PNG, JPG ou WebP.
           </p>
-          {step.coverUrl ? (
-            <div className="journey-cover-preview">
-              <img src={step.coverUrl} alt={`Prévia da capa de ${step.title || "etapa"}`} />
-              <button
-                type="button"
-                onClick={() => removeAsset("cover")}
-                disabled={uploading !== ""}
-              >
-                Remover capa
-              </button>
+
+          <div className="journey-theme-cover">
+            <div className="journey-theme-cover__head">
+              <strong>Tema claro</strong>
+              <span>Usada quando a plataforma estiver no tema claro</span>
             </div>
-          ) : null}
-          <label className="journey-upload">
-            <ImagePlus size={18} />
-            <span>
-              {uploading === "cover" ? "Enviando capa…" : "Selecionar ou substituir capa"}
-            </span>
-            <input
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              disabled={uploading !== ""}
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file) void upload(file, "cover");
-              }}
-            />
-          </label>
+            {step.coverUrlLight ?? step.coverUrl ? (
+              <div className="journey-cover-preview">
+                <img
+                  src={step.coverUrlLight ?? step.coverUrl ?? ""}
+                  alt={`Prévia da capa clara de ${step.title || "etapa"}`}
+                />
+                <button
+                  type="button"
+                  onClick={() => removeAsset("cover-light")}
+                  disabled={uploading !== ""}
+                >
+                  Remover capa clara
+                </button>
+              </div>
+            ) : null}
+            <label className="journey-upload">
+              <ImagePlus size={18} />
+              <span>
+                {uploading === "cover-light"
+                  ? "Enviando capa clara…"
+                  : "Selecionar ou substituir capa clara"}
+              </span>
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                disabled={uploading !== ""}
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) void upload(file, "cover-light");
+                }}
+              />
+            </label>
+          </div>
+
+          <div className="journey-theme-cover">
+            <div className="journey-theme-cover__head">
+              <strong>Tema escuro</strong>
+              <span>Usada quando a plataforma estiver no tema escuro</span>
+            </div>
+            {step.coverUrlDark ?? step.coverUrl ? (
+              <div className="journey-cover-preview">
+                <img
+                  src={step.coverUrlDark ?? step.coverUrl ?? ""}
+                  alt={`Prévia da capa escura de ${step.title || "etapa"}`}
+                />
+                <button
+                  type="button"
+                  onClick={() => removeAsset("cover-dark")}
+                  disabled={uploading !== ""}
+                >
+                  Remover capa escura
+                </button>
+              </div>
+            ) : null}
+            <label className="journey-upload">
+              <ImagePlus size={18} />
+              <span>
+                {uploading === "cover-dark"
+                  ? "Enviando capa escura…"
+                  : "Selecionar ou substituir capa escura"}
+              </span>
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                disabled={uploading !== ""}
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) void upload(file, "cover-dark");
+                }}
+              />
+            </label>
+          </div>
         </fieldset>
 
         <fieldset>
