@@ -1292,7 +1292,15 @@ export function RisePlatform() {
   }, [authMode, role]);
 
   const { data: currentProfile } = useMyProfile(authMode === "authenticated");
-  const theme = currentProfile?.theme_preference === "light" ? "light" : "dark";
+  // O tema claro da experiência da mentorada ainda está em validação.
+  // Mesmo que exista uma preferência antiga salva, a mentorada permanece no tema escuro
+  // até a liberação explícita desta opção.
+  const theme =
+    role === "mentee"
+      ? "dark"
+      : currentProfile?.theme_preference === "light"
+        ? "light"
+        : "dark";
   const shellClass = useMemo(() => `platform-shell platform-shell--${role}`, [role]);
 
   async function exit() {
