@@ -48,6 +48,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import {
   GoogleCalendarCard,
+  MenteeAgendaMaterials,
   MenteeMeetings,
   NextMeetingBanner,
   StaffArea,
@@ -84,12 +85,21 @@ type View =
   | "rise90"
   | "painel"
   | "gestao-jornada"
+  | "conteudos"
   | "alunas"
   | "whatsapp";
 type AuthMode = "checking" | "login" | "authenticated" | "change-password";
 
 const menteeViews: View[] = ["inicio", "jornada", "agenda", "entregas", "rise90"];
-const staffViews: View[] = ["painel", "gestao-jornada", "agenda", "entregas", "alunas", "whatsapp"];
+const staffViews: View[] = [
+  "painel",
+  "gestao-jornada",
+  "conteudos",
+  "agenda",
+  "entregas",
+  "alunas",
+  "whatsapp",
+];
 
 function defaultViewForRole(role: Role): View {
   return role === "mentee" ? "inicio" : "painel";
@@ -448,6 +458,7 @@ function Header({
       : [
           { label: "Painel", view: "painel" },
           { label: "Minha jornada", view: "gestao-jornada" },
+          { label: "Conteúdos", view: "conteudos" },
           { label: "Agenda", view: "agenda" },
           { label: "Entregas", view: "entregas" },
           { label: "Alunas e turmas", view: "alunas" },
@@ -1000,6 +1011,7 @@ function AgendaView({ trail, onOpen }: { trail: Trail; onOpen: (l: TrailLesson) 
         <GoogleCalendarCard audience="mentee" />
       </section>
       <MenteeMeetings />
+      <MenteeAgendaMaterials />
       <div className="page-width section-heading ops-gap">
         <div>
           <h2>Sessões previstas na trilha</h2>
@@ -1324,7 +1336,7 @@ export function RisePlatform() {
       {role !== "mentee" ? (
         <StaffArea
           view={
-            (["painel", "gestao-jornada", "agenda", "entregas", "alunas", "whatsapp"].includes(
+            (["painel", "gestao-jornada", "conteudos", "agenda", "entregas", "alunas", "whatsapp"].includes(
               activeView,
             )
               ? activeView
