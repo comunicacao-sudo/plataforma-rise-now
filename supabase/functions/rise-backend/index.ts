@@ -1089,7 +1089,11 @@ async function contentAction(c: Context, action: string, d: any) {
       title,
       description: String(d.description ?? "").trim().slice(0, 5000),
       duration_minutes:
-        contentType === "video" && Number.isFinite(Number(d.durationMinutes))
+        contentType === "video" &&
+        d.durationMinutes !== null &&
+        d.durationMinutes !== undefined &&
+        String(d.durationMinutes).trim() !== "" &&
+        Number.isFinite(Number(d.durationMinutes))
           ? Math.max(1, Math.min(1440, Number(d.durationMinutes)))
           : null,
       media_path: contentType === "video" ? String(d.mediaPath ?? "") || null : null,
@@ -1110,6 +1114,34 @@ async function contentAction(c: Context, action: string, d: any) {
     };
 
     const id = String(d.id ?? "").trim();
+
+    if (!id && ["video", "questionnaire"].includes(contentType)) {
+      let duplicateQuery = c.admin
+        .from("journey_stage_contents")
+        .select("id")
+        .eq("pillar_id", pillarId)
+        .eq("step_key", stepKey)
+        .eq("content_type", contentType)
+        .eq("access_scope", accessScope)
+        .eq("active", true);
+
+      if (accessScope === "cohort") duplicateQuery = duplicateQuery.eq("cohort_id", cohortId);
+      else duplicateQuery = duplicateQuery.is("cohort_id", null);
+
+      if (accessScope === "mentee") duplicateQuery = duplicateQuery.eq("mentee_id", menteeId);
+      else duplicateQuery = duplicateQuery.is("mentee_id", null);
+
+      const { data: duplicate, error: duplicateError } = await duplicateQuery.limit(1).maybeSingle();
+      if (duplicateError) throw new Error(duplicateError.message);
+      if (duplicate) {
+        throw new Error(
+          contentType === "video"
+            ? "Já existe uma aula para esse público nesta etapa. Edite a aula existente."
+            : "Já existe um questionário para esse público nesta etapa. Edite o questionário existente.",
+        );
+      }
+    }
+
     const query = id
       ? c.admin
           .from("journey_stage_contents")
