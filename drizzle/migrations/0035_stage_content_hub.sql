@@ -148,11 +148,11 @@ begin
   end if;
 
   if public.is_admin() then
-    select coalesce(c.media_path, s.media_path)
+    select c.media_path
       into v_path
     from public.journey_steps s
     join public.journey_versions v on v.id = s.version_id
-    left join lateral (
+    join lateral (
       select sc.media_path
       from public.journey_stage_contents sc
       where sc.step_key = s.stable_key
@@ -167,7 +167,6 @@ begin
     ) c on true
     where s.stable_key = _step_key
       and s.archived_at is null
-      and (c.media_path is not null or s.media_path is not null)
     order by
       case v.status when 'published' then 0 when 'draft' then 1 else 2 end,
       v.updated_at desc
@@ -175,7 +174,7 @@ begin
     return v_path;
   end if;
 
-  select coalesce(c.media_path, s.media_path)
+  select c.media_path
     into v_path
   from public.enrollments e
   join public.journey_pillars p on p.program_id = e.program_id
@@ -185,7 +184,7 @@ begin
     on v.id = coalesce(ejv.version_id, p.current_published_version_id)
     and v.status in ('published', 'archived')
   join public.journey_steps s on s.version_id = v.id
-  left join lateral (
+  join lateral (
     select sc.media_path
     from public.journey_stage_contents sc
     where sc.pillar_id = p.id
@@ -215,7 +214,6 @@ begin
       or (s.access_scope = 'cohort' and s.cohort_id = e.cohort_id)
       or (s.access_scope = 'mentee' and s.mentee_id = e.mentee_id)
     )
-    and (c.media_path is not null or s.media_path is not null)
   limit 1;
 
   return v_path;
