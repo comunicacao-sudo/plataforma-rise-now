@@ -8171,3 +8171,153 @@ hr,
     background: linear-gradient(180deg, rgba(38, 49, 47, 0.2) 0%, rgba(38, 49, 47, 0.88) 45%, #26312f 100%);
   }
 }
+
+
+/* Recorded lesson page — authenticated graphite theme */
+.platform-shell[data-theme="dark"] .recorded-background {
+  color: var(--platform-title) !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  background-attachment: scroll !important;
+}
+.platform-shell[data-theme="dark"] .recorded-background::before {
+  display: none !important;
+}
+.platform-shell[data-theme="dark"] .recorded-back,
+.platform-shell[data-theme="dark"] .lesson-breadcrumb {
+  color: var(--platform-muted);
+}
+.platform-shell[data-theme="dark"] .recorded-back:hover,
+.platform-shell[data-theme="dark"] .lesson-breadcrumb button:hover,
+.platform-shell[data-theme="dark"] .lesson-breadcrumb strong {
+  color: var(--rise-sand);
+}
+.platform-shell[data-theme="dark"] .recorded-library__head h1,
+.platform-shell[data-theme="dark"] .recorded-lesson__title h1,
+.platform-shell[data-theme="dark"] .lesson-summary h2,
+.platform-shell[data-theme="dark"] .lesson-details-grid h2,
+.platform-shell[data-theme="dark"] .lesson-notebook__head h2 {
+  color: var(--rise-white);
+}
+.platform-shell[data-theme="dark"] .recorded-library__head > p,
+.platform-shell[data-theme="dark"] .recorded-lesson__title p,
+.platform-shell[data-theme="dark"] .lesson-summary p,
+.platform-shell[data-theme="dark"] .lesson-details-grid ul,
+.platform-shell[data-theme="dark"] .recorded-player__empty p,
+.platform-shell[data-theme="dark"] .notebook-empty,
+.platform-shell[data-theme="dark"] .notebook-note-preview,
+.platform-shell[data-theme="dark"] .notebook-save {
+  color: var(--platform-text);
+}
+.platform-shell[data-theme="dark"] .recorded-lesson__title p i,
+.platform-shell[data-theme="dark"] .lesson-summary,
+.platform-shell[data-theme="dark"] .lesson-details-grid > div + div,
+.platform-shell[data-theme="dark"] .lesson-navigation,
+.platform-shell[data-theme="dark"] .notebook-tabs,
+.platform-shell[data-theme="dark"] .notebook-toolbar {
+  border-color: var(--platform-line) !important;
+}
+.platform-shell[data-theme="dark"] .lesson-status {
+  border-color: var(--platform-line-strong);
+  color: var(--rise-sand);
+  background: color-mix(in srgb, var(--platform-surface) 76%, transparent);
+}
+.platform-shell[data-theme="dark"] .recorded-player {
+  border-color: var(--platform-line-strong);
+  background: #101716;
+  box-shadow: 0 20px 52px var(--platform-shadow);
+}
+.platform-shell[data-theme="dark"] .recorded-player__empty {
+  color: var(--platform-title);
+  background:
+    radial-gradient(
+      circle at 50% 35%,
+      color-mix(in srgb, var(--rise-sand) 9%, transparent),
+      transparent 42%
+    ),
+    color-mix(in srgb, var(--platform-surface-strong) 96%, transparent);
+}
+.platform-shell[data-theme="dark"] .recorded-player__empty > svg,
+.platform-shell[data-theme="dark"] .lesson-summary h2 svg,
+.platform-shell[data-theme="dark"] .lesson-details-grid li span,
+.platform-shell[data-theme="dark"] .lesson-notebook__head svg,
+.platform-shell[data-theme="dark"] .marker-form strong {
+  color: var(--rise-sand);
+}
+.platform-shell[data-theme="dark"] .lesson-notebook {
+  border-color: var(--platform-line);
+  color: var(--platform-title);
+  background: color-mix(in srgb, var(--platform-surface) 90%, transparent);
+  box-shadow: 0 24px 55px var(--platform-shadow);
+}
+.platform-shell[data-theme="dark"] .lesson-notebook__head > button {
+  border-color: var(--platform-line-strong);
+  color: var(--rise-sand);
+  background: color-mix(in srgb, var(--platform-surface-soft) 92%, transparent);
+}
+.platform-shell[data-theme="dark"] .notebook-editor,
+.platform-shell[data-theme="dark"] .marker-form textarea {
+  border-color: var(--platform-line);
+  color: var(--platform-title);
+  background: color-mix(in srgb, var(--platform-surface-strong) 78%, transparent);
+}
+.platform-shell[data-theme="dark"] .notebook-editor textarea,
+.platform-shell[data-theme="dark"] .marker-form textarea {
+  color: var(--platform-title);
+}
+.platform-shell[data-theme="dark"] .notebook-editor textarea::placeholder,
+.platform-shell[data-theme="dark"] .marker-form textarea::placeholder {
+  color: var(--platform-muted);
+}
+.platform-shell[data-theme="dark"] .notebook-toolbar button {
+  color: var(--platform-text);
+}
+.platform-shell[data-theme="dark"] .notebook-toolbar button:hover {
+  color: var(--rise-white);
+  background: color-mix(in srgb, var(--rise-sand) 10%, transparent);
+}
+.platform-shell[data-theme="dark"] .notebook-tabs button {
+  color: var(--platform-muted);
+}
+.platform-shell[data-theme="dark"] .notebook-tabs button.is-active {
+  border-color: var(--rise-sand);
+  color: var(--rise-white);
+}
+.platform-shell[data-theme="dark"] .lesson-navigation button {
+  border-color: var(--platform-line-strong);
+  color: var(--rise-sand);
+  background: color-mix(in srgb, var(--platform-surface) 86%, transparent);
+}
+.platform-shell[data-theme="dark"] .lesson-navigation button:last-child {
+  border-color: var(--rise-sand);
+  color: var(--rise-graphite);
+  background: var(--rise-sand);
+}
+.platform-shell[data-theme="dark"] .recorded-card,
+.platform-shell[data-theme="dark"] .recorded-filters button {
+  border-color: var(--platform-line);
+  color: var(--platform-text);
+  background: color-mix(in srgb, var(--platform-surface) 88%, transparent);
+}
+.platform-shell[data-theme="dark"] .recorded-card__cover {
+  color: var(--rise-sand);
+  background:
+    radial-gradient(circle at 70% 40%, rgba(215, 176, 122, 0.12), transparent 35%),
+    linear-gradient(135deg, #31403d, #26312f);
+}
+.platform-shell[data-theme="dark"] .recorded-card__body > div,
+.platform-shell[data-theme="dark"] .recorded-card button,
+.platform-shell[data-theme="dark"] .recorded-section > header > span {
+  color: var(--rise-sand);
+}
+.platform-shell[data-theme="dark"] .recorded-card p,
+.platform-shell[data-theme="dark"] .recorded-section > header p {
+  color: var(--platform-muted);
+}
+.platform-shell[data-theme="dark"] .recorded-filters button.is-active,
+.platform-shell[data-theme="dark"] .recorded-filters button:hover {
+  border-color: var(--rise-sand);
+  color: var(--rise-graphite);
+  background: var(--rise-sand);
+}
