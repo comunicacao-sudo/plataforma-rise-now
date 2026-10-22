@@ -16,8 +16,8 @@ create table if not exists public.journey_stage_contents (
   questionnaire jsonb not null default '{"questions":[]}'::jsonb,
   access_scope text not null default 'general'
     check (access_scope in ('general','cohort','mentee')),
-  cohort_id uuid references public.cohorts(id) on delete set null,
-  mentee_id uuid references public.profiles(id) on delete set null,
+  cohort_id uuid references public.cohorts(id) on delete cascade,
+  mentee_id uuid references public.profiles(id) on delete cascade,
   position integer not null default 0,
   active boolean not null default true,
   legacy_key text unique,
