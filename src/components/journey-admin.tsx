@@ -202,7 +202,7 @@ function StepForm({
           coverPathLight: null,
           coverUrlLight: null,
           coverPath: legacyWasRemoved ? (current.coverPathDark ?? null) : current.coverPath,
-          coverUrl: legacyWasRemoved ? (current.coverUrlDark ?? null) : current.coverUrl,
+          coverUrl: legacyWasRemoved ? (current.coverUrlDark ?? null) : (current.coverUrl ?? null),
         };
       });
     } else if (kind === "cover-dark") {
@@ -219,7 +219,7 @@ function StepForm({
           coverPathDark: null,
           coverUrlDark: null,
           coverPath: legacyWasRemoved ? (current.coverPathLight ?? null) : current.coverPath,
-          coverUrl: legacyWasRemoved ? (current.coverUrlLight ?? null) : current.coverUrl,
+          coverUrl: legacyWasRemoved ? (current.coverUrlLight ?? null) : (current.coverUrl ?? null),
         };
       });
     }
