@@ -1224,7 +1224,8 @@ export function ProfileModal({
         contact_email: p.contact_email ?? "",
         profession: p.profession ?? "",
         profession_visible: p.profession_visible ?? false,
-        theme_preference: p.theme_preference === "light" ? "light" : "dark",
+        theme_preference:
+          role === "mentee" ? "dark" : p.theme_preference === "light" ? "light" : "dark",
       });
   }, [p]);
   if (!p) return null;
@@ -1285,7 +1286,7 @@ export function ProfileModal({
         contact_email: form.contact_email.trim() || null,
         profession: form.profession.trim() || null,
         profession_visible: form.profession_visible,
-        theme_preference: form.theme_preference,
+        theme_preference: role === "mentee" ? "dark" : form.theme_preference,
       })
       .eq("id", p!.id);
     setBusy(false);
@@ -1326,12 +1327,20 @@ export function ProfileModal({
               </button>
               <button
                 type="button"
-                className={form.theme_preference === "light" ? "is-active" : ""}
+                className={[
+                  form.theme_preference === "light" ? "is-active" : "",
+                  role === "mentee" ? "is-disabled" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
                 aria-pressed={form.theme_preference === "light"}
+                aria-disabled={role === "mentee"}
+                disabled={role === "mentee"}
+                title={role === "mentee" ? "Tema claro em teste. Será liberado em breve." : undefined}
                 onClick={() => setForm({ ...form, theme_preference: "light" })}
               >
                 <Sun size={17} /> Claro
-                <span>#FFFFFF</span>
+                <span>{role === "mentee" ? "Em teste" : "#FFFFFF"}</span>
               </button>
             </div>
           </fieldset>
