@@ -135,6 +135,10 @@ function StepForm({
     "individual_1_1",
   ].includes(step.format);
   const showDuration = showMeeting || showVideo;
+  const lightCoverUrl =
+    step.coverUrlLight ?? (!step.coverUrlDark ? (step.coverUrl ?? null) : null);
+  const darkCoverUrl =
+    step.coverUrlDark ?? (!step.coverUrlLight ? (step.coverUrl ?? null) : null);
 
   function changeFormat(format: JourneyDraftStep["format"]) {
     setStep((current) => ({
@@ -236,17 +240,29 @@ function StepForm({
 
   function removeAsset(kind: "cover-light" | "cover-dark" | "media") {
     if (kind === "cover-light") {
-      setStep((current) => ({
-        ...current,
-        coverPathLight: null,
-        coverUrlLight: null,
-      }));
+      setStep((current) => {
+        const removedPath = current.coverPathLight;
+        const legacyWasRemoved = !!removedPath && current.coverPath === removedPath;
+        return {
+          ...current,
+          coverPathLight: null,
+          coverUrlLight: null,
+          coverPath: legacyWasRemoved ? (current.coverPathDark ?? null) : current.coverPath,
+          coverUrl: legacyWasRemoved ? (current.coverUrlDark ?? null) : current.coverUrl,
+        };
+      });
     } else if (kind === "cover-dark") {
-      setStep((current) => ({
-        ...current,
-        coverPathDark: null,
-        coverUrlDark: null,
-      }));
+      setStep((current) => {
+        const removedPath = current.coverPathDark;
+        const legacyWasRemoved = !!removedPath && current.coverPath === removedPath;
+        return {
+          ...current,
+          coverPathDark: null,
+          coverUrlDark: null,
+          coverPath: legacyWasRemoved ? (current.coverPathLight ?? null) : current.coverPath,
+          coverUrl: legacyWasRemoved ? (current.coverUrlLight ?? null) : current.coverUrl,
+        };
+      });
     } else {
       setStep((current) => ({ ...current, mediaPath: null }));
     }
@@ -321,10 +337,10 @@ function StepForm({
               <strong>Tema claro</strong>
               <span>Usada quando a plataforma estiver no tema claro</span>
             </div>
-            {step.coverUrlLight ?? step.coverUrl ? (
+            {lightCoverUrl ? (
               <div className="journey-cover-preview">
                 <img
-                  src={step.coverUrlLight ?? step.coverUrl ?? ""}
+                  src={lightCoverUrl}
                   alt={`Prévia da capa clara de ${step.title || "etapa"}`}
                 />
                 <button
@@ -360,10 +376,10 @@ function StepForm({
               <strong>Tema escuro</strong>
               <span>Usada quando a plataforma estiver no tema escuro</span>
             </div>
-            {step.coverUrlDark ?? step.coverUrl ? (
+            {darkCoverUrl ? (
               <div className="journey-cover-preview">
                 <img
-                  src={step.coverUrlDark ?? step.coverUrl ?? ""}
+                  src={darkCoverUrl}
                   alt={`Prévia da capa escura de ${step.title || "etapa"}`}
                 />
                 <button
