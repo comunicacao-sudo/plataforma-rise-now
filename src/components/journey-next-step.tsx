@@ -133,22 +133,41 @@ export function NextStepHero({
     step.state === "blocked"
       ? "Esta etapa ainda não foi liberada. Você receberá a orientação assim que chegar o momento."
       : "A equipe RISE está preparando o acesso desta etapa.";
+  const hasImpactCopy = Boolean(step.impactLead || step.impactHighlight || step.impactTail);
 
   return (
     <section
       className="next-step-hero"
       aria-label={preview ? "Visualização prévia do próximo passo" : "Seu próximo passo"}
     >
-      <div className="next-step-hero__art" aria-hidden="true" />
+      <div className="next-step-hero__art" aria-hidden="true">
+        <span className="next-step-hero__glow" />
+        <span className="next-step-hero__wave next-step-hero__wave--top" />
+        <span className="next-step-hero__wave next-step-hero__wave--bottom" />
+        <span className="next-step-hero__orbit" />
+        <span className="next-step-hero__sprout">
+          <i className="next-step-hero__stem" />
+          <i className="next-step-hero__leaf next-step-hero__leaf--one" />
+          <i className="next-step-hero__leaf next-step-hero__leaf--two" />
+          <i className="next-step-hero__seed" />
+          <i className="next-step-hero__star" />
+        </span>
+      </div>
       <div className="next-step-hero__content page-width">
         <div className="next-step-hero__copy">
           <span className="next-step-hero__eyebrow">
             {preview ? "Visualização prévia" : (step.pillarName ?? "Sua jornada")}
           </span>
-          <h1>
-            {step.impactLead ? <span>{step.impactLead} </span> : null}
-            {step.impactHighlight ? <strong>{step.impactHighlight}</strong> : null}
-            {step.impactTail ? <span> {step.impactTail}</span> : null}
+          <h1 className={!hasImpactCopy ? "next-step-hero__title-fallback" : undefined}>
+            {hasImpactCopy ? (
+              <>
+                {step.impactLead ? <span>{step.impactLead} </span> : null}
+                {step.impactHighlight ? <strong>{step.impactHighlight}</strong> : null}
+                {step.impactTail ? <span> {step.impactTail}</span> : null}
+              </>
+            ) : (
+              <span>{step.title ?? "Seu próximo passo"}</span>
+            )}
           </h1>
           <p>{step.description}</p>
           {meta.length ? (
