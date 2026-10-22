@@ -7670,3 +7670,343 @@ hr,
     opacity: 0.28;
   }
 }
+
+
+/* 2026-10 final dark auth identity and exact mentee reference layout */
+
+/* LOGIN + INITIAL LOADING — official dark identity */
+.login-shell {
+  background: #26312f;
+}
+.login-shell__art {
+  background:
+    linear-gradient(90deg, transparent 70%, rgba(38, 49, 47, 0.94)),
+    radial-gradient(circle at 48% 42%, rgba(215, 176, 122, 0.09), transparent 42%),
+    radial-gradient(circle at 18% 76%, rgba(215, 176, 122, 0.06), transparent 28%),
+    #26312f;
+}
+.login-shell__art::before {
+  color: rgba(255, 255, 255, 0.045);
+}
+.login-shell__art::after {
+  background-image:
+    linear-gradient(rgba(215, 176, 122, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(215, 176, 122, 0.035) 1px, transparent 1px);
+}
+.orb {
+  border-color: rgba(215, 176, 122, 0.78);
+  box-shadow:
+    inset 0 0 80px rgba(215, 176, 122, 0.02),
+    0 0 22px rgba(215, 176, 122, 0.06);
+}
+.orb--three {
+  background: rgba(215, 176, 122, 0.025);
+}
+.login-shell__spark {
+  color: #d7b07a;
+  filter: drop-shadow(0 0 18px rgba(215, 176, 122, 0.72));
+}
+.login-shell__line {
+  background: linear-gradient(90deg, transparent, #d7b07a, transparent);
+  box-shadow: 0 0 14px rgba(215, 176, 122, 0.34);
+}
+.login-shell__mantra {
+  color: rgba(215, 176, 122, 0.72);
+}
+.login-panel {
+  border-left-color: rgba(215, 176, 122, 0.22);
+  background:
+    radial-gradient(circle at 100% 68%, rgba(215, 176, 122, 0.05), transparent 38%),
+    #26312f;
+}
+.login-panel__copy h1 {
+  color: #ffffff;
+}
+.login-panel__copy p,
+.login-form__hint,
+.login-form__links > span,
+.login-form__secondary .demo-link,
+.access-sent p {
+  color: rgba(215, 176, 122, 0.78);
+}
+.login-form label {
+  color: #ffffff;
+}
+.login-form__control,
+.login-form > input {
+  border-color: rgba(215, 176, 122, 0.42);
+  background: rgba(255, 255, 255, 0.045);
+  color: #ffffff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+.login-form__control:focus-within,
+.login-form > input:focus {
+  border-color: #d7b07a;
+  box-shadow: 0 0 0 3px rgba(215, 176, 122, 0.13);
+}
+.login-form__control > svg,
+.login-form__reveal,
+.demo-link,
+.eyebrow--gold {
+  color: #d7b07a;
+}
+.login-form__control input {
+  color: #ffffff;
+}
+.login-form__control input::placeholder,
+.login-form > input::placeholder {
+  color: rgba(215, 176, 122, 0.58);
+}
+.login-form__reveal:hover {
+  background: rgba(215, 176, 122, 0.08);
+}
+.login-panel .button--primary {
+  border-color: #e4c28f;
+  background: #d7b07a;
+  color: #26312f;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.34),
+    0 10px 28px rgba(13, 22, 21, 0.2);
+}
+.login-panel .button--primary:hover {
+  background: #e0bd8a;
+}
+.access-sent {
+  border-color: rgba(215, 176, 122, 0.36);
+  background: rgba(215, 176, 122, 0.06);
+}
+.access-sent__icon {
+  background: #d7b07a;
+  color: #26312f;
+}
+.loading-screen {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 46%, rgba(215, 176, 122, 0.08), transparent 27rem),
+    #26312f;
+}
+.loading-screen::before,
+.loading-screen::after {
+  content: "";
+  position: absolute;
+  width: min(92vw, 1100px);
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(215, 176, 122, 0.64), transparent);
+  box-shadow: 0 0 16px rgba(215, 176, 122, 0.18);
+  pointer-events: none;
+}
+.loading-screen::before {
+  top: 18%;
+  transform: rotate(-4deg);
+}
+.loading-screen::after {
+  bottom: 18%;
+  transform: rotate(4deg);
+}
+.loading-screen .rise-mark {
+  position: relative;
+  z-index: 1;
+}
+.loading-screen > span {
+  position: relative;
+  z-index: 1;
+  color: #d7b07a;
+}
+
+/* MENTEE START — exact approved composition, dynamic content over approved artwork */
+.platform-shell .next-step-hero {
+  min-height: clamp(700px, 56.28vw, 941px);
+  background: #26312f;
+}
+.platform-shell .next-step-hero__art {
+  background-color: #26312f;
+  background-image: url("/brand/mentee-next-step-dark.webp");
+  background-repeat: no-repeat;
+  background-position: center center;
+  background-size: cover;
+}
+.platform-shell .next-step-hero::after {
+  background: none;
+}
+.platform-shell .next-step-hero__glow,
+.platform-shell .next-step-hero__wave,
+.platform-shell .next-step-hero__orbit,
+.platform-shell .next-step-hero__sprout {
+  display: none;
+}
+.platform-shell .next-step-hero__content {
+  min-height: inherit;
+  align-items: flex-start;
+  padding-top: clamp(165px, 13.2vw, 220px);
+  padding-bottom: clamp(72px, 6vw, 104px);
+  padding-left: 3.15vw;
+}
+.platform-shell .next-step-hero__copy {
+  display: block;
+  width: min(820px, 55vw);
+}
+.platform-shell .next-step-hero__eyebrow {
+  display: none;
+}
+.platform-shell .next-step-hero h1 {
+  max-width: 820px;
+  margin: 0;
+  color: #ffffff;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(4.35rem, 5.75vw, 6rem);
+  font-weight: 400;
+  line-height: 0.93;
+  letter-spacing: -0.045em;
+  text-wrap: balance;
+}
+.platform-shell .next-step-hero h1 span,
+.platform-shell .next-step-hero h1 strong,
+.platform-shell .next-step-hero__title-fallback span {
+  color: #ffffff;
+  font-weight: 400;
+  text-shadow: none;
+}
+.platform-shell .next-step-hero__copy > p {
+  max-width: 650px;
+  margin: clamp(30px, 2.5vw, 42px) 0 0;
+  color: #d7b07a;
+  font-size: clamp(1.08rem, 1.45vw, 1.48rem);
+  line-height: 1.38;
+}
+.platform-shell .next-step-hero__meta {
+  display: flex;
+  width: max-content;
+  max-width: 720px;
+  align-items: center;
+  gap: 0;
+  margin-top: clamp(96px, 8.2vw, 132px);
+}
+.platform-shell .next-step-hero__meta span {
+  min-height: 48px;
+  gap: 18px;
+  padding: 0 40px 0 0;
+  color: #d7b07a;
+  font-size: clamp(1rem, 1.16vw, 1.2rem);
+  line-height: 1.25;
+}
+.platform-shell .next-step-hero__meta span + span {
+  margin-left: 40px;
+  border-left: 1px solid rgba(215, 176, 122, 0.72);
+  padding-left: 40px;
+}
+.platform-shell .next-step-hero__meta svg {
+  width: 29px;
+  height: 29px;
+  color: #d7b07a;
+  stroke-width: 1.8;
+}
+.platform-shell .next-step-hero__button {
+  width: min(420px, 100%);
+  min-height: 78px;
+  margin-top: 18px;
+  border: 1px solid #f0d29f;
+  border-radius: 999px;
+  background: #d7b07a;
+  color: #26312f;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.46),
+    0 4px 18px rgba(215, 176, 122, 0.22);
+  font-size: clamp(1rem, 1.22vw, 1.28rem);
+  font-weight: 750;
+}
+.platform-shell .next-step-hero__button:hover {
+  background: #dfbc88;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.52),
+    0 8px 24px rgba(215, 176, 122, 0.28);
+}
+.platform-shell .next-step-hero__waiting {
+  max-width: 600px;
+  margin-top: clamp(82px, 7vw, 112px);
+  border-left-color: #d7b07a;
+  background: rgba(38, 49, 47, 0.78);
+  color: #d7b07a;
+}
+.platform-shell[data-theme="light"] .next-step-hero__art {
+  background-image: url("/brand/mentee-next-step-dark.webp");
+}
+.platform-shell[data-theme="light"] .next-step-hero {
+  background: #26312f;
+}
+.platform-shell[data-theme="light"] .next-step-hero h1 span,
+.platform-shell[data-theme="light"] .next-step-hero h1 strong,
+.platform-shell[data-theme="light"] .next-step-hero__title-fallback span {
+  color: #ffffff;
+}
+.platform-shell[data-theme="light"] .next-step-hero__copy > p,
+.platform-shell[data-theme="light"] .next-step-hero__meta span,
+.platform-shell[data-theme="light"] .next-step-hero__meta svg {
+  color: #d7b07a;
+}
+
+@media (max-width: 900px) {
+  .platform-shell .next-step-hero {
+    min-height: 760px;
+  }
+  .platform-shell .next-step-hero__art {
+    background-position: 58% center;
+  }
+  .platform-shell .next-step-hero__content {
+    padding-top: 150px;
+    padding-left: 1vw;
+  }
+  .platform-shell .next-step-hero__copy {
+    width: min(100%, 680px);
+  }
+  .platform-shell .next-step-hero h1 {
+    max-width: 680px;
+    font-size: clamp(3.6rem, 8.6vw, 5.2rem);
+  }
+  .platform-shell .next-step-hero__meta {
+    margin-top: 78px;
+  }
+}
+@media (max-width: 640px) {
+  .platform-shell .next-step-hero {
+    min-height: 760px;
+  }
+  .platform-shell .next-step-hero__art {
+    background-position: 64% center;
+  }
+  .platform-shell .next-step-hero__content {
+    align-items: flex-end;
+    padding-top: 112px;
+    padding-bottom: 54px;
+    padding-left: 0;
+  }
+  .platform-shell .next-step-hero__copy {
+    width: 100%;
+  }
+  .platform-shell .next-step-hero h1 {
+    max-width: 100%;
+    font-size: clamp(2.9rem, 14vw, 4.1rem);
+    line-height: 0.96;
+  }
+  .platform-shell .next-step-hero__copy > p {
+    margin-top: 22px;
+    font-size: 1rem;
+  }
+  .platform-shell .next-step-hero__meta {
+    display: grid;
+    width: 100%;
+    gap: 12px;
+    margin-top: 52px;
+  }
+  .platform-shell .next-step-hero__meta span,
+  .platform-shell .next-step-hero__meta span + span {
+    min-height: 34px;
+    margin: 0;
+    border-left: 0;
+    padding: 0;
+  }
+  .platform-shell .next-step-hero__button {
+    min-height: 66px;
+    margin-top: 22px;
+  }
+}
