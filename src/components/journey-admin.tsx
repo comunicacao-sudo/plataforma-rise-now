@@ -507,7 +507,6 @@ export function JourneyAdmin() {
   }
 
   function getStepStatus(step: JourneyDraftStep) {
-    if (step.releaseAt && new Date(step.releaseAt).getTime() > Date.now()) return "Agendado";
     const original = data?.steps.find((item) => item.stableKey === step.stableKey);
     const unchangedLocally = !original || draftStepSignature(original) === draftStepSignature(step);
     return unchangedLocally && (data?.publishedStepKeys ?? []).includes(step.stableKey)
@@ -699,6 +698,17 @@ export function JourneyAdmin() {
                       ...step,
                       stableKey: crypto.randomUUID(),
                       title: `${step.title}, cópia`,
+                      responsibleName: null,
+                      durationMinutes: null,
+                      resourceType: null,
+                      resourceId: null,
+                      resourceUrl: null,
+                      scheduledAt: null,
+                      mediaPath: null,
+                      materials: [],
+                      accessScope: "general" as const,
+                      cohortId: null,
+                      menteeId: null,
                     };
                     const next = [...steps];
                     next.splice(index + 1, 0, copy);
