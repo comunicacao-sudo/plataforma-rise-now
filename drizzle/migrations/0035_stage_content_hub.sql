@@ -35,6 +35,12 @@ create index if not exists journey_stage_contents_stage_idx
   on public.journey_stage_contents(pillar_id, step_key, position);
 create index if not exists journey_stage_contents_audience_idx
   on public.journey_stage_contents(access_scope, cohort_id, mentee_id);
+create index if not exists journey_stage_contents_cohort_id_idx
+  on public.journey_stage_contents(cohort_id)
+  where cohort_id is not null;
+create index if not exists journey_stage_contents_mentee_id_idx
+  on public.journey_stage_contents(mentee_id)
+  where mentee_id is not null;
 
 alter table public.journey_stage_contents enable row level security;
 revoke all on public.journey_stage_contents from anon, authenticated;
@@ -52,6 +58,8 @@ create table if not exists public.journey_stage_questionnaire_responses (
 
 create index if not exists journey_stage_questionnaire_responses_user_idx
   on public.journey_stage_questionnaire_responses(user_id, content_id);
+create index if not exists journey_stage_questionnaire_responses_enrollment_id_idx
+  on public.journey_stage_questionnaire_responses(enrollment_id);
 
 alter table public.journey_stage_questionnaire_responses enable row level security;
 revoke all on public.journey_stage_questionnaire_responses from anon, authenticated;
