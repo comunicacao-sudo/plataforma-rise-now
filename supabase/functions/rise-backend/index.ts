@@ -789,8 +789,343 @@ async function requireContent(c: Context, stepKey: string) {
     throw new Error("Você não tem permissão para acessar este conteúdo.");
   return { library, item };
 }
+
+function stageScopeAllowed(row: any, enrollment: any, userId: string) {
+  return (
+    row.access_scope === "general" ||
+    (row.access_scope === "cohort" && !!enrollment.cohort_id && row.cohort_id === enrollment.cohort_id) ||
+    (row.access_scope === "mentee" && row.mentee_id === userId)
+  );
+}
+
+function stageScopeRank(row: any) {
+  return row.access_scope === "mentee" ? 3 : row.access_scope === "cohort" ? 2 : 1;
+}
+
+function stageContentShape(row: any) {
+  return {
+    id: row.id,
+    pillarId: row.pillar_id,
+    stepKey: row.step_key,
+    contentType: row.content_type,
+    title: row.title,
+    description: row.description ?? "",
+    durationMinutes: row.duration_minutes,
+    mediaPath: row.media_path,
+    filePath: row.file_path,
+    externalUrl: row.external_url,
+    questionnaire:
+      row.questionnaire && typeof row.questionnaire === "object"
+        ? row.questionnaire
+        : { questions: [] },
+    accessScope: row.access_scope,
+    cohortId: row.cohort_id,
+    menteeId: row.mentee_id,
+    position: row.position ?? 0,
+    active: row.active !== false,
+  };
+}
+
+function sanitizeStageQuestions(input: unknown) {
+  const source =
+    input && typeof input === "object" && Array.isArray((input as any).questions)
+      ? (input as any).questions
+      : [];
+  const questions = source.slice(0, 50).flatMap((question: any, index: number) => {
+    const prompt = String(question?.prompt ?? "").trim().slice(0, 1000);
+    if (!prompt) return [];
+    const type = ["short_text", "long_text", "single_choice"].includes(question?.type)
+      ? question.type
+      : "short_text";
+    const options =
+      type === "single_choice" && Array.isArray(question?.options)
+        ? question.options
+            .map((value: unknown) => String(value).trim().slice(0, 300))
+            .filter(Boolean)
+            .slice(0, 20)
+        : [];
+    return [
+      {
+        id: String(question?.id ?? crypto.randomUUID()),
+        prompt,
+        type,
+        required: question?.required !== false,
+        options,
+        position: index,
+      },
+    ];
+  });
+  return { questions };
+}
+
+async function activeJourneyEnrollment(userId: string) {
+  const { data, error } = await admin
+    .from("enrollments")
+    .select("id, program_id, cohort_id, mentee_id, current_month, status, created_at")
+    .eq("mentee_id", userId)
+    .neq("status", "desativada")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+async function visibleStageContents(c: Context, contentType?: string) {
+  const enrollment = await activeJourneyEnrollment(c.userId);
+  if (!enrollment) return { enrollment: null, rows: [] as any[] };
+
+  const [{ data: pillars }, { data: assignments }] = await Promise.all([
+    admin
+      .from("journey_pillars")
+      .select("id, name, position, current_published_version_id")
+      .eq("program_id", enrollment.program_id)
+      .order("position"),
+    admin
+      .from("enrollment_journey_versions")
+      .select("pillar_id, version_id")
+      .eq("enrollment_id", enrollment.id),
+  ]);
+  const assigned = new Map((assignments ?? []).map((x: any) => [x.pillar_id, x.version_id]));
+  const versionToPillar = new Map<string, any>();
+  for (const pillar of pillars ?? []) {
+    const versionId = assigned.get(pillar.id) ?? pillar.current_published_version_id;
+    if (versionId) versionToPillar.set(versionId, pillar);
+  }
+  if (!versionToPillar.size) return { enrollment, rows: [] as any[] };
+
+  const { data: steps, error: stepError } = await admin
+    .from("journey_steps")
+    .select("version_id, stable_key, title, month_number, release_at, position")
+    .in("version_id", [...versionToPillar.keys()])
+    .is("archived_at", null)
+    .order("position");
+  if (stepError) throw new Error(stepError.message);
+
+  const now = Date.now();
+  const visibleSteps = (steps ?? []).filter(
+    (step: any) =>
+      step.month_number <= enrollment.current_month &&
+      (!step.release_at || Date.parse(step.release_at) <= now),
+  );
+  if (!visibleSteps.length) return { enrollment, rows: [] as any[] };
+
+  const stepByKey = new Map(visibleSteps.map((step: any) => [step.stable_key, step]));
+  const pillarByStepKey = new Map(
+    visibleSteps.map((step: any) => [step.stable_key, versionToPillar.get(step.version_id)]),
+  );
+
+  let query = admin
+    .from("journey_stage_contents")
+    .select("*")
+    .in(
+      "step_key",
+      visibleSteps.map((step: any) => step.stable_key),
+    )
+    .eq("active", true)
+    .order("position");
+  if (contentType) query = query.eq("content_type", contentType);
+  const { data: contents, error: contentError } = await query;
+  if (contentError) throw new Error(contentError.message);
+
+  const rows = (contents ?? [])
+    .filter((row: any) => stageScopeAllowed(row, enrollment, c.userId))
+    .map((row: any) => ({
+      ...row,
+      step: stepByKey.get(row.step_key),
+      pillar: pillarByStepKey.get(row.step_key),
+    }));
+  return { enrollment, rows };
+}
+
 async function contentAction(c: Context, action: string, d: any) {
   if (action === "getJourneyContentLibrary") return loadLibrary(c.userId);
+
+  if (action === "getStageContents") {
+    await requireStaff(c);
+    const pillarId = String(d.pillarId ?? "");
+    const { data, error } = await c.admin
+      .from("journey_stage_contents")
+      .select("*")
+      .eq("pillar_id", pillarId)
+      .order("step_key")
+      .order("position");
+    if (error) throw new Error(error.message);
+    return { items: (data ?? []).map(stageContentShape) };
+  }
+
+  if (action === "saveStageContent") {
+    await requireStaff(c);
+    const contentType = String(d.contentType ?? "");
+    if (!["video", "material", "questionnaire"].includes(contentType))
+      throw new Error("Tipo de conteúdo inválido.");
+
+    const title = String(d.title ?? "").trim().slice(0, 180);
+    if (!title) throw new Error("Informe o título do conteúdo.");
+
+    const accessScope = ["general", "cohort", "mentee"].includes(d.accessScope)
+      ? d.accessScope
+      : "general";
+    const cohortId = accessScope === "cohort" ? String(d.cohortId ?? "") || null : null;
+    const menteeId = accessScope === "mentee" ? String(d.menteeId ?? "") || null : null;
+    if (accessScope === "cohort" && !cohortId) throw new Error("Selecione a turma.");
+    if (accessScope === "mentee" && !menteeId) throw new Error("Selecione o mentorado.");
+
+    const payload = {
+      pillar_id: String(d.pillarId ?? ""),
+      step_key: String(d.stepKey ?? ""),
+      content_type: contentType,
+      title,
+      description: String(d.description ?? "").trim().slice(0, 5000),
+      duration_minutes:
+        contentType === "video" && Number.isFinite(Number(d.durationMinutes))
+          ? Math.max(1, Math.min(1440, Number(d.durationMinutes)))
+          : null,
+      media_path: contentType === "video" ? String(d.mediaPath ?? "") || null : null,
+      file_path: contentType === "material" ? String(d.filePath ?? "") || null : null,
+      external_url:
+        ["video", "material"].includes(contentType) ? String(d.externalUrl ?? "") || null : null,
+      questionnaire:
+        contentType === "questionnaire"
+          ? sanitizeStageQuestions(d.questionnaire)
+          : { questions: [] },
+      access_scope: accessScope,
+      cohort_id: cohortId,
+      mentee_id: menteeId,
+      position: Number.isFinite(Number(d.position)) ? Math.max(0, Number(d.position)) : 0,
+      active: d.active !== false,
+      created_by: c.userId,
+      updated_at: new Date().toISOString(),
+    };
+
+    const id = String(d.id ?? "").trim();
+    const query = id
+      ? c.admin
+          .from("journey_stage_contents")
+          .update(payload)
+          .eq("id", id)
+          .select("*")
+          .single()
+      : c.admin.from("journey_stage_contents").insert(payload).select("*").single();
+    const { data, error } = await query;
+    if (error || !data) throw new Error(error?.message ?? "Não foi possível salvar o conteúdo.");
+    return { item: stageContentShape(data) };
+  }
+
+  if (action === "deleteStageContent") {
+    await requireStaff(c);
+    const id = String(d.id ?? "");
+    const { error } = await c.admin.from("journey_stage_contents").delete().eq("id", id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  }
+
+  if (action === "getMyAgendaMaterials") {
+    const { rows } = await visibleStageContents(c, "material");
+    const paths = rows
+      .map((row: any) => row.file_path)
+      .filter((value: unknown): value is string => typeof value === "string" && !!value);
+    const signed = await signedBatch(paths);
+    return {
+      items: rows
+        .sort(
+          (a: any, b: any) =>
+            (a.step?.month_number ?? 0) - (b.step?.month_number ?? 0) ||
+            (a.pillar?.position ?? 0) - (b.pillar?.position ?? 0) ||
+            (a.position ?? 0) - (b.position ?? 0),
+        )
+        .map((row: any) => ({
+          id: row.id,
+          title: row.title,
+          description: row.description ?? "",
+          fileUrl:
+            typeof row.file_path === "string" ? (signed.get(row.file_path) ?? null) : null,
+          externalUrl: row.external_url ?? null,
+          stepTitle: row.step?.title ?? "Etapa",
+          pillarName: row.pillar?.name ?? "Jornada",
+          monthNumber: row.step?.month_number ?? 1,
+        })),
+    };
+  }
+
+  if (action === "getStageQuestionnaireResponse") {
+    const contentId = String(d.contentId ?? "");
+    const visible = await visibleStageContents(c, "questionnaire");
+    const row = visible.rows.find((item: any) => item.id === contentId);
+    if (!row || !visible.enrollment) throw new Error("Questionário indisponível.");
+    const { data, error } = await c.admin
+      .from("journey_stage_questionnaire_responses")
+      .select("answers, submitted_at")
+      .eq("content_id", contentId)
+      .eq("enrollment_id", visible.enrollment.id)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return data
+      ? { answers: data.answers ?? {}, submitted: !!data.submitted_at }
+      : { answers: {}, submitted: false };
+  }
+
+  if (action === "submitStageQuestionnaire") {
+    const contentId = String(d.contentId ?? "");
+    const visible = await visibleStageContents(c, "questionnaire");
+    const row = visible.rows.find((item: any) => item.id === contentId);
+    if (!row || !visible.enrollment) throw new Error("Questionário indisponível.");
+
+    const questionnaire =
+      row.questionnaire && typeof row.questionnaire === "object"
+        ? row.questionnaire
+        : { questions: [] };
+    const questions = Array.isArray(questionnaire.questions) ? questionnaire.questions : [];
+    const rawAnswers =
+      d.answers && typeof d.answers === "object" && !Array.isArray(d.answers) ? d.answers : {};
+    const answers: Record<string, string> = {};
+
+    for (const question of questions) {
+      const id = String(question?.id ?? "");
+      if (!id) continue;
+      const value = String((rawAnswers as any)[id] ?? "").trim().slice(0, 10000);
+      if (question?.required !== false && !value)
+        throw new Error("Responda todas as perguntas obrigatórias.");
+      if (
+        question?.type === "single_choice" &&
+        value &&
+        Array.isArray(question?.options) &&
+        !question.options.includes(value)
+      )
+        throw new Error("Uma das respostas selecionadas é inválida.");
+      answers[id] = value;
+    }
+
+    const { error } = await c.admin.from("journey_stage_questionnaire_responses").upsert(
+      {
+        content_id: contentId,
+        enrollment_id: visible.enrollment.id,
+        user_id: c.userId,
+        answers,
+        submitted_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "content_id,enrollment_id" },
+    );
+    if (error) throw new Error(error.message);
+
+    await c.admin.from("journey_content_progress").upsert(
+      {
+        enrollment_id: visible.enrollment.id,
+        step_key: row.step_key,
+        user_id: c.userId,
+        current_seconds: 0,
+        duration_seconds: null,
+        completed: true,
+        completed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "enrollment_id,step_key" },
+    );
+
+    return { ok: true, submitted: true };
+  }
+
   if (action === "createJourneyUpload") {
     await requireStaff(c);
     const image = ["image/png", "image/jpeg", "image/webp"].includes(d.contentType);
@@ -1863,6 +2198,12 @@ const groups = {
     "addJourneyContentMarker",
     "saveJourneyContentProgress",
     "createJourneyUpload",
+    "getStageContents",
+    "saveStageContent",
+    "deleteStageContent",
+    "getMyAgendaMaterials",
+    "getStageQuestionnaireResponse",
+    "submitStageQuestionnaire",
   ]),
   assessment: new Set([
     "getMyAssessmentState",
