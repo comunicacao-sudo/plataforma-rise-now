@@ -1168,6 +1168,20 @@ async function contentAction(c: Context, action: string, d: any) {
   if (action === "deleteStageContent") {
     await requireStaff(c);
     const id = String(d.id ?? "");
+    const { data: existing, error: loadError } = await c.admin
+      .from("journey_stage_contents")
+      .select("file_path")
+      .eq("id", id)
+      .maybeSingle();
+    if (loadError) throw new Error(loadError.message);
+
+    if (existing?.file_path) {
+      const { error: storageError } = await c.admin.storage
+        .from("journey-content")
+        .remove([existing.file_path]);
+      if (storageError) throw new Error(storageError.message);
+    }
+
     const { error } = await c.admin.from("journey_stage_contents").delete().eq("id", id);
     if (error) throw new Error(error.message);
     return { ok: true };
