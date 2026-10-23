@@ -1,22 +1,37 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
+  ArrowLeft,
   BookOpen,
+  ChevronLeft,
+  ChevronRight,
+  ExternalLink,
+  Eye,
   FileText,
-  Link2,
+  Layers3,
   Pencil,
   Play,
   Plus,
   Save,
+  Search,
   Trash2,
   Upload,
   UsersRound,
   X,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { getDirectory } from "@/lib/admin.functions";
+import {
+  filterStageContents,
+  paginate,
+  stageMatchesFilters,
+  summarizeStageContent,
+  type AudienceFilter,
+  type ContentSort,
+  type ContentTypeFilter,
+} from "@/lib/content-admin";
 import {
   createJourneyUpload,
   deleteStageContent,
@@ -51,6 +66,16 @@ function audienceLabel(
   if (item.accessScope === "mentee")
     return mentees.find((m) => m.id === item.menteeId)?.name ?? "Mentorado específico";
   return "Todos os mentorados";
+}
+
+function safeExternalUrl(value: string | null) {
+  if (!value) return null;
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "https:" || parsed.protocol === "http:" ? parsed.toString() : null;
+  } catch {
+    return null;
+  }
 }
 
 function newQuestion(): StageQuestion {
@@ -515,26 +540,150 @@ function ContentForm({
   );
 }
 
+function ContentPreview({
+  item,
+  cohorts,
+  mentees,
+  onClose,
+}: {
+  item: StageContentItem;
+  cohorts: Array<{ id: string; name: string }>;
+  mentees: Array<{ id: string; name: string }>;
+  onClose: () => void;
+}) {
+  const Icon = typeIcon[item.contentType];
+  const externalUrl = safeExternalUrl(item.externalUrl);
+  return (
+    <div className="modal-backdrop content-admin-preview" role="presentation">
+      <section
+        className="content-modal ops-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Visualizar ${item.title}`}
+      >
+        <button className="modal-close" type="button" onClick={onClose} aria-label="Fechar">
+          <X size={21} />
+        </button>
+        <div className="content-modal__body ops-form">
+          <span className="eyebrow eyebrow--gold">Prévia do conteúdo</span>
+          <div className="content-admin-preview__heading">
+            <span className={`content-admin-type-icon is-${item.contentType}`}>
+              <Icon size={22} />
+            </span>
+            <div>
+              <small>{typeLabel[item.contentType]}</small>
+              <h2>{item.title}</h2>
+            </div>
+          </div>
+          <p>{item.description || "Este conteúdo ainda não possui descrição."}</p>
+          <dl className="content-admin-preview__details">
+            <div>
+              <dt>Destinatário</dt>
+              <dd>{audienceLabel(item, cohorts, mentees)}</dd>
+            </div>
+            {item.durationMinutes ? (
+              <div>
+                <dt>Duração</dt>
+                <dd>{item.durationMinutes} min</dd>
+              </div>
+            ) : null}
+            {item.contentType === "questionnaire" ? (
+              <div>
+                <dt>Perguntas</dt>
+                <dd>{item.questionnaire.questions.length}</dd>
+              </div>
+            ) : null}
+            {item.mediaPath || item.filePath ? (
+              <div>
+                <dt>Armazenamento</dt>
+                <dd>Arquivo privado vinculado</dd>
+              </div>
+            ) : null}
+          </dl>
+          <div className="content-modal__actions">
+            <button className="button button--glass" type="button" onClick={onClose}>
+              Fechar
+            </button>
+            {externalUrl ? (
+              <a
+                className="button button--primary"
+                href={externalUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <ExternalLink size={16} /> Abrir conteúdo
+              </a>
+            ) : null}
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function StageContentManager({
   pillarId,
   step,
   items,
   cohorts,
   mentees,
-  onClose,
+  onBack,
 }: {
   pillarId: string;
   step: JourneyDraftStep;
   items: StageContentItem[];
   cohorts: Array<{ id: string; name: string }>;
   mentees: Array<{ id: string; name: string }>;
-  onClose: () => void;
+  onBack: () => void;
 }) {
   const deleteFn = useServerFn(deleteStageContent);
   const qc = useQueryClient();
   const [editing, setEditing] = useState<StageContentItem | null | "new">(null);
+  const [previewing, setPreviewing] = useState<StageContentItem | null>(null);
   const [newType, setNewType] = useState<StageContentItem["contentType"]>("video");
+  const [search, setSearch] = useState("");
+  const [cohortFilter, setCohortFilter] = useState("all");
+  const [audienceFilter, setAudienceFilter] = useState<AudienceFilter>("all");
+  const [typeFilter, setTypeFilter] = useState<ContentTypeFilter>("all");
+  const [sort, setSort] = useState<ContentSort>("position");
+  const [page, setPage] = useState(1);
   const [message, setMessage] = useState("");
+  const counts = useMemo(() => summarizeStageContent(items), [items]);
+  const filtered = useMemo(
+    () =>
+      filterStageContents(items, {
+        search,
+        cohortId: cohortFilter,
+        audience: audienceFilter,
+        contentType: typeFilter,
+        sort,
+      }),
+    [audienceFilter, cohortFilter, items, search, sort, typeFilter],
+  );
+  const paged = useMemo(() => paginate(filtered, page, 8), [filtered, page]);
+
+  useEffect(() => {
+    if (page !== paged.page) setPage(paged.page);
+  }, [page, paged.page]);
+
+  function updateFilter(update: () => void) {
+    update();
+    setPage(1);
+  }
+
+  function startNew(type: StageContentItem["contentType"]) {
+    setNewType(type);
+    setEditing("new");
+  }
+
+  function clearFilters() {
+    setSearch("");
+    setCohortFilter("all");
+    setAudienceFilter("all");
+    setTypeFilter("all");
+    setSort("position");
+    setPage(1);
+  }
 
   async function remove(item: StageContentItem) {
     if (!window.confirm(`Remover “${item.title}” desta etapa?`)) return;
@@ -550,68 +699,259 @@ function StageContentManager({
     }
   }
 
+  const coverUrl = step.coverUrlDark ?? step.coverUrl ?? step.coverUrlLight ?? null;
+
   return (
-    <div className="modal-backdrop" role="presentation">
-      <section className="content-modal ops-modal" role="dialog" aria-modal="true">
-        <button className="modal-close" type="button" onClick={onClose} aria-label="Fechar">
-          <X size={21} />
-        </button>
-        <div className="content-modal__body ops-form">
-          <span className="eyebrow eyebrow--gold">Conteúdos da etapa</span>
-          <h2>{step.title}</h2>
-          <p className="ops-muted">Mês {step.monthNumber}</p>
-
-          <div className="ops-row">
-            {(["video", "material", "questionnaire"] as const).map((type) => (
-              <button
-                key={type}
-                className="button button--glass"
-                type="button"
-                onClick={() => {
-                  setNewType(type);
-                  setEditing("new");
-                }}
-              >
-                <Plus size={16} /> {typeLabel[type]}
-              </button>
-            ))}
+    <div className="content-admin-detail">
+      <button className="content-admin-back" type="button" onClick={onBack}>
+        <ArrowLeft size={17} /> Conteúdos da jornada
+      </button>
+      <header className="content-admin-detail__header">
+        <div>
+          <span className="eyebrow eyebrow--gold">Conteúdos / etapa</span>
+          <h1>{step.title || "Etapa sem título"}</h1>
+          <p>
+            Gerencie aulas, materiais e questionários desta etapa e defina quem recebe cada
+            conteúdo.
+          </p>
+        </div>
+        <details className="content-admin-add">
+          <summary className="button button--primary">
+            <Plus size={18} /> Adicionar conteúdo
+          </summary>
+          <div className="content-admin-add__menu">
+            {(["video", "material", "questionnaire"] as const).map((type) => {
+              const Icon = typeIcon[type];
+              return (
+                <button key={type} type="button" onClick={() => startNew(type)}>
+                  <Icon size={17} /> {typeLabel[type]}
+                </button>
+              );
+            })}
           </div>
+        </details>
+      </header>
 
-          {items.length ? (
-            <div className="ops-list">
-              {items.map((item) => {
-                const Icon = typeIcon[item.contentType];
-                return (
-                  <article className="admin-card" key={item.id}>
-                    <div className="section-heading">
-                      <div>
-                        <small className="ops-muted">{typeLabel[item.contentType]}</small>
-                        <strong>{item.title}</strong>
-                        <p>
-                          <UsersRound size={13} /> {audienceLabel(item, cohorts, mentees)}
-                        </p>
-                      </div>
-                      <Icon size={20} />
-                    </div>
-                    <div className="ops-actions">
-                      <button type="button" onClick={() => setEditing(item)}>
-                        <Pencil size={15} /> Editar
-                      </button>
-                      <button type="button" onClick={() => void remove(item)}>
-                        <Trash2 size={15} /> Excluir
-                      </button>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          ) : (
-            <p className="ops-empty">Nenhum conteúdo cadastrado nesta etapa.</p>
-          )}
-
-          {message ? <p className="form-message">{message}</p> : null}
+      <section className="content-admin-type-tabs" aria-label="Filtrar por tipo de conteúdo">
+        {(["video", "material", "questionnaire"] as const).map((type) => {
+          const Icon = typeIcon[type];
+          return (
+            <button
+              className={typeFilter === type ? "is-active" : ""}
+              key={type}
+              type="button"
+              onClick={() =>
+                updateFilter(() => setTypeFilter((current) => (current === type ? "all" : type)))
+              }
+            >
+              <Icon size={20} />
+              <span>{typeLabel[type]}</span>
+              <strong>{counts[type]}</strong>
+            </button>
+          );
+        })}
+        <div className="content-admin-total">
+          <strong>{counts.total}</strong>
+          <span>conteúdos</span>
         </div>
       </section>
+
+      <section className="content-admin-filters content-admin-filters--detail">
+        <label className="content-admin-search">
+          <Search size={18} />
+          <span className="sr-only">Buscar conteúdo</span>
+          <input
+            type="search"
+            placeholder="Buscar conteúdo por título ou descrição"
+            value={search}
+            onChange={(event) => updateFilter(() => setSearch(event.target.value))}
+          />
+        </label>
+        <label>
+          <span>Turma</span>
+          <select
+            value={cohortFilter}
+            onChange={(event) => updateFilter(() => setCohortFilter(event.target.value))}
+          >
+            <option value="all">Todas</option>
+            {cohorts.map((cohort) => (
+              <option key={cohort.id} value={cohort.id}>
+                {cohort.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <span>Destinatário</span>
+          <select
+            value={audienceFilter}
+            onChange={(event) =>
+              updateFilter(() => setAudienceFilter(event.target.value as AudienceFilter))
+            }
+          >
+            <option value="all">Todos</option>
+            <option value="general">Todos os mentorados</option>
+            <option value="cohort">Turma específica</option>
+            <option value="mentee">Mentorado específico</option>
+          </select>
+        </label>
+        <label>
+          <span>Tipo</span>
+          <select
+            value={typeFilter}
+            onChange={(event) =>
+              updateFilter(() => setTypeFilter(event.target.value as ContentTypeFilter))
+            }
+          >
+            <option value="all">Todos</option>
+            <option value="video">Aula gravada</option>
+            <option value="material">Material de apoio</option>
+            <option value="questionnaire">Questionário</option>
+          </select>
+        </label>
+        <label>
+          <span>Ordenar</span>
+          <select
+            value={sort}
+            onChange={(event) => updateFilter(() => setSort(event.target.value as ContentSort))}
+          >
+            <option value="position">Ordem da jornada</option>
+            <option value="title">Título</option>
+            <option value="type">Tipo</option>
+          </select>
+        </label>
+        <button className="content-admin-clear" type="button" onClick={clearFilters}>
+          Limpar
+        </button>
+      </section>
+
+      {paged.total ? (
+        <>
+          <div className="content-admin-table-wrap">
+            <table className="content-admin-table">
+              <thead>
+                <tr>
+                  <th>Conteúdo</th>
+                  <th>Tipo</th>
+                  <th>Turma / destinatário</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paged.items.map((item) => {
+                  const Icon = typeIcon[item.contentType];
+                  return (
+                    <tr key={item.id}>
+                      <td data-label="Conteúdo">
+                        <div className="content-admin-title-cell">
+                          <span className={`content-admin-thumb is-${item.contentType}`}>
+                            {coverUrl && item.contentType === "video" ? (
+                              <img src={coverUrl} alt="" />
+                            ) : (
+                              <Icon size={22} />
+                            )}
+                          </span>
+                          <div>
+                            <strong>{item.title}</strong>
+                            <small>{item.description || "Sem descrição"}</small>
+                          </div>
+                        </div>
+                      </td>
+                      <td data-label="Tipo">
+                        <span className={`content-admin-type-chip is-${item.contentType}`}>
+                          <Icon size={15} /> {typeLabel[item.contentType]}
+                        </span>
+                      </td>
+                      <td data-label="Destinatário">
+                        <span className="content-admin-audience">
+                          <UsersRound size={16} />
+                          <span>
+                            <strong>{audienceLabel(item, cohorts, mentees)}</strong>
+                            <small>
+                              {item.accessScope === "general"
+                                ? "Todos os acessos ativos"
+                                : item.accessScope === "cohort"
+                                  ? "Somente esta turma"
+                                  : "Somente este mentorado"}
+                            </small>
+                          </span>
+                        </span>
+                      </td>
+                      <td data-label="Ações">
+                        <div className="content-admin-actions">
+                          <button type="button" onClick={() => setPreviewing(item)}>
+                            <Eye size={15} /> Visualizar
+                          </button>
+                          <button type="button" onClick={() => setEditing(item)}>
+                            <Pencil size={15} /> Editar
+                          </button>
+                          <button
+                            className="is-danger"
+                            type="button"
+                            onClick={() => void remove(item)}
+                          >
+                            <Trash2 size={15} /> Excluir
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <footer className="content-admin-pagination">
+            <span>
+              Exibindo {(paged.page - 1) * 8 + 1} a {Math.min(paged.page * 8, paged.total)} de{" "}
+              {paged.total} conteúdos
+            </span>
+            <div>
+              <button
+                type="button"
+                disabled={paged.page === 1}
+                onClick={() => setPage((current) => Math.max(1, current - 1))}
+                aria-label="Página anterior"
+              >
+                <ChevronLeft size={18} />
+              </button>
+              <strong>{paged.page}</strong>
+              <button
+                type="button"
+                disabled={paged.page === paged.pageCount}
+                onClick={() => setPage((current) => Math.min(paged.pageCount, current + 1))}
+                aria-label="Próxima página"
+              >
+                <ChevronRight size={18} />
+              </button>
+            </div>
+          </footer>
+        </>
+      ) : (
+        <div className="content-admin-empty">
+          <Layers3 size={34} />
+          <h2>{items.length ? "Nenhum conteúdo encontrado" : "Esta etapa ainda está vazia"}</h2>
+          <p>
+            {items.length
+              ? "Ajuste ou limpe os filtros para visualizar outros conteúdos."
+              : "Adicione a primeira aula, material ou questionário desta etapa."}
+          </p>
+          {items.length ? (
+            <button className="button button--glass" type="button" onClick={clearFilters}>
+              Limpar filtros
+            </button>
+          ) : (
+            <button
+              className="button button--primary"
+              type="button"
+              onClick={() => startNew("video")}
+            >
+              <Plus size={16} /> Adicionar conteúdo
+            </button>
+          )}
+        </div>
+      )}
+
+      {message ? <p className="form-message">{message}</p> : null}
 
       {editing ? (
         <ContentForm
@@ -624,6 +964,14 @@ function StageContentManager({
           onDone={() => setEditing(null)}
         />
       ) : null}
+      {previewing ? (
+        <ContentPreview
+          item={previewing}
+          cohorts={cohorts}
+          mentees={mentees}
+          onClose={() => setPreviewing(null)}
+        />
+      ) : null}
     </div>
   );
 }
@@ -634,6 +982,10 @@ export function JourneyContentAdmin() {
   const loadDirectory = useServerFn(getDirectory);
   const [pillarId, setPillarId] = useState<string>();
   const [selectedStep, setSelectedStep] = useState<JourneyDraftStep | null>(null);
+  const [search, setSearch] = useState("");
+  const [cohortFilter, setCohortFilter] = useState("all");
+  const [audienceFilter, setAudienceFilter] = useState<AudienceFilter>("all");
+  const [page, setPage] = useState(1);
 
   const journey = useQuery({
     queryKey: ["journey-content-structure", pillarId],
@@ -673,27 +1025,78 @@ export function JourneyContentAdmin() {
     return map;
   }, [contents.data?.items]);
 
-  const steps = journey.data?.steps ?? [];
+  const steps = useMemo(() => journey.data?.steps ?? [], [journey.data?.steps]);
+  const filteredSteps = useMemo(
+    () =>
+      steps.filter((step) =>
+        stageMatchesFilters(step.title, byStep.get(step.stableKey) ?? [], {
+          search,
+          cohortId: cohortFilter,
+          audience: audienceFilter,
+        }),
+      ),
+    [audienceFilter, byStep, cohortFilter, search, steps],
+  );
+  const pagedSteps = useMemo(() => paginate(filteredSteps, page, 8), [filteredSteps, page]);
+
+  useEffect(() => {
+    if (page !== pagedSteps.page) setPage(pagedSteps.page);
+  }, [page, pagedSteps.page]);
+
+  function clearFilters() {
+    setSearch("");
+    setCohortFilter("all");
+    setAudienceFilter("all");
+    setPage(1);
+  }
+
+  if (selectedStep && selectedPillarId) {
+    return (
+      <main className="inner-page content-admin-page">
+        <div className="page-width">
+          <StageContentManager
+            pillarId={selectedPillarId}
+            step={selectedStep}
+            items={byStep.get(selectedStep.stableKey) ?? []}
+            cohorts={cohorts}
+            mentees={mentees}
+            onBack={() => setSelectedStep(null)}
+          />
+        </div>
+      </main>
+    );
+  }
 
   return (
-    <main className="inner-page">
+    <main className="inner-page content-admin-page">
       <div className="page-intro page-width">
-        <span className="eyebrow eyebrow--gold">Conteúdos</span>
+        <span className="eyebrow eyebrow--gold">Conteúdos / gerenciamento</span>
         <h1>Conteúdos da jornada</h1>
-        <p>
-          As etapas são um espelho da Minha jornada. Aqui você adiciona aulas, materiais e
-          questionários e define quem recebe cada conteúdo.
-        </p>
+        <p>Organize aulas, materiais e questionários para cada etapa, turma ou mentorado.</p>
       </div>
 
-      <section className="page-width ops-section">
-        <label className="ops-field">
+      <section className="page-width content-admin-filters">
+        <label className="content-admin-search">
+          <Search size={18} />
+          <span className="sr-only">Buscar etapa ou conteúdo</span>
+          <input
+            type="search"
+            placeholder="Buscar etapa, aula ou material"
+            value={search}
+            onChange={(event) => {
+              setSearch(event.target.value);
+              setPage(1);
+            }}
+          />
+        </label>
+        <label>
           <span>Pilar</span>
           <select
             value={journey.data?.selected?.id ?? ""}
             onChange={(event) => {
               setPillarId(event.target.value);
               setSelectedStep(null);
+              setPage(1);
             }}
           >
             {(journey.data?.pillars ?? []).map((pillar) => (
@@ -703,62 +1106,145 @@ export function JourneyContentAdmin() {
             ))}
           </select>
         </label>
+        <label>
+          <span>Turma</span>
+          <select
+            value={cohortFilter}
+            onChange={(event) => {
+              setCohortFilter(event.target.value);
+              setPage(1);
+            }}
+          >
+            <option value="all">Todas</option>
+            {cohorts.map((cohort) => (
+              <option key={cohort.id} value={cohort.id}>
+                {cohort.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <span>Público</span>
+          <select
+            value={audienceFilter}
+            onChange={(event) => {
+              setAudienceFilter(event.target.value as AudienceFilter);
+              setPage(1);
+            }}
+          >
+            <option value="all">Todos</option>
+            <option value="general">Todos os mentorados</option>
+            <option value="cohort">Turma específica</option>
+            <option value="mentee">Mentorado específico</option>
+          </select>
+        </label>
+        <button className="content-admin-clear" type="button" onClick={clearFilters}>
+          Limpar
+        </button>
       </section>
 
-      <section className="page-width ops-section">
-        <div className="section-heading">
+      <section className="page-width content-admin-stages">
+        <div className="content-admin-stages__heading">
           <div>
             <h2>Etapas</h2>
-            <p>Clique em uma etapa para gerenciar os conteúdos vinculados a ela.</p>
+            <p>Acesse uma etapa para gerenciar seus conteúdos e destinatários.</p>
           </div>
+          <span>{filteredSteps.length} etapas nesta visualização</span>
         </div>
 
-        <div className="ops-list">
-          {steps.map((step, index) => {
-            const stageItems = byStep.get(step.stableKey) ?? [];
-            const counts = {
-              video: stageItems.filter((item) => item.contentType === "video").length,
-              material: stageItems.filter((item) => item.contentType === "material").length,
-              questionnaire: stageItems.filter((item) => item.contentType === "questionnaire")
-                .length,
-            };
-            return (
-              <article className="admin-card" key={step.stableKey}>
-                <div className="section-heading">
-                  <div>
-                    <small className="ops-muted">
-                      Etapa {index + 1} · Mês {step.monthNumber}
-                    </small>
+        {journey.isLoading || contents.isLoading ? (
+          <div className="content-admin-loading" role="status">
+            <span /> Carregando conteúdos da jornada…
+          </div>
+        ) : journey.isError || contents.isError ? (
+          <div className="content-admin-empty">
+            <Layers3 size={34} />
+            <h2>Não foi possível carregar os conteúdos</h2>
+            <p>Atualize a página. Se o problema continuar, verifique sua conexão.</p>
+          </div>
+        ) : pagedSteps.total ? (
+          <div className="content-admin-stage-list">
+            {pagedSteps.items.map((step) => {
+              const index = steps.findIndex((item) => item.stableKey === step.stableKey);
+              const stageItems = byStep.get(step.stableKey) ?? [];
+              const counts = summarizeStageContent(stageItems);
+              const Icon = counts.video
+                ? Play
+                : counts.material
+                  ? FileText
+                  : counts.questionnaire
+                    ? BookOpen
+                    : Layers3;
+              return (
+                <article className="content-admin-stage-row" key={step.stableKey}>
+                  <span className="content-admin-stage-row__icon">
+                    <Icon size={24} />
+                  </span>
+                  <div className="content-admin-stage-row__copy">
                     <strong>{step.title || "Etapa sem título"}</strong>
-                    <p className="ops-muted">
-                      {counts.video} aula(s) · {counts.material} material(is) ·{" "}
-                      {counts.questionnaire} questionário(s)
+                    <p>
+                      Etapa {index + 1} · Mês {step.monthNumber}
+                      <i /> {counts.video} {counts.video === 1 ? "aula" : "aulas"} <i />{" "}
+                      {counts.material} {counts.material === 1 ? "material" : "materiais"} <i />{" "}
+                      {counts.questionnaire}{" "}
+                      {counts.questionnaire === 1 ? "questionário" : "questionários"}
                     </p>
                   </div>
+                  <span className="content-admin-stage-row__count">
+                    {counts.total} {counts.total === 1 ? "conteúdo" : "conteúdos"}
+                  </span>
                   <button
-                    className="button button--primary"
                     type="button"
-                    onClick={() => setSelectedStep(step)}
+                    onClick={() => {
+                      setSelectedStep(step);
+                      window.scrollTo({ top: 0, behavior: "smooth" });
+                    }}
                   >
-                    Gerenciar conteúdos
+                    Gerenciar <ChevronRight size={18} />
                   </button>
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      </section>
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="content-admin-empty">
+            <Layers3 size={34} />
+            <h2>Nenhuma etapa encontrada</h2>
+            <p>Limpe os filtros ou tente outra busca.</p>
+            <button className="button button--glass" type="button" onClick={clearFilters}>
+              Limpar filtros
+            </button>
+          </div>
+        )}
 
-      {selectedStep && selectedPillarId ? (
-        <StageContentManager
-          pillarId={selectedPillarId}
-          step={selectedStep}
-          items={byStep.get(selectedStep.stableKey) ?? []}
-          cohorts={cohorts}
-          mentees={mentees}
-          onClose={() => setSelectedStep(null)}
-        />
-      ) : null}
+        {pagedSteps.total ? (
+          <footer className="content-admin-pagination">
+            <span>
+              Exibindo {(pagedSteps.page - 1) * 8 + 1} a{" "}
+              {Math.min(pagedSteps.page * 8, pagedSteps.total)} de {pagedSteps.total} etapas
+            </span>
+            <div>
+              <button
+                type="button"
+                disabled={pagedSteps.page === 1}
+                onClick={() => setPage((current) => Math.max(1, current - 1))}
+                aria-label="Página anterior"
+              >
+                <ChevronLeft size={18} />
+              </button>
+              <strong>{pagedSteps.page}</strong>
+              <button
+                type="button"
+                disabled={pagedSteps.page === pagedSteps.pageCount}
+                onClick={() => setPage((current) => Math.min(pagedSteps.pageCount, current + 1))}
+                aria-label="Próxima página"
+              >
+                <ChevronRight size={18} />
+              </button>
+            </div>
+          </footer>
+        ) : null}
+      </section>
     </main>
   );
 }
