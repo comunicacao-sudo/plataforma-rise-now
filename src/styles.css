@@ -7286,7 +7286,6 @@ hr,
   background: var(--platform-surface-strong);
 }
 
-
 /* 2026-10 coded cinematic next-step hero */
 .platform-shell .next-step-hero {
   min-height: clamp(640px, 58vw, 840px);
@@ -7302,13 +7301,12 @@ hr,
 }
 
 .platform-shell .next-step-hero::after {
-  background:
-    linear-gradient(
-      90deg,
-      rgba(21, 35, 33, 0.16) 0%,
-      rgba(21, 35, 33, 0.04) 50%,
-      rgba(21, 35, 33, 0) 74%
-    );
+  background: linear-gradient(
+    90deg,
+    rgba(21, 35, 33, 0.16) 0%,
+    rgba(21, 35, 33, 0.04) 50%,
+    rgba(21, 35, 33, 0) 74%
+  );
 }
 
 .platform-shell .next-step-hero__content {
@@ -7432,13 +7430,12 @@ hr,
 }
 
 .platform-shell .next-step-hero__wave::before {
-  background:
-    repeating-radial-gradient(
-      ellipse at 50% 50%,
-      transparent 0 11px,
-      rgba(215, 176, 122, 0.16) 12px 13px,
-      transparent 14px 20px
-    );
+  background: repeating-radial-gradient(
+    ellipse at 50% 50%,
+    transparent 0 11px,
+    rgba(215, 176, 122, 0.16) 12px 13px,
+    transparent 14px 20px
+  );
 }
 
 .platform-shell .next-step-hero__wave::after {
@@ -7526,8 +7523,12 @@ hr,
   width: 46%;
   height: 18%;
   border: 1.5px solid rgba(255, 232, 184, 0.95);
-  background:
-    linear-gradient(145deg, rgba(255, 240, 201, 0.65), rgba(215, 176, 122, 0.24) 58%, transparent);
+  background: linear-gradient(
+    145deg,
+    rgba(255, 240, 201, 0.65),
+    rgba(215, 176, 122, 0.24) 58%,
+    transparent
+  );
   box-shadow:
     inset 0 0 18px rgba(255, 231, 173, 0.18),
     0 0 14px rgba(215, 176, 122, 0.16);
@@ -7567,8 +7568,13 @@ hr,
   transform: translateX(-50%);
   border: 1px solid rgba(255, 239, 202, 0.94);
   border-radius: 50%;
-  background:
-    radial-gradient(circle at 38% 30%, #fff5d8 0%, #e3bd7d 28%, #b9843e 72%, #725023 100%);
+  background: radial-gradient(
+    circle at 38% 30%,
+    #fff5d8 0%,
+    #e3bd7d 28%,
+    #b9843e 72%,
+    #725023 100%
+  );
   box-shadow:
     0 0 26px rgba(215, 176, 122, 0.5),
     0 0 70px rgba(215, 176, 122, 0.2);
@@ -7595,7 +7601,14 @@ hr,
   height: 4px;
   transform: translate(-50%, -50%);
   border-radius: 50%;
-  background: linear-gradient(90deg, transparent, #fff4d3 40%, #ffffff 50%, #fff4d3 60%, transparent);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    #fff4d3 40%,
+    #ffffff 50%,
+    #fff4d3 60%,
+    transparent
+  );
   box-shadow: 0 0 18px rgba(255, 229, 169, 0.8);
 }
 
@@ -7635,13 +7648,12 @@ hr,
 }
 
 .platform-shell[data-theme="light"] .next-step-hero__wave::before {
-  background:
-    repeating-radial-gradient(
-      ellipse at 50% 50%,
-      transparent 0 11px,
-      rgba(184, 117, 93, 0.12) 12px 13px,
-      transparent 14px 20px
-    );
+  background: repeating-radial-gradient(
+    ellipse at 50% 50%,
+    transparent 0 11px,
+    rgba(184, 117, 93, 0.12) 12px 13px,
+    transparent 14px 20px
+  );
 }
 
 .platform-shell[data-theme="light"] .next-step-hero__wave::after,
@@ -7716,7 +7728,6 @@ hr,
   }
 }
 
-
 /* 2026-10 final dark auth identity and exact mentee reference layout */
 
 /* LOGIN + INITIAL LOADING — official dark identity */
@@ -7727,8 +7738,7 @@ hr,
   background:
     linear-gradient(90deg, transparent 70%, rgba(38, 49, 47, 0.94)),
     radial-gradient(circle at 48% 42%, rgba(215, 176, 122, 0.09), transparent 42%),
-    radial-gradient(circle at 18% 76%, rgba(215, 176, 122, 0.06), transparent 28%),
-    #26312f;
+    radial-gradient(circle at 18% 76%, rgba(215, 176, 122, 0.06), transparent 28%), #26312f;
 }
 .login-shell__art::before {
   color: rgba(255, 255, 255, 0.045);
@@ -7761,8 +7771,7 @@ hr,
 .login-panel {
   border-left-color: rgba(215, 176, 122, 0.22);
   background:
-    radial-gradient(circle at 100% 68%, rgba(215, 176, 122, 0.05), transparent 38%),
-    #26312f;
+    radial-gradient(circle at 100% 68%, rgba(215, 176, 122, 0.05), transparent 38%), #26312f;
 }
 .login-panel__copy h1 {
   color: #ffffff;
@@ -7828,8 +7837,7 @@ hr,
   position: relative;
   overflow: hidden;
   background:
-    radial-gradient(circle at 50% 46%, rgba(215, 176, 122, 0.08), transparent 27rem),
-    #26312f;
+    radial-gradient(circle at 50% 46%, rgba(215, 176, 122, 0.08), transparent 27rem), #26312f;
 }
 .loading-screen::before,
 .loading-screen::after {
@@ -8056,7 +8064,6 @@ hr,
   }
 }
 
-
 /* Theme-aware journey card covers */
 .journey-cover-fieldset {
   grid-template-columns: 1fr;
@@ -8094,7 +8101,6 @@ hr,
   display: block !important;
 }
 
-
 /* Resumable lesson video upload */
 .journey-upload-progress {
   position: relative;
@@ -8129,7 +8135,12 @@ hr,
   background-image: none;
 }
 .platform-shell--mentee[data-theme="dark"] .app-header {
-  background: linear-gradient(to bottom, rgba(38, 49, 47, 0.92), rgba(38, 49, 47, 0.5), transparent);
+  background: linear-gradient(
+    to bottom,
+    rgba(38, 49, 47, 0.92),
+    rgba(38, 49, 47, 0.5),
+    transparent
+  );
 }
 .platform-shell--mentee[data-theme="dark"] .next-step-hero {
   background: #26312f;
@@ -8159,7 +8170,8 @@ hr,
     width: 100%;
   }
   .platform-shell--mentee[data-theme="dark"] .next-step-hero::after {
-    background: linear-gradient(90deg, rgba(38, 49, 47, 0.85), rgba(38, 49, 47, 0.35)),
+    background:
+      linear-gradient(90deg, rgba(38, 49, 47, 0.85), rgba(38, 49, 47, 0.35)),
       linear-gradient(180deg, transparent 72%, #26312f 100%);
   }
 }
@@ -8168,10 +8180,14 @@ hr,
     background-position: 82% top;
   }
   .platform-shell--mentee[data-theme="dark"] .next-step-hero::after {
-    background: linear-gradient(180deg, rgba(38, 49, 47, 0.2) 0%, rgba(38, 49, 47, 0.88) 45%, #26312f 100%);
+    background: linear-gradient(
+      180deg,
+      rgba(38, 49, 47, 0.2) 0%,
+      rgba(38, 49, 47, 0.88) 45%,
+      #26312f 100%
+    );
   }
 }
-
 
 /* Recorded lesson page — authenticated graphite theme */
 .platform-shell[data-theme="dark"] .recorded-background {

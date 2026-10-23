@@ -493,19 +493,23 @@ async function journeyAction(c: Context, action: string, d: any) {
   const comparable = (s: any) =>
     JSON.stringify({
       stable_key: s?.stable_key ?? null,
-      title: typeof s?.title === "string" ? s.title.trim() : s?.title ?? null,
+      title: typeof s?.title === "string" ? s.title.trim() : (s?.title ?? null),
       format: s?.format ?? null,
-      impact_lead: typeof s?.impact_lead === "string" ? s.impact_lead.trim() : s?.impact_lead ?? "",
+      impact_lead:
+        typeof s?.impact_lead === "string" ? s.impact_lead.trim() : (s?.impact_lead ?? ""),
       impact_highlight:
-        typeof s?.impact_highlight === "string" ? s.impact_highlight.trim() : s?.impact_highlight ?? "",
-      impact_tail: typeof s?.impact_tail === "string" ? s.impact_tail.trim() : s?.impact_tail ?? "",
+        typeof s?.impact_highlight === "string"
+          ? s.impact_highlight.trim()
+          : (s?.impact_highlight ?? ""),
+      impact_tail:
+        typeof s?.impact_tail === "string" ? s.impact_tail.trim() : (s?.impact_tail ?? ""),
       description:
-        typeof s?.description === "string" ? s.description.trim() : s?.description ?? "",
+        typeof s?.description === "string" ? s.description.trim() : (s?.description ?? ""),
       month_number: s?.month_number ?? 1,
       cover_path: s?.cover_path ?? null,
       cover_path_light: s?.cover_path_light ?? null,
       cover_path_dark: s?.cover_path_dark ?? null,
-      summary: typeof s?.summary === "string" ? s.summary.trim() : s?.summary ?? "",
+      summary: typeof s?.summary === "string" ? s.summary.trim() : (s?.summary ?? ""),
       topics: Array.isArray(s?.topics) ? s.topics : [],
     });
   const publishedByKey = new Map(
@@ -517,8 +521,7 @@ async function journeyAction(c: Context, action: string, d: any) {
   const publishedStepKeys = (steps ?? [])
     .filter((s: any, index: number) => {
       const published = publishedByKey.get(s.stable_key) as
-        | { signature: string; order: number }
-        | undefined;
+        { signature: string; order: number } | undefined;
       return !!published && published.order === index && published.signature === comparable(s);
     })
     .map((s: any) => s.stable_key);
@@ -734,11 +737,7 @@ async function loadLibrary(userId: string) {
       (!!s.release_at && Date.parse(s.release_at) > now);
     const stageMediaPath =
       typeof stageVideo?.media_path === "string" ? stageVideo.media_path : null;
-    if (
-      !locked &&
-      stageMediaPath &&
-      !stageMediaPath.startsWith("r2:")
-    )
+    if (!locked && stageMediaPath && !stageMediaPath.startsWith("r2:"))
       assetPaths.push(stageMediaPath);
     if (!locked && stageMaterials.length) {
       for (const material of stageMaterials) {
@@ -770,16 +769,13 @@ async function loadLibrary(userId: string) {
         ? stageVideo.external_url
         : null;
     const r2Media =
-      !locked &&
-      typeof effectiveMediaPath === "string" &&
-      effectiveMediaPath.startsWith("r2:");
-    const mediaUrl =
-      locked
-        ? null
-        : effectiveExternalVideo ??
-          (typeof effectiveMediaPath === "string" && effectiveMediaPath && !r2Media
-            ? (signedUrls.get(effectiveMediaPath) ?? null)
-            : null);
+      !locked && typeof effectiveMediaPath === "string" && effectiveMediaPath.startsWith("r2:");
+    const mediaUrl = locked
+      ? null
+      : (effectiveExternalVideo ??
+        (typeof effectiveMediaPath === "string" && effectiveMediaPath && !r2Media
+          ? (signedUrls.get(effectiveMediaPath) ?? null)
+          : null));
     const materials = locked
       ? []
       : stageMaterials.map((m: any) => ({
@@ -787,8 +783,7 @@ async function loadLibrary(userId: string) {
           title: String(m.title ?? "Material de apoio"),
           url: typeof m.external_url === "string" ? m.external_url : null,
           filePath: typeof m.file_path === "string" ? m.file_path : null,
-          fileUrl:
-            typeof m.file_path === "string" ? (signedUrls.get(m.file_path) ?? null) : null,
+          fileUrl: typeof m.file_path === "string" ? (signedUrls.get(m.file_path) ?? null) : null,
         }));
     const state = byStep.get(s.stable_key);
     const questionnaireUrl =
@@ -868,7 +863,9 @@ async function requireContent(c: Context, stepKey: string) {
 function stageScopeAllowed(row: any, enrollment: any, userId: string) {
   return (
     row.access_scope === "general" ||
-    (row.access_scope === "cohort" && !!enrollment.cohort_id && row.cohort_id === enrollment.cohort_id) ||
+    (row.access_scope === "cohort" &&
+      !!enrollment.cohort_id &&
+      row.cohort_id === enrollment.cohort_id) ||
     (row.access_scope === "mentee" && row.mentee_id === userId)
   );
 }
@@ -907,7 +904,9 @@ function sanitizeStageQuestions(input: unknown) {
       ? (input as any).questions
       : [];
   const questions = source.slice(0, 50).flatMap((question: any, index: number) => {
-    const prompt = String(question?.prompt ?? "").trim().slice(0, 1000);
+    const prompt = String(question?.prompt ?? "")
+      .trim()
+      .slice(0, 1000);
     if (!prompt) return [];
     const type = ["short_text", "long_text", "single_choice"].includes(question?.type)
       ? question.type
@@ -971,7 +970,9 @@ async function visibleStageContents(c: Context, contentType?: string) {
 
   const { data: steps, error: stepError } = await admin
     .from("journey_steps")
-    .select("version_id, stable_key, title, month_number, release_at, position, access_scope, cohort_id, mentee_id")
+    .select(
+      "version_id, stable_key, title, month_number, release_at, position, access_scope, cohort_id, mentee_id",
+    )
     .in("version_id", [...versionToPillar.keys()])
     .is("archived_at", null)
     .order("position");
@@ -1038,7 +1039,9 @@ async function contentAction(c: Context, action: string, d: any) {
     if (!["video", "material", "questionnaire"].includes(contentType))
       throw new Error("Tipo de conteúdo inválido.");
 
-    const title = String(d.title ?? "").trim().slice(0, 180);
+    const title = String(d.title ?? "")
+      .trim()
+      .slice(0, 180);
     if (!title) throw new Error("Informe o título do conteúdo.");
 
     const pillarId = String(d.pillarId ?? "");
@@ -1072,7 +1075,9 @@ async function contentAction(c: Context, action: string, d: any) {
       step_key: stepKey,
       content_type: contentType,
       title,
-      description: String(d.description ?? "").trim().slice(0, 5000),
+      description: String(d.description ?? "")
+        .trim()
+        .slice(0, 5000),
       duration_minutes:
         contentType === "video" &&
         d.durationMinutes !== null &&
@@ -1083,8 +1088,9 @@ async function contentAction(c: Context, action: string, d: any) {
           : null,
       media_path: contentType === "video" ? String(d.mediaPath ?? "") || null : null,
       file_path: contentType === "material" ? String(d.filePath ?? "") || null : null,
-      external_url:
-        ["video", "material"].includes(contentType) ? String(d.externalUrl ?? "") || null : null,
+      external_url: ["video", "material"].includes(contentType)
+        ? String(d.externalUrl ?? "") || null
+        : null,
       questionnaire:
         contentType === "questionnaire"
           ? sanitizeStageQuestions(d.questionnaire)
@@ -1116,7 +1122,9 @@ async function contentAction(c: Context, action: string, d: any) {
       if (accessScope === "mentee") duplicateQuery = duplicateQuery.eq("mentee_id", menteeId);
       else duplicateQuery = duplicateQuery.is("mentee_id", null);
 
-      const { data: duplicate, error: duplicateError } = await duplicateQuery.limit(1).maybeSingle();
+      const { data: duplicate, error: duplicateError } = await duplicateQuery
+        .limit(1)
+        .maybeSingle();
       if (duplicateError) throw new Error(duplicateError.message);
       if (duplicate) {
         throw new Error(
@@ -1128,12 +1136,7 @@ async function contentAction(c: Context, action: string, d: any) {
     }
 
     const query = id
-      ? c.admin
-          .from("journey_stage_contents")
-          .update(payload)
-          .eq("id", id)
-          .select("*")
-          .single()
+      ? c.admin.from("journey_stage_contents").update(payload).eq("id", id).select("*").single()
       : c.admin.from("journey_stage_contents").insert(payload).select("*").single();
     const { data, error } = await query;
     if (error || !data) throw new Error(error?.message ?? "Não foi possível salvar o conteúdo.");
@@ -1180,8 +1183,7 @@ async function contentAction(c: Context, action: string, d: any) {
           id: row.id,
           title: row.title,
           description: row.description ?? "",
-          fileUrl:
-            typeof row.file_path === "string" ? (signed.get(row.file_path) ?? null) : null,
+          fileUrl: typeof row.file_path === "string" ? (signed.get(row.file_path) ?? null) : null,
           externalUrl: row.external_url ?? null,
           stepTitle: row.step?.title ?? "Etapa",
           pillarName: row.pillar?.name ?? "Jornada",
@@ -1225,7 +1227,9 @@ async function contentAction(c: Context, action: string, d: any) {
     for (const question of questions) {
       const id = String(question?.id ?? "");
       if (!id) continue;
-      const value = String((rawAnswers as any)[id] ?? "").trim().slice(0, 10000);
+      const value = String((rawAnswers as any)[id] ?? "")
+        .trim()
+        .slice(0, 10000);
       if (question?.required !== false && !value)
         throw new Error("Responda todas as perguntas obrigatórias.");
       if (
@@ -1274,8 +1278,7 @@ async function contentAction(c: Context, action: string, d: any) {
     const video = ["video/mp4", "video/webm", "video/quicktime"].includes(d.contentType);
     if (d.kind === "cover" && (!image || d.size > 12_000_000))
       throw new Error("A capa deve ser PNG, JPG ou WebP e ter no máximo 12 MB.");
-    if (d.kind === "media" && !video)
-      throw new Error("A gravação deve ser MP4, WebM ou MOV.");
+    if (d.kind === "media" && !video) throw new Error("A gravação deve ser MP4, WebM ou MOV.");
     const ext =
       String(d.fileName)
         .split(".")
