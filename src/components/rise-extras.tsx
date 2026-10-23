@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import {
   Bell,
   CalendarPlus,
@@ -18,8 +19,8 @@ import {
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { supabase } from "@/integrations/supabase/client";
-import { mentors } from "@/data/rise-content";
 import { SectionHero } from "@/components/section-hero";
+import { getMentorDirectory } from "@/lib/mentor-directory.functions";
 
 /* ================= Calendar ================= */
 
@@ -1262,6 +1263,7 @@ export function ProfileModal({
     );
     await Promise.all([
       qc.invalidateQueries({ queryKey: ["directory"] }),
+      qc.invalidateQueries({ queryKey: ["mentor-directory"] }),
       qc.invalidateQueries({ queryKey: ["mentee-public-profile"] }),
     ]);
     setBusy(false);
@@ -1458,26 +1460,66 @@ export function ProfileModal({
   );
 }
 
-export function MentorsSection() {
+export function MentorsView() {
+  const loadMentors = useServerFn(getMentorDirectory);
+  const directory = useQuery({
+    queryKey: ["mentor-directory"],
+    queryFn: () => loadMentors(),
+    staleTime: 0,
+    refetchInterval: 15_000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+  });
+
   return (
-    <section className="page-width ops-section">
-      <div className="section-heading">
-        <div>
-          <h2>Suas mentoras</h2>
-          <p>Quem caminha com você na jornada RISE NOW.</p>
+    <main className="inner-page inner-page--section-hero mentor-directory-page">
+      <SectionHero
+        section="Mentoras"
+        phrase="Quatro frentes que caminham com você em cada movimento"
+      />
+      <section className="page-width mentor-directory" aria-live="polite">
+        <div className="section-heading">
+          <div>
+            <h2>Quem caminha com você</h2>
+            <p>Conheça cada frente e fale diretamente com a mentora responsável.</p>
+          </div>
         </div>
-      </div>
-      <div className="x-mentors">
-        {mentors.map((mentor) => (
-          <article key={mentor.email} className="x-mentor">
-            <Avatar name={mentor.name} size={64} />
-            <strong>{mentor.name}</strong>
-            <small>Mentora de {mentor.pillar}</small>
-            <ContactButtons phone={null} email={mentor.email} />
-          </article>
-        ))}
-      </div>
-    </section>
+        {directory.isLoading ? <p className="ops-muted">Carregando mentoras…</p> : null}
+        {directory.isError ? (
+          <div className="mentor-directory__state" role="alert">
+            <p>Não foi possível carregar os contatos agora.</p>
+            <button
+              className="button button--glass"
+              type="button"
+              onClick={() => void directory.refetch()}
+            >
+              Tentar novamente
+            </button>
+          </div>
+        ) : null}
+        {directory.data ? (
+          <div className="x-mentors">
+            {directory.data.mentors.map((mentor) => (
+              <article key={mentor.id} className="x-mentor">
+                <div className="x-mentor__identity">
+                  <Avatar name={mentor.name} url={mentor.avatarUrl} size={88} />
+                  <div>
+                    <strong>{mentor.name}</strong>
+                    <small>Mentora de {mentor.pillar}</small>
+                    <ContactButtons phone={mentor.phone} email={mentor.email} />
+                  </div>
+                </div>
+                <div className="x-mentor__summary">
+                  <span>O que abordamos</span>
+                  <p>{mentor.summary}</p>
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : null}
+      </section>
+    </main>
   );
 }
 

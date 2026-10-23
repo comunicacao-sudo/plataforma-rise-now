@@ -18,6 +18,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 
 import { supabase } from "@/integrations/supabase/client";
+import { liveJourneyQueryOptions } from "@/lib/journey-sync";
 import { CalendarButtons, MaterialsList } from "@/components/rise-extras";
 
 export type TrailLesson = {
@@ -189,8 +190,7 @@ export function useTrail() {
   return useQuery({
     queryKey: ["trail"],
     queryFn: loadTrail,
-    staleTime: 30_000,
-    refetchOnWindowFocus: false,
+    ...liveJourneyQueryOptions,
   });
 }
 

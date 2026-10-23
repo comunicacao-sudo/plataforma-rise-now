@@ -34,6 +34,7 @@ import {
   NotificationBell,
   ProfileModal,
   Rise90Live,
+  MentorsView,
   useMyProfile,
 } from "@/components/rise-extras";
 import {
@@ -61,6 +62,7 @@ import {
   JourneyContentLessonPage,
   JourneyContentLibraryPage,
   NextMovementSection,
+  useJourneyContentLibrary,
 } from "@/components/journey-content";
 import type { JourneyContentItem } from "@/lib/content.functions";
 import {
@@ -74,6 +76,7 @@ import {
   type NextJourneyStep,
 } from "@/lib/journey.functions";
 import { resolveAppRole, type AppRole } from "@/lib/access";
+import { liveJourneyQueryOptions, resolveJourneyThemeCovers } from "@/lib/journey-sync";
 import { SectionHero } from "@/components/section-hero";
 
 type Role = AppRole;
@@ -83,6 +86,7 @@ type View =
   | "agenda"
   | "entregas"
   | "rise90"
+  | "mentoras"
   | "painel"
   | "gestao-jornada"
   | "conteudos"
@@ -91,7 +95,7 @@ type View =
   | "whatsapp";
 type AuthMode = "checking" | "login" | "authenticated" | "change-password";
 
-const menteeViews: View[] = ["inicio", "jornada", "agenda", "entregas", "rise90"];
+const menteeViews: View[] = ["inicio", "jornada", "agenda", "entregas", "rise90", "mentoras"];
 const staffViews: View[] = [
   "painel",
   "gestao-jornada",
@@ -437,6 +441,7 @@ function Header({
           { label: "Agenda", view: "agenda" },
           { label: "Entregas", view: "entregas" },
           { label: "RISE 90", view: "rise90" },
+          { label: "Mentoras", view: "mentoras" },
         ]
       : [
           { label: "Painel", view: "painel" },
@@ -689,7 +694,15 @@ function phaseStatus(trail: Trail, month: number) {
       : "upcoming";
 }
 
-function JourneyRail({ trail, onView }: { trail: Trail; onView: () => void }) {
+function JourneyRail({
+  trail,
+  onView,
+  coversByMonth,
+}: {
+  trail: Trail;
+  onView: () => void;
+  coversByMonth: Map<number, JourneyContentItem>;
+}) {
   return (
     <section className="content-section page-width">
       <div className="section-heading">
@@ -704,7 +717,10 @@ function JourneyRail({ trail, onView }: { trail: Trail; onView: () => void }) {
       <div className="journey-rail">
         {trail.phases.map((item) => {
           const status = phaseStatus(trail, item.month);
-          const cover = journeyCoverByMonth[item.month];
+          const dynamicCover = coversByMonth.get(item.month);
+          const themeCovers = dynamicCover ? resolveJourneyThemeCovers(dynamicCover) : null;
+          const fallbackCover = journeyCoverByMonth[item.month];
+          const hasCover = Boolean(themeCovers?.light || themeCovers?.dark || fallbackCover);
           return (
             <article
               key={item.month}
@@ -720,10 +736,26 @@ function JourneyRail({ trail, onView }: { trail: Trail; onView: () => void }) {
                 }
               }}
             >
-              {cover ? (
+              {themeCovers?.light ? (
+                <img
+                  className="journey-card__cover journey-card__cover--light"
+                  src={themeCovers.light}
+                  alt={`${item.title}, mês ${item.month}`}
+                  loading={item.month > 2 ? "lazy" : "eager"}
+                />
+              ) : null}
+              {themeCovers?.dark ? (
+                <img
+                  className="journey-card__cover journey-card__cover--dark"
+                  src={themeCovers.dark}
+                  alt={`${item.title}, mês ${item.month}`}
+                  loading={item.month > 2 ? "lazy" : "eager"}
+                />
+              ) : null}
+              {!themeCovers?.light && !themeCovers?.dark && fallbackCover ? (
                 <img
                   className="journey-card__cover"
-                  src={cover}
+                  src={fallbackCover}
                   alt={`${item.title}, mês ${item.month}`}
                   loading={item.month > 2 ? "lazy" : "eager"}
                 />
@@ -733,7 +765,7 @@ function JourneyRail({ trail, onView }: { trail: Trail; onView: () => void }) {
                 {status === "completed" ? <CheckCircle2 size={19} /> : null}
                 {status === "current" ? <span className="status-pill">AGORA</span> : null}
               </div>
-              {!cover ? (
+              {!hasCover ? (
                 <>
                   <div className="journey-card__letter">{item.pillar}</div>
                   <h3>{item.title}</h3>
@@ -765,12 +797,25 @@ function HomeView({
   const loadNext = useServerFn(getNextJourneyStep);
   const startNext = useServerFn(startJourneyStep);
   const queryClient = useQueryClient();
+  const journeyLibrary = useJourneyContentLibrary(true);
   const nextStepQuery = useQuery({
     queryKey: ["next-journey-step", trail.enrollmentId],
     queryFn: () => loadNext(),
     enabled: Boolean(trail.enrollmentId),
-    refetchOnWindowFocus: false,
+    ...liveJourneyQueryOptions,
   });
+  const coversByMonth = useMemo(() => {
+    const covers = new Map<number, JourneyContentItem>();
+    for (const item of journeyLibrary.data?.items ?? []) {
+      if (
+        !covers.has(item.monthNumber) &&
+        (item.coverUrl || item.coverUrlLight || item.coverUrlDark)
+      ) {
+        covers.set(item.monthNumber, item);
+      }
+    }
+    return covers;
+  }, [journeyLibrary.data?.items]);
   const revisit = trail.phases
     .flatMap((p) => p.lessons)
     .filter((l) => l.completed && l.kind === "aula");
@@ -779,18 +824,13 @@ function HomeView({
     : (nextStepQuery.data ?? ({ state: "no_enrollment" } satisfies NextJourneyStep));
 
   async function openHighlightedStep() {
-    if (highlightedStep.enrollmentId && highlightedStep.stepKey) {
-      await startNext({
-        data: { enrollmentId: highlightedStep.enrollmentId, stepKey: highlightedStep.stepKey },
-      });
-      void queryClient.invalidateQueries({ queryKey: ["next-journey-step"] });
-    }
     if (highlightedStep.resourceType === "legacy_lesson" && highlightedStep.resourceId) {
       const lesson = trail.phases
         .flatMap((item) => item.lessons)
         .find((item) => item.id === highlightedStep.resourceId);
       if (lesson) {
         onOpen(lesson);
+        void markHighlightedStepStarted();
         return;
       }
     }
@@ -806,6 +846,7 @@ function HomeView({
         ].includes(highlightedStep.format ?? ""))
     ) {
       onOpenContent(highlightedStep.stepKey);
+      void markHighlightedStepStarted();
       return;
     }
     if (
@@ -814,6 +855,7 @@ function HomeView({
       highlightedStep.stepKey
     ) {
       onOpenContent(highlightedStep.stepKey);
+      void markHighlightedStepStarted();
       return;
     }
     if (highlightedStep.format === "individual_1_1" || highlightedStep.format === "live_group") {
@@ -821,11 +863,25 @@ function HomeView({
         const url = new URL(highlightedStep.resourceUrl);
         if (url.protocol === "https:") window.open(url.toString(), "_blank", "noopener,noreferrer");
       } else onView("agenda");
+      void markHighlightedStepStarted();
       return;
     }
     if (highlightedStep.resourceUrl) {
       const url = new URL(highlightedStep.resourceUrl);
       if (url.protocol === "https:") window.open(url.toString(), "_blank", "noopener,noreferrer");
+      void markHighlightedStepStarted();
+    }
+  }
+
+  async function markHighlightedStepStarted() {
+    if (!highlightedStep.enrollmentId || !highlightedStep.stepKey) return;
+    try {
+      await startNext({
+        data: { enrollmentId: highlightedStep.enrollmentId, stepKey: highlightedStep.stepKey },
+      });
+      await queryClient.invalidateQueries({ queryKey: ["next-journey-step"] });
+    } catch (error) {
+      console.error("Não foi possível registrar o início da etapa.", error);
     }
   }
   return (
@@ -833,11 +889,11 @@ function HomeView({
       <NextStepHero
         step={highlightedStep}
         onAction={() => void openHighlightedStep()}
-        busy={nextStepQuery.isFetching}
+        busy={nextStepQuery.isPending}
       />
       <div className="dashboard-body">
         <ContinueJourneySection onOpen={(item) => onOpenContent(item.stepKey)} />
-        <JourneyRail trail={trail} onView={() => onView("jornada")} />
+        <JourneyRail trail={trail} coversByMonth={coversByMonth} onView={() => onView("jornada")} />
         <NextMovementSection
           currentMonth={trail.currentMonth}
           onOpen={(item) => onOpenContent(item.stepKey)}
@@ -1024,6 +1080,12 @@ function MenteeArea({ view, onView }: { view: View; onView: (v: View) => void })
   const [lesson, setLesson] = useState<TrailLesson | null>(null);
   const [contentStepKey, setContentStepKey] = useState<string | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
+  function openJourneyContent(stepKey: string) {
+    setLesson(null);
+    setLibraryOpen(false);
+    setContentStepKey(stepKey);
+    if (view !== "jornada") onView("jornada");
+  }
   useEffect(() => {
     if (view !== "jornada") {
       setContentStepKey(null);
@@ -1038,6 +1100,7 @@ function MenteeArea({ view, onView }: { view: View; onView: (v: View) => void })
       setContentStepKey(step);
     }
   }, [view]);
+  if (view === "mentoras") return <MentorsView />;
   if (isLoading)
     return (
       <main className="inner-page page-loading" aria-live="polite">
@@ -1080,7 +1143,7 @@ function MenteeArea({ view, onView }: { view: View; onView: (v: View) => void })
           trail={trail}
           onView={onView}
           onOpen={setLesson}
-          onOpenContent={setContentStepKey}
+          onOpenContent={openJourneyContent}
         />
       ) : view === "jornada" ? (
         <JourneyView trail={trail} onOpen={setLesson} onOpenLibrary={() => setLibraryOpen(true)} />

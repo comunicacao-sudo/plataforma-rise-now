@@ -31,6 +31,7 @@ import {
   type JourneyContentItem,
   type StageQuestion,
 } from "@/lib/content.functions";
+import { liveJourneyQueryOptions, resolveJourneyThemeCovers } from "@/lib/journey-sync";
 
 type JourneyMarker = {
   id: string;
@@ -177,14 +178,12 @@ export function useJourneyContentLibrary(enabled = true) {
     queryFn: () => load(),
     enabled,
     retry: false,
-    staleTime: 30_000,
-    refetchOnWindowFocus: false,
+    ...liveJourneyQueryOptions,
   });
 }
 
 function ContentCover({ item }: { item: JourneyContentItem }) {
-  const lightCoverUrl = item.coverUrlLight ?? (!item.coverUrlDark ? (item.coverUrl ?? null) : null);
-  const darkCoverUrl = item.coverUrlDark ?? (!item.coverUrlLight ? (item.coverUrl ?? null) : null);
+  const { light: lightCoverUrl, dark: darkCoverUrl } = resolveJourneyThemeCovers(item);
   const hasCover = !!(lightCoverUrl || darkCoverUrl);
 
   return (
@@ -569,6 +568,7 @@ export function JourneyContentLessonPage({
   const query = useQuery({
     queryKey: ["journey-content", stepKey],
     queryFn: () => load({ data: { stepKey } }),
+    ...liveJourneyQueryOptions,
   });
   const study = useQuery({
     queryKey: ["journey-study", stepKey],
