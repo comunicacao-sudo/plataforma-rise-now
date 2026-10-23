@@ -317,6 +317,42 @@ export function NewPasswordScreen({
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [sessionStatus, setSessionStatus] = useState<"checking" | "ready" | "invalid">(
+    recovery ? "checking" : "ready",
+  );
+
+  useEffect(() => {
+    if (!recovery) return;
+
+    let active = true;
+    // The Supabase client is lazy-loaded. Initialize Auth as soon as the
+    // recovery page opens so it can consume the invite/recovery URL callback
+    // before the participant is allowed to enter a new password.
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!active) return;
+      if ((event === "SIGNED_IN" || event === "PASSWORD_RECOVERY") && session) {
+        setSessionStatus("ready");
+      } else if (event === "SIGNED_OUT") {
+        setSessionStatus("invalid");
+      }
+    });
+
+    async function validateSession() {
+      try {
+        const { data, error: sessionError } = await supabase.auth.getSession();
+        if (!active) return;
+        setSessionStatus(sessionError || !data.session ? "invalid" : "ready");
+      } catch {
+        if (active) setSessionStatus("invalid");
+      }
+    }
+
+    void validateSession();
+    return () => {
+      active = false;
+      listener.subscription.unsubscribe();
+    };
+  }, [recovery]);
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -324,25 +360,54 @@ export function NewPasswordScreen({
     if (password.length < 8) return setError("A senha precisa ter pelo menos 8 caracteres.");
     if (password !== confirm) return setError("As senhas não são iguais.");
     if (password === "rise@2026") return setError("Escolha uma senha diferente da inicial.");
-    setBusy(true);
-    const { error: updateError } = await supabase.auth.updateUser({
-      password,
-      data: { must_change_password: false },
-    });
-    setBusy(false);
-    if (updateError) {
-      const code = (updateError as { code?: string }).code;
-      const messages: Record<string, string> = {
-        invalid_credentials: "Sua sessão expirou. Solicite um novo link ou entre novamente.",
-        weak_password: "Essa senha é fraca demais. Use letras, números e símbolos.",
-        same_password: "A nova senha precisa ser diferente da atual.",
-        session_not_found: "Sua sessão expirou. Saia e entre novamente.",
-      };
-      return setError(
-        messages[code ?? ""] ?? `Não foi possível salvar a senha: ${updateError.message}`,
-      );
+    if (recovery && sessionStatus !== "ready") {
+      return setError("Não foi possível validar seu link. Solicite um novo link de acesso.");
     }
-    onDone?.();
+
+    setBusy(true);
+    try {
+      // Never attempt updateUser without an established, valid client session.
+      const { data, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !data.session) {
+        if (recovery) setSessionStatus("invalid");
+        else setError("Sua sessão terminou. Entre novamente para criar a senha.");
+        return;
+      }
+
+      const { error: updateError } = await supabase.auth.updateUser({
+        password,
+        data: { must_change_password: false },
+      });
+
+      if (updateError) {
+        const code = (updateError as { code?: string }).code;
+        if (
+          code === "session_not_found" ||
+          code === "session_missing" ||
+          updateError.name === "AuthSessionMissingError"
+        ) {
+          if (recovery) setSessionStatus("invalid");
+          else setError("Sua sessão terminou. Entre novamente para criar a senha.");
+          return;
+        }
+        const messages: Record<string, string> = {
+          invalid_credentials: "Sua sessão expirou. Solicite um novo link ou entre novamente.",
+          weak_password: "Essa senha é fraca demais. Use letras, números e símbolos.",
+          same_password: "A nova senha precisa ser diferente da atual.",
+        };
+        setError(
+          messages[code ?? ""] ??
+            "Não foi possível salvar a senha agora. Tente novamente ou solicite um novo link.",
+        );
+        return;
+      }
+
+      onDone?.();
+    } catch {
+      setError("Não foi possível salvar a senha agora. Tente novamente.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -362,35 +427,61 @@ export function NewPasswordScreen({
             <h1>Crie sua nova senha.</h1>
             <p>Por segurança, defina uma senha pessoal antes de continuar.</p>
           </div>
-          <form className="login-form" onSubmit={save}>
-            <label htmlFor="rise-new-password">Nova senha</label>
-            <input
-              id="rise-new-password"
-              type="password"
-              required
-              autoComplete="new-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-            <label htmlFor="rise-confirm-password">Repita a nova senha</label>
-            <input
-              id="rise-confirm-password"
-              type="password"
-              required
-              autoComplete="new-password"
-              value={confirm}
-              onChange={(e) => setConfirm(e.target.value)}
-            />
-            {error ? (
-              <p className="form-error" role="alert">
-                {error}
-              </p>
-            ) : null}
-            <button className="button button--primary button--wide" type="submit" disabled={busy}>
-              {busy ? "Salvando…" : "Salvar e entrar"}
-              {!busy ? <ArrowRight size={18} /> : null}
-            </button>
-          </form>
+          {recovery && sessionStatus === "checking" ? (
+            <div className="access-sent" role="status">
+              <div>
+                <strong>Validando seu link de acesso…</strong>
+                <p>Estamos verificando seu convite com segurança.</p>
+              </div>
+            </div>
+          ) : recovery && sessionStatus === "invalid" ? (
+            <>
+              <div className="access-sent" role="alert">
+                <div>
+                  <strong>Não foi possível validar este link.</strong>
+                  <p>
+                    O convite pode ter expirado, já ter sido utilizado ou ter sido aberto sem os
+                    dados de autenticação. Volte à tela de acesso e selecione "Esqueci minha senha"
+                    para receber outro link.
+                  </p>
+                </div>
+              </div>
+              <a className="button button--primary button--wide" href="/">
+                Voltar ao acesso
+                <ArrowRight size={18} />
+              </a>
+            </>
+          ) : (
+            <form className="login-form" onSubmit={save}>
+              <label htmlFor="rise-new-password">Nova senha</label>
+              <input
+                id="rise-new-password"
+                type="password"
+                required
+                autoComplete="new-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+              <label htmlFor="rise-confirm-password">Repita a nova senha</label>
+              <input
+                id="rise-confirm-password"
+                type="password"
+                required
+                autoComplete="new-password"
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+              />
+              {error ? (
+                <p className="form-error" role="alert">
+                  {error}
+                </p>
+              ) : null}
+              <button className="button button--primary button--wide" type="submit" disabled={busy}>
+                {busy ? "Salvando…" : "Salvar e entrar"}
+                {!busy ? <ArrowRight size={18} /> : null}
+              </button>
+            </form>
+          )}
         </div>
       </section>
     </main>
