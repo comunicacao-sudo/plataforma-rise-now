@@ -86,7 +86,6 @@ export const addJourneyContentMarker: any = createEdgeFunction("addJourneyConten
 export const saveJourneyContentProgress: any = createEdgeFunction("saveJourneyContentProgress");
 export const createJourneyUpload: any = createEdgeFunction("createJourneyUpload");
 
-
 export type StageQuestion = {
   id: string;
   prompt: string;

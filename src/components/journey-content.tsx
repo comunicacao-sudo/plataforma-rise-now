@@ -104,7 +104,9 @@ function StageQuestionnaire({
       ]);
       setMessage("Questionário enviado com sucesso.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Não foi possível enviar o questionário.");
+      setMessage(
+        error instanceof Error ? error.message : "Não foi possível enviar o questionário.",
+      );
     } finally {
       setBusy(false);
     }
@@ -717,44 +719,44 @@ export function JourneyContentLessonPage({
         </header>
         <div className="recorded-lesson__workspace">
           <section className="recorded-lesson__main">
-            {(item.resourceType === "r2" || item.mediaUrl) ? (
+            {item.resourceType === "r2" || item.mediaUrl ? (
               <div className="recorded-player">
-              {item.resourceType === "r2" && r2Loading ? (
-                <div className="recorded-player__empty">
-                  <span className="eyebrow eyebrow--gold">Acesso privado</span>
-                  <h2>Preparando sua aula…</h2>
-                  <p>A RISE está validando seu acesso ao vídeo no Cloudflare.</p>
-                </div>
-              ) : item.resourceType === "r2" && r2Error ? (
-                <div className="recorded-player__empty">
-                  <VideoOff size={36} />
-                  <span className="eyebrow eyebrow--gold">Acesso indisponível</span>
-                  <h2>Não foi possível liberar este vídeo.</h2>
-                  <p>{r2Error}</p>
-                </div>
-              ) : (item.resourceType === "r2" ? r2Url : item.mediaUrl) ? (
-                <RecordedPlayer
-                  url={(item.resourceType === "r2" ? r2Url : item.mediaUrl) ?? ""}
-                  initialTime={study.data?.currentSeconds ?? item.currentSeconds}
-                  onEnded={() => void persistProgress(currentTime, true)}
-                  onTime={(seconds) => {
-                    setCurrentTime(seconds);
-                    if (seconds - lastSaved.current >= 10) {
-                      lastSaved.current = seconds;
-                      void persistProgress(seconds);
-                    }
-                  }}
-                  onDuration={setDuration}
-                  onController={setPlayer}
-                />
-              ) : (
-                <div className="recorded-player__empty">
-                  <VideoOff size={36} />
-                  <span className="eyebrow eyebrow--gold">Em breve</span>
-                  <h2>Esta gravação ainda não foi publicada.</h2>
-                  <p>Nenhum player é simulado enquanto o vídeo não estiver disponível.</p>
-                </div>
-              )}
+                {item.resourceType === "r2" && r2Loading ? (
+                  <div className="recorded-player__empty">
+                    <span className="eyebrow eyebrow--gold">Acesso privado</span>
+                    <h2>Preparando sua aula…</h2>
+                    <p>A RISE está validando seu acesso ao vídeo no Cloudflare.</p>
+                  </div>
+                ) : item.resourceType === "r2" && r2Error ? (
+                  <div className="recorded-player__empty">
+                    <VideoOff size={36} />
+                    <span className="eyebrow eyebrow--gold">Acesso indisponível</span>
+                    <h2>Não foi possível liberar este vídeo.</h2>
+                    <p>{r2Error}</p>
+                  </div>
+                ) : (item.resourceType === "r2" ? r2Url : item.mediaUrl) ? (
+                  <RecordedPlayer
+                    url={(item.resourceType === "r2" ? r2Url : item.mediaUrl) ?? ""}
+                    initialTime={study.data?.currentSeconds ?? item.currentSeconds}
+                    onEnded={() => void persistProgress(currentTime, true)}
+                    onTime={(seconds) => {
+                      setCurrentTime(seconds);
+                      if (seconds - lastSaved.current >= 10) {
+                        lastSaved.current = seconds;
+                        void persistProgress(seconds);
+                      }
+                    }}
+                    onDuration={setDuration}
+                    onController={setPlayer}
+                  />
+                ) : (
+                  <div className="recorded-player__empty">
+                    <VideoOff size={36} />
+                    <span className="eyebrow eyebrow--gold">Em breve</span>
+                    <h2>Esta gravação ainda não foi publicada.</h2>
+                    <p>Nenhum player é simulado enquanto o vídeo não estiver disponível.</p>
+                  </div>
+                )}
               </div>
             ) : null}
             <section className="lesson-summary">

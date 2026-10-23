@@ -110,7 +110,6 @@ export async function getR2PlaybackUrl(stepKey: string) {
   return result;
 }
 
-
 export async function deleteLessonFromR2(mediaPath: string) {
   if (!mediaPath.startsWith("r2:")) return;
   await workerJson<{ ok: boolean }>("/object/delete", { mediaPath });

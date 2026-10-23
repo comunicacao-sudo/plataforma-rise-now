@@ -100,9 +100,7 @@ function ContentForm({
   const [cohortId, setCohortId] = useState(initial?.cohortId ?? "");
   const [menteeId, setMenteeId] = useState(initial?.menteeId ?? "");
   const [questions, setQuestions] = useState<StageQuestion[]>(
-    initial?.questionnaire?.questions?.length
-      ? initial.questionnaire.questions
-      : [newQuestion()],
+    initial?.questionnaire?.questions?.length ? initial.questionnaire.questions : [newQuestion()],
   );
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState<number | null>(null);
@@ -166,10 +164,7 @@ function ContentForm({
       return setMessage("Envie a aula ou informe uma URL externa.");
     if (contentType === "material" && !filePath && !externalUrl.trim())
       return setMessage("Envie um arquivo ou informe um link.");
-    if (
-      contentType === "questionnaire" &&
-      !questions.some((question) => question.prompt.trim())
-    )
+    if (contentType === "questionnaire" && !questions.some((question) => question.prompt.trim()))
       return setMessage("Adicione pelo menos uma pergunta.");
 
     setBusy(true);
@@ -195,10 +190,7 @@ function ContentForm({
         },
       });
 
-      if (
-        initial?.mediaPath?.startsWith("r2:") &&
-        initial.mediaPath !== mediaPath
-      ) {
+      if (initial?.mediaPath?.startsWith("r2:") && initial.mediaPath !== mediaPath) {
         await deleteLessonFromR2(initial.mediaPath);
       }
       if (initial?.filePath && initial.filePath !== filePath) {
@@ -363,7 +355,13 @@ function ContentForm({
               <legend>Material de apoio</legend>
               <label className="journey-upload">
                 <Upload size={18} />
-                <span>{uploading ? "Enviando arquivo…" : filePath ? "Substituir arquivo" : "Adicionar arquivo"}</span>
+                <span>
+                  {uploading
+                    ? "Enviando arquivo…"
+                    : filePath
+                      ? "Substituir arquivo"
+                      : "Adicionar arquivo"}
+                </span>
                 <input
                   type="file"
                   disabled={uploading}
@@ -392,9 +390,7 @@ function ContentForm({
           {contentType === "questionnaire" ? (
             <fieldset className="ops-inline-form">
               <legend>Questionário</legend>
-              <p className="ops-muted">
-                O mentorado responde dentro da própria RISE.
-              </p>
+              <p className="ops-muted">O mentorado responde dentro da própria RISE.</p>
               {questions.map((question, index) => (
                 <div className="admin-card" key={question.id}>
                   <div className="section-heading">
@@ -507,7 +503,12 @@ function ContentForm({
             <button className="button button--glass" type="button" onClick={onDone} disabled={busy}>
               Cancelar
             </button>
-            <button className="button button--primary" type="button" onClick={() => void save()} disabled={busy || uploading}>
+            <button
+              className="button button--primary"
+              type="button"
+              onClick={() => void save()}
+              disabled={busy || uploading}
+            >
               <Save size={16} /> {busy ? "Salvando…" : "Salvar conteúdo"}
             </button>
           </div>
@@ -723,16 +724,20 @@ export function JourneyContentAdmin() {
             const counts = {
               video: stageItems.filter((item) => item.contentType === "video").length,
               material: stageItems.filter((item) => item.contentType === "material").length,
-              questionnaire: stageItems.filter((item) => item.contentType === "questionnaire").length,
+              questionnaire: stageItems.filter((item) => item.contentType === "questionnaire")
+                .length,
             };
             return (
               <article className="admin-card" key={step.stableKey}>
                 <div className="section-heading">
                   <div>
-                    <small className="ops-muted">Etapa {index + 1} · Mês {step.monthNumber}</small>
+                    <small className="ops-muted">
+                      Etapa {index + 1} · Mês {step.monthNumber}
+                    </small>
                     <strong>{step.title || "Etapa sem título"}</strong>
                     <p className="ops-muted">
-                      {counts.video} aula(s) · {counts.material} material(is) · {counts.questionnaire} questionário(s)
+                      {counts.video} aula(s) · {counts.material} material(is) ·{" "}
+                      {counts.questionnaire} questionário(s)
                     </p>
                   </div>
                   <button

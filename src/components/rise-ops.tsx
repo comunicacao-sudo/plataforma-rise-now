@@ -1847,9 +1847,7 @@ function MembersPanel({ mode }: { mode: "students" | "access" }) {
     )?.status ?? "nao_iniciada";
 
   const activeEnrollment =
-    mode === "students"
-      ? dir?.enrollments.find((entry) => entry.id === selectedMentee)
-      : undefined;
+    mode === "students" ? dir?.enrollments.find((entry) => entry.id === selectedMentee) : undefined;
   if (activeEnrollment)
     return (
       <MenteeProfilePage

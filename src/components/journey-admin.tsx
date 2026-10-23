@@ -285,8 +285,9 @@ function StepForm({
         <fieldset className="journey-cover-fieldset">
           <legend>Capas do card</legend>
           <p className="journey-field-help">
-            Cadastre uma arte para cada tema. A plataforma exibe automaticamente a capa correspondente
-            ao tema claro ou escuro escolhido por mentorados e mentoras. PNG, JPG ou WebP.
+            Cadastre uma arte para cada tema. A plataforma exibe automaticamente a capa
+            correspondente ao tema claro ou escuro escolhido por mentorados e mentoras. PNG, JPG ou
+            WebP.
           </p>
 
           <div className="journey-theme-cover">
@@ -296,10 +297,7 @@ function StepForm({
             </div>
             {lightCoverUrl ? (
               <div className="journey-cover-preview">
-                <img
-                  src={lightCoverUrl}
-                  alt={`Prévia da capa clara de ${step.title || "etapa"}`}
-                />
+                <img src={lightCoverUrl} alt={`Prévia da capa clara de ${step.title || "etapa"}`} />
                 <button
                   type="button"
                   onClick={(event) => {
@@ -339,10 +337,7 @@ function StepForm({
             </div>
             {darkCoverUrl ? (
               <div className="journey-cover-preview">
-                <img
-                  src={darkCoverUrl}
-                  alt={`Prévia da capa escura de ${step.title || "etapa"}`}
-                />
+                <img src={darkCoverUrl} alt={`Prévia da capa escura de ${step.title || "etapa"}`} />
                 <button
                   type="button"
                   onClick={(event) => {
@@ -689,8 +684,7 @@ export function JourneyAdmin() {
               <div className="journey-step-row__copy">
                 <strong>{step.title || "Etapa sem título"}</strong>
                 <span>
-                  {formatLabels[step.format]} ·{" "}
-`Mês ${step.monthNumber}`
+                  {formatLabels[step.format]} · Mês {step.monthNumber}
                 </span>
               </div>
               <span
@@ -849,11 +843,7 @@ export function JourneyAdmin() {
       ) : null}
 
       {editing ? (
-        <StepForm
-          initial={editing}
-          onSave={upsert}
-          onClose={() => setEditing(null)}
-        />
+        <StepForm initial={editing} onSave={upsert} onClose={() => setEditing(null)} />
       ) : null}
       {previewStep ? (
         <div

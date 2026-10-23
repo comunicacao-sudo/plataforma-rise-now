@@ -1227,7 +1227,7 @@ export function ProfileModal({
         theme_preference:
           role === "mentee" ? "dark" : p.theme_preference === "light" ? "light" : "dark",
       });
-  }, [p]);
+  }, [p, role]);
   if (!p) return null;
   const set =
     (k: "display_name" | "full_name" | "title" | "phone" | "contact_email" | "profession") =>
@@ -1336,7 +1336,9 @@ export function ProfileModal({
                 aria-pressed={form.theme_preference === "light"}
                 aria-disabled={role === "mentee"}
                 disabled={role === "mentee"}
-                title={role === "mentee" ? "Tema claro em teste. Será liberado em breve." : undefined}
+                title={
+                  role === "mentee" ? "Tema claro em teste. Será liberado em breve." : undefined
+                }
                 onClick={() => setForm({ ...form, theme_preference: "light" })}
               >
                 <Sun size={17} /> Claro

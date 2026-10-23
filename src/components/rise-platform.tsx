@@ -1281,11 +1281,7 @@ export function RisePlatform() {
   // Mesmo que exista uma preferência antiga salva, a mentorada permanece no tema escuro
   // até a liberação explícita desta opção.
   const theme =
-    role === "mentee"
-      ? "dark"
-      : currentProfile?.theme_preference === "light"
-        ? "light"
-        : "dark";
+    role === "mentee" ? "dark" : currentProfile?.theme_preference === "light" ? "light" : "dark";
   const shellClass = useMemo(() => `platform-shell platform-shell--${role}`, [role]);
 
   async function exit() {
@@ -1329,9 +1325,16 @@ export function RisePlatform() {
       {role !== "mentee" ? (
         <StaffArea
           view={
-            (["painel", "gestao-jornada", "conteudos", "agenda", "entregas", "alunas", "turmas-acessos", "whatsapp"].includes(
-              activeView,
-            )
+            ([
+              "painel",
+              "gestao-jornada",
+              "conteudos",
+              "agenda",
+              "entregas",
+              "alunas",
+              "turmas-acessos",
+              "whatsapp",
+            ].includes(activeView)
               ? activeView
               : "painel") as StaffView
           }
