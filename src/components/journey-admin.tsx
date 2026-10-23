@@ -28,6 +28,11 @@ import {
   type JourneyDraftStep,
   type NextJourneyStep,
 } from "@/lib/journey.functions";
+import {
+  invalidateJourneyData,
+  journeyStepSignature,
+  liveJourneyQueryOptions,
+} from "@/lib/journey-sync";
 
 const formatLabels: Record<JourneyDraftStep["format"], string> = {
   questionnaire: "Questionário",
@@ -79,24 +84,6 @@ function emptyStep(): JourneyDraftStep {
     cohortId: null,
     menteeId: null,
   };
-}
-
-function draftStepSignature(step: JourneyDraftStep) {
-  return JSON.stringify({
-    stableKey: step.stableKey,
-    title: step.title,
-    format: step.format,
-    impactLead: step.impactLead,
-    impactHighlight: step.impactHighlight,
-    impactTail: step.impactTail,
-    description: step.description,
-    monthNumber: step.monthNumber,
-    coverPath: step.coverPath,
-    coverPathLight: step.coverPathLight,
-    coverPathDark: step.coverPathDark,
-    summary: step.summary,
-    topics: step.topics,
-  });
 }
 
 function StepForm({
@@ -464,6 +451,7 @@ export function JourneyAdmin() {
   const query = useQuery({
     queryKey: ["journey-editor", pillarId],
     queryFn: () => load({ data: pillarId ? { pillarId } : undefined }),
+    ...liveJourneyQueryOptions,
   });
   const [localSteps, setLocalSteps] = useState<JourneyDraftStep[] | null>(null);
   const [editing, setEditing] = useState<JourneyDraftStep | null>(null);
@@ -510,8 +498,13 @@ export function JourneyAdmin() {
   }
 
   function getStepStatus(step: JourneyDraftStep) {
-    const original = data?.steps.find((item) => item.stableKey === step.stableKey);
-    const unchangedLocally = !original || draftStepSignature(original) === draftStepSignature(step);
+    const originalIndex = data?.steps.findIndex((item) => item.stableKey === step.stableKey) ?? -1;
+    const currentIndex = steps.findIndex((item) => item.stableKey === step.stableKey);
+    const original = originalIndex >= 0 ? data?.steps[originalIndex] : undefined;
+    const unchangedLocally =
+      !!original &&
+      originalIndex === currentIndex &&
+      journeyStepSignature(original) === journeyStepSignature(step);
     return unchangedLocally && (data?.publishedStepKeys ?? []).includes(step.stableKey)
       ? "Publicado"
       : "Rascunho";
@@ -524,7 +517,10 @@ export function JourneyAdmin() {
     try {
       await save({ data: { pillarId: selectedPillarId, expectedRevision: data.revision, steps } });
       setLocalSteps(null);
-      await qc.invalidateQueries({ queryKey: ["journey-editor"] });
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["journey-editor"] }),
+        qc.invalidateQueries({ queryKey: ["journey-content-structure"] }),
+      ]);
       setMessage("Rascunho salvo. As mentoradas ainda não foram afetadas.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Não foi possível salvar o rascunho.");
@@ -561,10 +557,7 @@ export function JourneyAdmin() {
       setPublishOpen(false);
       setApplyActive(true);
 
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: ["journey-editor"] }),
-        qc.invalidateQueries({ queryKey: ["next-journey-step"] }),
-      ]);
+      await invalidateJourneyData(qc);
       await qc.refetchQueries({
         queryKey: ["journey-editor", pillarId],
         type: "active",
@@ -584,10 +577,7 @@ export function JourneyAdmin() {
     setMessage("");
     try {
       await confirm({ data: { enrollmentId, stepKey } });
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: ["journey-editor"] }),
-        qc.invalidateQueries({ queryKey: ["next-journey-step"] }),
-      ]);
+      await invalidateJourneyData(qc);
       setMessage("Conclusão confirmada. O próximo passo da mentorada foi recalculado.");
     } catch (error) {
       setMessage(

@@ -26,6 +26,7 @@ import {
   type StageQuestion,
 } from "@/lib/content.functions";
 import { getJourneyEditor, type JourneyDraftStep } from "@/lib/journey.functions";
+import { invalidateJourneyData, liveJourneyQueryOptions } from "@/lib/journey-sync";
 import { deleteLessonFromR2, uploadLessonToR2 } from "@/lib/r2-worker";
 
 const typeLabel: Record<StageContentItem["contentType"], string> = {
@@ -200,11 +201,7 @@ function ContentForm({
         if (cleanupError) throw cleanupError;
       }
 
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: ["stage-contents", pillarId] }),
-        qc.invalidateQueries({ queryKey: ["journey-content-library"] }),
-        qc.invalidateQueries({ queryKey: ["agenda-materials"] }),
-      ]);
+      await invalidateJourneyData(qc);
       onDone();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Não foi possível salvar.");
@@ -547,11 +544,7 @@ function StageContentManager({
         await deleteLessonFromR2(item.mediaPath);
       }
       await deleteFn({ data: { id: item.id } });
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: ["stage-contents", pillarId] }),
-        qc.invalidateQueries({ queryKey: ["journey-content-library"] }),
-        qc.invalidateQueries({ queryKey: ["agenda-materials"] }),
-      ]);
+      await invalidateJourneyData(qc);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Não foi possível remover.");
     }
@@ -645,6 +638,7 @@ export function JourneyContentAdmin() {
   const journey = useQuery({
     queryKey: ["journey-content-structure", pillarId],
     queryFn: () => loadJourney({ data: pillarId ? { pillarId } : undefined }),
+    ...liveJourneyQueryOptions,
   });
   const selectedPillarId = journey.data?.selected?.id;
 
@@ -652,6 +646,7 @@ export function JourneyContentAdmin() {
     queryKey: ["stage-contents", selectedPillarId],
     enabled: !!selectedPillarId,
     queryFn: () => loadContents({ data: { pillarId: selectedPillarId! } }),
+    ...liveJourneyQueryOptions,
   });
 
   const directory = useQuery({

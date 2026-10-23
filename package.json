@@ -17,7 +17,7 @@
     "pretypecheck": "node scripts/verify-supabase-target.mjs",
     "typecheck": "tsc --noEmit",
     "pretest": "node scripts/verify-supabase-target.mjs",
-    "test": "tsx --test src/lib/access.test.ts src/lib/assessment.test.ts src/lib/whatsapp-templates.test.ts",
+    "test": "tsx --test src/lib/access.test.ts src/lib/assessment.test.ts src/lib/whatsapp-templates.test.ts src/lib/journey-sync.test.ts src/lib/platform-behavior.test.ts",
     "verify:supabase": "node scripts/verify-supabase-target.mjs --bundle",
     "format": "prettier --write ."
   },

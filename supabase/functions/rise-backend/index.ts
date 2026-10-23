@@ -78,6 +78,59 @@ const officialMentors = new Set([
   "camila@pamarisdigital.com",
 ]);
 
+const officialMentorDirectory = [
+  {
+    email: "camilaum@pamarisdigital.com",
+    pillar: "Reflexão",
+    summary: "Escuta ativa para transformar dilemas em escolhas mais claras.",
+  },
+  {
+    email: "gabriela@pamarisdigital.com",
+    pillar: "Identidade",
+    summary: "Posicionamento e marca pessoal para tornar valor visível.",
+  },
+  {
+    email: "ana@pamarisdigital.com",
+    pillar: "Segurança",
+    summary: "IA e produtividade traduzidas em ferramentas possíveis.",
+  },
+  {
+    email: "camila@pamarisdigital.com",
+    pillar: "Evolução",
+    summary: "Direção, liderança e execução para o próximo nível.",
+  },
+] as const;
+
+async function getMentorDirectory(c: Context) {
+  const emails = officialMentorDirectory.map((mentor) => mentor.email);
+  const { data, error } = await c.admin
+    .from("profiles")
+    .select("id, email, display_name, full_name, avatar_url, phone, contact_email")
+    .in("email", emails);
+  if (error) throw new Error(error.message);
+
+  const profileByEmail = new Map(
+    (data ?? []).map((profile: any) => [String(profile.email).toLowerCase(), profile]),
+  );
+  return {
+    mentors: officialMentorDirectory.flatMap((mentor) => {
+      const profile = profileByEmail.get(mentor.email);
+      if (!profile) return [];
+      return [
+        {
+          id: profile.id,
+          name: profile.display_name || profile.full_name,
+          email: profile.contact_email || profile.email,
+          phone: profile.phone ?? null,
+          avatarUrl: profile.avatar_url ?? null,
+          pillar: mentor.pillar,
+          summary: mentor.summary,
+        },
+      ];
+    }),
+  };
+}
+
 async function getDirectory(c: Context) {
   await requireStaff(c);
   const [mentorRoles, cohorts, phases, specialties, enrollments, allowed, authUsers] =
@@ -460,6 +513,7 @@ async function journeyAction(c: Context, action: string, d: any) {
       revision: 0,
       steps: [],
       affectedActive: 0,
+      publishedStepKeys: [],
       confirmations: [],
     };
   const { data: draft, error: de } = await c.admin
@@ -490,27 +544,46 @@ async function journeyAction(c: Context, action: string, d: any) {
       .eq("program_id", selected.program_id)
       .eq("status", "ativa"),
   ]);
+  const cleanText = (value: unknown) => (typeof value === "string" ? value.trim() : "");
+  const cleanNullableText = (value: unknown) => cleanText(value) || null;
   const comparable = (s: any) =>
     JSON.stringify({
       stable_key: s?.stable_key ?? null,
-      title: typeof s?.title === "string" ? s.title.trim() : (s?.title ?? null),
+      title: cleanText(s?.title),
       format: s?.format ?? null,
-      impact_lead:
-        typeof s?.impact_lead === "string" ? s.impact_lead.trim() : (s?.impact_lead ?? ""),
-      impact_highlight:
-        typeof s?.impact_highlight === "string"
-          ? s.impact_highlight.trim()
-          : (s?.impact_highlight ?? ""),
-      impact_tail:
-        typeof s?.impact_tail === "string" ? s.impact_tail.trim() : (s?.impact_tail ?? ""),
-      description:
-        typeof s?.description === "string" ? s.description.trim() : (s?.description ?? ""),
+      impact_lead: cleanText(s?.impact_lead),
+      impact_highlight: cleanText(s?.impact_highlight),
+      impact_tail: cleanText(s?.impact_tail),
+      description: cleanText(s?.description),
+      responsible_name: cleanNullableText(s?.responsible_name),
+      duration_minutes: s?.duration_minutes ?? null,
+      resource_type: cleanNullableText(s?.resource_type),
+      resource_id: cleanNullableText(s?.resource_id),
+      resource_url: cleanNullableText(s?.resource_url),
+      scheduled_at: s?.scheduled_at ?? null,
+      release_at: s?.release_at ?? null,
+      completion_rule: s?.completion_rule ?? null,
+      required: s?.required ?? true,
       month_number: s?.month_number ?? 1,
       cover_path: s?.cover_path ?? null,
       cover_path_light: s?.cover_path_light ?? null,
       cover_path_dark: s?.cover_path_dark ?? null,
-      summary: typeof s?.summary === "string" ? s.summary.trim() : (s?.summary ?? ""),
-      topics: Array.isArray(s?.topics) ? s.topics : [],
+      media_path: s?.media_path ?? null,
+      summary: cleanText(s?.summary),
+      topics: Array.isArray(s?.topics)
+        ? s.topics.map((topic: unknown) => cleanText(topic)).filter(Boolean)
+        : [],
+      materials: Array.isArray(s?.materials)
+        ? s.materials.map((material: any) => ({
+            id: material?.id ?? null,
+            title: cleanText(material?.title),
+            url: cleanNullableText(material?.url),
+            filePath: material?.filePath ?? material?.file_path ?? null,
+          }))
+        : [],
+      access_scope: s?.access_scope ?? "general",
+      cohort_id: s?.cohort_id ?? null,
+      mentee_id: s?.mentee_id ?? null,
     });
   const publishedByKey = new Map(
     (publishedSteps ?? []).map((s: any, index: number) => [
@@ -2371,6 +2444,7 @@ const groups = {
     "cancelMeeting",
   ]),
   whatsapp: new Set(["getWhatsAppAdminState", "saveWhatsAppSettings"]),
+  profile: new Set(["getMentorDirectory"]),
 };
 
 Deno.serve(async (request: Request) => {
@@ -2382,7 +2456,8 @@ Deno.serve(async (request: Request) => {
     const action = String(body?.action ?? "");
     const d = body?.data ?? {};
     let result: unknown;
-    if (groups.admin.has(action))
+    if (groups.profile.has(action)) result = await getMentorDirectory(c);
+    else if (groups.admin.has(action))
       result =
         action === "getDirectory"
           ? await getDirectory(c)

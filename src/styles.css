@@ -94,15 +94,15 @@ input:focus-visible {
 .platform-shell,
 .platform-shell[data-theme="dark"] {
   --rise-graphite: #26312f;
-  --rise-sand: #d7b07a;
+  --rise-sand: #efc875;
   --rise-terracotta: #b8755d;
   --rise-white: #ffffff;
   --platform-background: var(--rise-graphite);
   --platform-title: var(--rise-white);
   --platform-text: var(--rise-sand);
-  --platform-muted: rgba(215, 176, 122, 0.72);
-  --platform-line: rgba(215, 176, 122, 0.28);
-  --platform-line-strong: rgba(215, 176, 122, 0.48);
+  --platform-muted: rgba(239, 200, 117, 0.78);
+  --platform-line: rgba(239, 200, 117, 0.3);
+  --platform-line-strong: rgba(239, 200, 117, 0.52);
   --platform-surface: rgba(38, 49, 47, 0.9);
   --platform-surface-soft: rgba(255, 255, 255, 0.045);
   --platform-surface-strong: #1f2927;
@@ -114,11 +114,11 @@ input:focus-visible {
   --primary: var(--rise-sand);
   --secondary: #34423f;
   --muted: #303d3a;
-  --muted-foreground: rgba(215, 176, 122, 0.72);
-  --border: rgba(215, 176, 122, 0.22);
+  --muted-foreground: rgba(239, 200, 117, 0.78);
+  --border: rgba(239, 200, 117, 0.24);
   --marsala: var(--rise-sand);
   --marsala-bright: var(--rise-sand);
-  --rose: rgba(215, 176, 122, 0.76);
+  --rose: rgba(239, 200, 117, 0.8);
   --gold: var(--rise-sand);
   --cream: var(--rise-white);
   --ivory: var(--rise-white);
@@ -130,7 +130,7 @@ input:focus-visible {
   background-color: var(--platform-background);
   background-image:
     linear-gradient(rgba(38, 49, 47, 0.86), rgba(38, 49, 47, 0.9)), url("/brand/platform-dark.webp");
-  background-blend-mode: color, luminosity;
+  background-blend-mode: normal;
   background-position: top center;
   background-size: cover;
   background-attachment: fixed;
@@ -167,7 +167,7 @@ input:focus-visible {
   background-image:
     linear-gradient(rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.88)),
     url("/brand/platform-light.webp");
-  background-blend-mode: normal, luminosity;
+  background-blend-mode: normal;
 }
 /* Brand */
 .rise-mark {
@@ -6383,25 +6383,98 @@ hr,
 }
 .x-mentors {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.15rem;
 }
 .x-mentor {
   display: grid;
-  justify-items: center;
-  text-align: center;
-  gap: 0.4rem;
-  padding: 1.4rem 1rem;
-  border-radius: 1rem;
-  border: 1px solid rgba(208, 172, 92, 0.18);
-  background: linear-gradient(160deg, rgba(90, 15, 20, 0.3), rgba(9, 6, 7, 0.6));
+  gap: 1.25rem;
+  padding: 1.45rem;
+  border-radius: 1.1rem;
+  border: 1px solid rgba(239, 200, 117, 0.34);
+  background: rgba(7, 36, 31, 0.78);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(12px);
+}
+.x-mentor__identity {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-width: 0;
+}
+.x-mentor__identity > div {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
 }
 .x-mentor strong {
+  display: block;
   color: var(--cream);
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 500;
 }
 .x-mentor small {
   color: var(--gold);
-  font-size: 0.76rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.x-mentor .x-contact {
+  justify-content: flex-start;
+  margin-top: 0.2rem;
+}
+.x-mentor .x-contact a {
+  overflow-wrap: anywhere;
+}
+.x-mentor__summary {
+  padding-top: 1rem;
+  border-top: 1px solid rgba(239, 200, 117, 0.2);
+}
+.x-mentor__summary span {
+  color: var(--gold);
+  font-size: 0.67rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.x-mentor__summary p {
+  margin: 0.45rem 0 0;
+  color: var(--cream);
+  line-height: 1.65;
+}
+.mentor-directory {
+  padding-top: 3rem;
+  padding-bottom: 5rem;
+}
+.mentor-directory__state {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.2rem;
+  border: 1px solid var(--platform-line);
+  border-radius: 0.9rem;
+  color: var(--platform-text);
+  background: var(--platform-surface);
+}
+.mentor-directory__state p {
+  margin: 0;
+}
+@media (max-width: 820px) {
+  .x-mentors {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 520px) {
+  .x-mentor__identity {
+    align-items: flex-start;
+  }
+  .x-mentor__identity .x-avatar {
+    width: 68px !important;
+    height: 68px !important;
+  }
 }
 .x-mentee-card {
   display: flex;
@@ -8090,11 +8163,20 @@ hr,
 .journey-content-cover__image--light {
   display: none !important;
 }
+.journey-card__cover--light {
+  display: none;
+}
 .platform-shell[data-theme="light"] .journey-content-cover__image--light {
   display: block !important;
 }
+.platform-shell[data-theme="light"] .journey-card__cover--light {
+  display: block;
+}
 .platform-shell[data-theme="light"] .journey-content-cover__image--dark {
   display: none !important;
+}
+.platform-shell[data-theme="light"] .journey-card__cover--dark {
+  display: none;
 }
 .platform-shell[data-theme="dark"] .journey-content-cover__image--dark,
 .platform-shell:not([data-theme]) .journey-content-cover__image--dark {
@@ -8352,6 +8434,7 @@ hr,
   background-position: center center;
   background-size: cover;
   background-attachment: fixed;
+  background-blend-mode: normal;
 }
 
 .platform-shell :where(.inner-page, .mentee-home-view, .recorded-background) {
@@ -8360,12 +8443,7 @@ hr,
 }
 
 .platform-shell .app-header {
-  background: linear-gradient(
-    to bottom,
-    rgba(6, 34, 29, 0.94),
-    rgba(6, 34, 29, 0.68),
-    transparent
-  );
+  background: linear-gradient(to bottom, rgba(6, 34, 29, 0.94), rgba(6, 34, 29, 0.68), transparent);
 }
 
 .login-shell__art {
