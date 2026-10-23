@@ -1049,6 +1049,7 @@ export function Avatar({
 }
 
 type CropPosition = { x: number; y: number };
+type CropDimensions = { width: number; height: number };
 
 function AvatarCropEditor({
   file,
@@ -1061,56 +1062,141 @@ function AvatarCropEditor({
 }) {
   const imageUrl = useMemo(() => URL.createObjectURL(file), [file]);
   const imageRef = useRef<HTMLImageElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ x: number; y: number; origin: CropPosition } | null>(null);
+  const [imageSize, setImageSize] = useState<CropDimensions | null>(null);
+  const [stageSize, setStageSize] = useState<CropDimensions>({ width: 0, height: 0 });
   const [position, setPosition] = useState<CropPosition>({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [saving, setSaving] = useState(false);
+  const [cropError, setCropError] = useState("");
+
   useEffect(() => () => URL.revokeObjectURL(imageUrl), [imageUrl]);
+
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    const measure = () => {
+      const { width, height } = stage.getBoundingClientRect();
+      setStageSize((current) =>
+        current.width === width && current.height === height
+          ? current
+          : { width, height },
+      );
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(stage);
+    return () => observer.disconnect();
+  }, []);
+
+  // Start in "contain" mode: the entire uploaded photo is visible.
+  const baseScale =
+    imageSize && stageSize.width && stageSize.height
+      ? Math.min(
+          (stageSize.width - 24) / imageSize.width,
+          (stageSize.height - 24) / imageSize.height,
+        )
+      : 0;
+  const baseWidth = imageSize ? imageSize.width * baseScale : 0;
+  const baseHeight = imageSize ? imageSize.height * baseScale : 0;
+  const cropDiameter = Math.max(
+    0,
+    Math.floor(
+      Math.min(
+        stageSize.width * 0.68,
+        stageSize.height * 0.78,
+        baseWidth * 0.92,
+        baseHeight * 0.92,
+      ),
+    ),
+  );
+
+  function keepInsidePhoto(next: CropPosition, nextZoom = zoom): CropPosition {
+    const limitX = Math.max(0, (baseWidth * nextZoom - cropDiameter) / 2);
+    const limitY = Math.max(0, (baseHeight * nextZoom - cropDiameter) / 2);
+    return {
+      x: Math.max(-limitX, Math.min(limitX, next.x)),
+      y: Math.max(-limitY, Math.min(limitY, next.y)),
+    };
+  }
+
+  useEffect(() => {
+    // Keep the selection inside the image when the editor is resized.
+    setPosition((current) => {
+      const limitX = Math.max(0, (baseWidth * zoom - cropDiameter) / 2);
+      const limitY = Math.max(0, (baseHeight * zoom - cropDiameter) / 2);
+      const x = Math.max(-limitX, Math.min(limitX, current.x));
+      const y = Math.max(-limitY, Math.min(limitY, current.y));
+      return x === current.x && y === current.y ? current : { x, y };
+    });
+  }, [baseWidth, baseHeight, cropDiameter, zoom]);
 
   function move(event: React.PointerEvent<HTMLDivElement>) {
     if (!dragRef.current) return;
-    setPosition({
-      x: dragRef.current.origin.x + event.clientX - dragRef.current.x,
-      y: dragRef.current.origin.y + event.clientY - dragRef.current.y,
-    });
+    setPosition(
+      keepInsidePhoto({
+        x: dragRef.current.origin.x + event.clientX - dragRef.current.x,
+        y: dragRef.current.origin.y + event.clientY - dragRef.current.y,
+      }),
+    );
   }
 
   async function crop() {
     const image = imageRef.current;
-    if (!image?.naturalWidth || !image.naturalHeight) return;
+    if (!image?.naturalWidth || !image.naturalHeight || !baseScale || !cropDiameter)
+      return;
     setSaving(true);
-    const outputSize = 512;
-    const viewportSize = 300;
-    const baseScale = Math.max(
-      viewportSize / image.naturalWidth,
-      viewportSize / image.naturalHeight,
-    );
-    const displayedWidth = image.naturalWidth * baseScale * zoom;
-    const displayedHeight = image.naturalHeight * baseScale * zoom;
-    const sourceX = Math.max(0, (displayedWidth - viewportSize) / 2 - position.x);
-    const sourceY = Math.max(0, (displayedHeight - viewportSize) / 2 - position.y);
-    const sourceSize = viewportSize / (baseScale * zoom);
-    const canvas = document.createElement("canvas");
-    canvas.width = outputSize;
-    canvas.height = outputSize;
-    const context = canvas.getContext("2d");
-    if (!context) return setSaving(false);
-    context.drawImage(
-      image,
-      sourceX / (baseScale * zoom),
-      sourceY / (baseScale * zoom),
-      Math.min(sourceSize, image.naturalWidth),
-      Math.min(sourceSize, image.naturalHeight),
-      0,
-      0,
-      outputSize,
-      outputSize,
-    );
-    const blob = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob(resolve, "image/webp", 0.88),
-    );
-    if (blob) await onSave(new File([blob], "avatar.webp", { type: "image/webp" }));
-    setSaving(false);
+    setCropError("");
+    try {
+      const imageScale = baseScale * zoom;
+      const sourceSize = Math.min(
+        cropDiameter / imageScale,
+        image.naturalWidth,
+        image.naturalHeight,
+      );
+      // Use the same geometry as the visible circular guide.
+      const sourceX = Math.max(
+        0,
+        Math.min(
+          image.naturalWidth - sourceSize,
+          (image.naturalWidth - sourceSize) / 2 - position.x / imageScale,
+        ),
+      );
+      const sourceY = Math.max(
+        0,
+        Math.min(
+          image.naturalHeight - sourceSize,
+          (image.naturalHeight - sourceSize) / 2 - position.y / imageScale,
+        ),
+      );
+      const outputSize = 512;
+      const canvas = document.createElement("canvas");
+      canvas.width = outputSize;
+      canvas.height = outputSize;
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("Canvas indisponível");
+      context.drawImage(
+        image,
+        sourceX,
+        sourceY,
+        sourceSize,
+        sourceSize,
+        0,
+        0,
+        outputSize,
+        outputSize,
+      );
+      const blob = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob(resolve, "image/webp", 0.88),
+      );
+      if (!blob) throw new Error("Não foi possível gerar a imagem");
+      await onSave(new File([blob], "avatar.webp", { type: "image/webp" }));
+    } catch {
+      setCropError("Não foi possível recortar esta foto. Tente novamente.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -1119,15 +1205,21 @@ function AvatarCropEditor({
         <div className="content-modal__body">
           <span className="eyebrow eyebrow--gold">Foto de perfil</span>
           <h2>Ajuste o enquadramento</h2>
-          <p>Arraste a imagem e use o zoom. A prévia circular mostra o resultado.</p>
+          <p>Veja a foto inteira e arraste para posicioná-la dentro do círculo. Use o zoom se precisar.</p>
           <div
-            className="avatar-crop-viewport"
+            ref={stageRef}
+            className="avatar-crop-stage"
             onPointerDown={(event) => {
+              if (saving || !cropDiameter) return;
               event.currentTarget.setPointerCapture(event.pointerId);
               dragRef.current = { x: event.clientX, y: event.clientY, origin: position };
             }}
             onPointerMove={move}
-            onPointerUp={() => (dragRef.current = null)}
+            onPointerUp={(event) => {
+              dragRef.current = null;
+              if (event.currentTarget.hasPointerCapture(event.pointerId))
+                event.currentTarget.releasePointerCapture(event.pointerId);
+            }}
             onPointerCancel={() => (dragRef.current = null)}
           >
             <img
@@ -1135,11 +1227,24 @@ function AvatarCropEditor({
               src={imageUrl}
               alt="Prévia da nova foto"
               draggable={false}
+              onLoad={(event) =>
+                setImageSize({
+                  width: event.currentTarget.naturalWidth,
+                  height: event.currentTarget.naturalHeight,
+                })
+              }
               style={{
-                transform: `translate(-50%, -50%) translate(${position.x}px, ${position.y}px) scale(${zoom})`,
+                width: baseWidth * zoom,
+                height: baseHeight * zoom,
+                opacity: baseScale ? 1 : 0,
+                transform: `translate(-50%, -50%) translate(${position.x}px, ${position.y}px)`,
               }}
             />
-            <span aria-hidden="true" />
+            <span
+              className="avatar-crop-guide"
+              style={{ width: cropDiameter, height: cropDiameter }}
+              aria-hidden="true"
+            />
           </div>
           <label className="avatar-zoom">
             <span>Zoom</span>
@@ -1148,10 +1253,17 @@ function AvatarCropEditor({
               min="1"
               max="3"
               step="0.05"
+              aria-label="Zoom da foto"
               value={zoom}
-              onChange={(event) => setZoom(Number(event.target.value))}
+              onChange={(event) => {
+                const nextZoom = Number(event.target.value);
+                setZoom(nextZoom);
+                setPosition((current) => keepInsidePhoto(current, nextZoom));
+              }}
             />
+            <span className="avatar-zoom__value">{Math.round(zoom * 100)}%</span>
           </label>
+          {cropError ? <p className="avatar-crop-error" role="alert">{cropError}</p> : null}
           <div className="content-modal__actions">
             <button
               className="button button--glass"
@@ -1165,7 +1277,7 @@ function AvatarCropEditor({
               className="button button--primary"
               type="button"
               onClick={() => void crop()}
-              disabled={saving}
+              disabled={saving || !cropDiameter}
             >
               {saving ? "Salvando…" : "Salvar foto"}
             </button>
