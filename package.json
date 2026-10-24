@@ -11,7 +11,7 @@
     "prebuild:dev": "node scripts/verify-supabase-target.mjs",
     "build:dev": "vite build --mode development",
     "postbuild:dev": "node scripts/verify-supabase-target.mjs --bundle",
-    "preview": "vite preview",
+    "preview": "nitro preview --prebuilt",
     "prelint": "node scripts/verify-supabase-target.mjs",
     "lint": "eslint .",
     "pretypecheck": "node scripts/verify-supabase-target.mjs",
