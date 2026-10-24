@@ -47,3 +47,23 @@ test("Google Calendar OAuth uses the official production callback", () => {
   assert.match(callback, /riseGoogleOAuthFailed/);
   assert.match(callback, /failureMessage/);
 });
+
+test("agenda unifies Google events, collective meetings and named 1:1 booking", () => {
+  const backend = readFileSync("supabase/functions/rise-backend/index.ts", "utf8");
+  const calendar = readFileSync("src/components/rise-calendar.tsx", "utf8");
+  const operations = readFileSync("src/components/rise-ops.tsx", "utf8");
+  const platform = readFileSync("src/components/rise-platform.tsx", "utf8");
+  const migration = readFileSync("drizzle/migrations/0038_calendar_booking.sql", "utf8");
+
+  assert.match(backend, /calendar\.events\.freebusy/);
+  assert.match(backend, /\/calendar\/v3\/freeBusy/);
+  assert.match(backend, /action === "getCalendarOverview"/);
+  assert.match(backend, /action === "bookOneToOne"/);
+  assert.match(backend, /d\.audience === "cohorts"/);
+  assert.match(calendar, /"month", "week", "day"/);
+  assert.match(calendar, /A mentorada escolhe o horário, sem escolher a mentora/);
+  assert.match(migration, /booking_reservations_mentor_no_overlap/);
+  assert.match(migration, /booking_reservations_mentee_no_overlap/);
+  assert.doesNotMatch(operations, /Materiais da trilha/);
+  assert.doesNotMatch(platform, /MenteeAgendaMaterials/);
+});

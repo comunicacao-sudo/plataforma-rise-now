@@ -49,12 +49,12 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import {
   GoogleCalendarCard,
-  MenteeAgendaMaterials,
   MenteeMeetings,
   NextMeetingBanner,
   StaffArea,
   type StaffView,
 } from "@/components/rise-ops";
+import { MenteeBookingAgenda, RiseCalendar } from "@/components/rise-calendar";
 import { NextStepHero } from "@/components/journey-next-step";
 import { RecordedLessonPage } from "@/components/recorded-lessons";
 import {
@@ -1050,9 +1050,10 @@ function AgendaView({ trail, onOpen }: { trail: Trail; onOpen: (l: TrailLesson) 
       <SectionHero section="Agenda" phrase="Os encontros certos dão ritmo à sua evolução" />
       <section className="page-width agenda-calendar-connect">
         <GoogleCalendarCard audience="mentee" />
+        <RiseCalendar compact />
       </section>
+      <MenteeBookingAgenda />
       <MenteeMeetings />
-      <MenteeAgendaMaterials />
       <div className="page-width section-heading ops-gap">
         <div>
           <h2>Sessões previstas na trilha</h2>

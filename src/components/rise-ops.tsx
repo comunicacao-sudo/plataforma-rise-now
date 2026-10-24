@@ -8,8 +8,6 @@ import {
   Check,
   ExternalLink,
   FileCheck2,
-  FileText,
-  Link2,
   LockKeyhole,
   Paperclip,
   Pencil,
@@ -50,7 +48,7 @@ import { JourneyAdmin } from "@/components/journey-admin";
 import { JourneyContentAdmin } from "@/components/journey-content-admin";
 import { AssessmentMentorContent } from "@/components/rise-assessment";
 import { WhatsAppAdmin } from "@/components/whatsapp-admin";
-import { getMyAgendaMaterials } from "@/lib/content.functions";
+import { RiseCalendar, StaffBookingOfferings } from "@/components/rise-calendar";
 
 /* ---------- shared ---------- */
 
@@ -273,58 +271,6 @@ export function MenteeMeetings() {
   );
 }
 
-export function MenteeAgendaMaterials() {
-  const load = useServerFn(getMyAgendaMaterials);
-  const { data, isLoading } = useQuery({
-    queryKey: ["agenda-materials"],
-    queryFn: () => load(),
-  });
-  const items = data?.items ?? [];
-
-  if (isLoading) return null;
-
-  return (
-    <section className="page-width ops-section">
-      <div className="section-heading ops-gap">
-        <div>
-          <h2>Materiais disponíveis</h2>
-          <p>Arquivos e links liberados para você em cada etapa da jornada.</p>
-        </div>
-      </div>
-      {items.length ? (
-        <div className="x-mats">
-          {items.map((item) => (
-            <article className="x-mat" key={item.id}>
-              <span className="x-mat__icon">
-                {item.externalUrl ? <Link2 size={18} /> : <FileText size={18} />}
-              </span>
-              <div className="x-mat__body">
-                <strong>{item.title}</strong>
-                <p>
-                  Mês {item.monthNumber} · {item.pillarName} · {item.stepTitle}
-                </p>
-                {item.description ? <small>{item.description}</small> : null}
-              </div>
-              {item.fileUrl || item.externalUrl ? (
-                <a
-                  className="x-mat__open"
-                  href={item.fileUrl ?? item.externalUrl ?? "#"}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  {item.fileUrl ? "Baixar" : "Abrir"} <ExternalLink size={14} />
-                </a>
-              ) : null}
-            </article>
-          ))}
-        </div>
-      ) : (
-        <p className="ops-empty">Nenhum material disponível no momento.</p>
-      )}
-    </section>
-  );
-}
-
 export function NextMeetingBanner({ onAgenda }: { onAgenda: () => void }) {
   const { data = [] } = useMeetings();
   const next = data.find((m) => endOf(m) >= Date.now());
@@ -493,8 +439,8 @@ function ScheduleForm({ onDone }: { onDone: () => void }) {
     date: "",
     start: "19:00",
     end: "20:00",
-    audience: "all" as "all" | "cohort" | "selected",
-    cohortId: "",
+    audience: "all" as "all" | "cohorts" | "selected",
+    cohortIds: [] as string[],
     enrollmentIds: [] as string[],
     createMeet: true,
     joinUrl: "",
@@ -507,7 +453,8 @@ function ScheduleForm({ onDone }: { onDone: () => void }) {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!f.title || !f.date) return setMsg("Preencha o título e a data.");
-    if (f.audience === "cohort" && !f.cohortId) return setMsg("Escolha a turma.");
+    if (f.audience === "cohorts" && !f.cohortIds.length)
+      return setMsg("Escolha pelo menos uma turma.");
     if (f.audience === "selected" && !f.enrollmentIds.length)
       return setMsg("Escolha pelo menos uma mentorada.");
     const startsAt = new Date(`${f.date}T${f.start}`);
@@ -526,7 +473,7 @@ function ScheduleForm({ onDone }: { onDone: () => void }) {
           startsAt: startsAt.toISOString(),
           endsAt: endsAt.toISOString(),
           audience: f.audience,
-          cohortId: f.cohortId || null,
+          cohortIds: f.audience === "cohorts" ? f.cohortIds : [],
           enrollmentIds: f.audience === "selected" ? f.enrollmentIds : [],
           kind: f.audience === "selected" && f.enrollmentIds.length === 1 ? "individual" : "grupo",
           createMeet: f.createMeet,
@@ -630,7 +577,7 @@ function ScheduleForm({ onDone }: { onDone: () => void }) {
               {(
                 [
                   ["all", "Todas as turmas"],
-                  ["cohort", "Uma turma"],
+                  ["cohorts", "Turmas selecionadas"],
                   ["selected", "Mentoradas escolhidas"],
                 ] as const
               ).map(([v, l]) => (
@@ -645,16 +592,27 @@ function ScheduleForm({ onDone }: { onDone: () => void }) {
               ))}
             </div>
           </Field>
-          {f.audience === "cohort" ? (
-            <Field label="Turma">
-              <select value={f.cohortId} onChange={(e) => set("cohortId", e.target.value)}>
-                <option value="">Escolher…</option>
+          {f.audience === "cohorts" ? (
+            <Field label="Turmas convidadas">
+              <div className="ops-checks">
                 {dir?.cohorts.map((c) => (
-                  <option key={c.id} value={c.id}>
+                  <label key={c.id}>
+                    <input
+                      type="checkbox"
+                      checked={f.cohortIds.includes(c.id)}
+                      onChange={(event) =>
+                        set(
+                          "cohortIds",
+                          event.target.checked
+                            ? [...f.cohortIds, c.id]
+                            : f.cohortIds.filter((id) => id !== c.id),
+                        )
+                      }
+                    />
                     {c.name}
-                  </option>
+                  </label>
                 ))}
-              </select>
+              </div>
             </Field>
           ) : null}
           {f.audience === "selected" ? (
@@ -776,69 +734,6 @@ function RecordingEditor({ m, onDone }: { m: MeetingRow; onDone: () => void }) {
   );
 }
 
-function LessonMaterialsSection({
-  onOpen,
-}: {
-  onOpen: (l: { lessonId: string; label: string }) => void;
-}) {
-  const { data = [] } = useQuery({
-    queryKey: ["staff-lessons"],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("lessons")
-        .select(
-          "id, title, kind, position, phase:phases(month_number, pillar), materials:lesson_materials(count)",
-        )
-        .order("position");
-      type LessonMaterialsRow = {
-        id: string;
-        title: string;
-        kind: string;
-        position: number;
-        phase: { month_number: number; pillar: string } | null;
-        materials: Array<{ count: number }> | null;
-      };
-      return ((data ?? []) as unknown as LessonMaterialsRow[]).sort(
-        (a, b) =>
-          (a.phase?.month_number ?? 0) - (b.phase?.month_number ?? 0) || a.position - b.position,
-      );
-    },
-  });
-  return (
-    <section className="page-width ops-section">
-      <div className="section-heading ops-gap">
-        <div>
-          <h2>Materiais da trilha</h2>
-          <p>Anexe links e arquivos a cada aula ou encontro da jornada.</p>
-        </div>
-      </div>
-      <div className="x-lessons">
-        {data.map((l) => (
-          <button
-            key={l.id}
-            type="button"
-            className="x-lesson"
-            onClick={() =>
-              onOpen({
-                lessonId: l.id,
-                label: `Mês ${l.phase?.month_number ?? "a definir"} · ${l.title}`,
-              })
-            }
-          >
-            <small>
-              Mês {l.phase?.month_number ?? "a definir"} · {l.kind === "aula" ? "Aula" : "Encontro"}
-            </small>
-            <strong>{l.title}</strong>
-            <span>
-              <Paperclip size={13} /> {l.materials?.[0]?.count ?? 0} material(is)
-            </span>
-          </button>
-        ))}
-      </div>
-    </section>
-  );
-}
-
 function StaffAgenda() {
   const qc = useQueryClient();
   const { data = [] } = useMeetings();
@@ -912,11 +807,19 @@ function StaffAgenda() {
         <GoogleCalendarCard />
         <div className="section-heading ops-gap">
           <div>
-            <h2>Próximos encontros</h2>
+            <h2>Calendário da equipe</h2>
+            <p>Veja os compromissos da sua agenda conectada e os encontros RISE no mesmo lugar.</p>
           </div>
           <button type="button" onClick={() => setOpen(true)}>
-            <Plus size={16} /> Agendar encontro
+            <Plus size={16} /> Novo encontro coletivo
           </button>
+        </div>
+        <RiseCalendar />
+        <StaffBookingOfferings directory={dir} />
+        <div className="section-heading ops-gap">
+          <div>
+            <h2>Próximos encontros</h2>
+          </div>
         </div>
         {upcoming.length ? (
           <div className="ops-list">
@@ -944,7 +847,6 @@ function StaffAgenda() {
         ) : null}
       </section>
       {open ? <ScheduleForm onDone={() => setOpen(false)} /> : null}
-      <LessonMaterialsSection onOpen={(l) => setMats(l)} />
       {editing ? <RecordingEditor m={editing} onDone={() => setEditing(null)} /> : null}
       {mats ? (
         <MaterialsManager

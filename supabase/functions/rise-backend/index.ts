@@ -2052,7 +2052,9 @@ const googleScopes = [
   "email",
   "profile",
   "https://www.googleapis.com/auth/calendar.events",
+  "https://www.googleapis.com/auth/calendar.events.freebusy",
 ];
+const googleFreeBusyScope = "https://www.googleapis.com/auth/calendar.events.freebusy";
 const defaultAppBaseUrl = "https://board.mentoriarisenow.com.br";
 function googleOAuthConfig() {
   const clientId = env("GOOGLE_CLIENT_ID");
@@ -2172,6 +2174,158 @@ async function googleFetch(userId: string, path: string, init: RequestInit = {})
   headers.set("Authorization", `Bearer ${token}`);
   return fetch(`https://www.googleapis.com${path}`, { ...init, headers });
 }
+
+function hasGoogleFreeBusyScope(tokens: any) {
+  return String(tokens?.scope ?? "")
+    .split(/\s+/)
+    .includes(googleFreeBusyScope);
+}
+
+async function googleBusy(userId: string, startsAt: string, endsAt: string) {
+  const tokens = await googleTokens(userId);
+  if (!tokens || !hasGoogleFreeBusyScope(tokens)) return { connected: false, busy: [] };
+  const response = await googleFetch(userId, "/calendar/v3/freeBusy", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ timeMin: startsAt, timeMax: endsAt, items: [{ id: "primary" }] }),
+  });
+  if (!response.ok) return { connected: false, busy: [] };
+  const payload = await response.json();
+  return {
+    connected: true,
+    busy: (payload?.calendars?.primary?.busy ?? []).map((item: any) => ({
+      startsAt: item.start,
+      endsAt: item.end,
+    })),
+  };
+}
+
+function overlaps(startsAt: string, endsAt: string, busy: any[]) {
+  const start = Date.parse(startsAt);
+  const end = Date.parse(endsAt);
+  return busy.some((item) => start < Date.parse(item.endsAt) && end > Date.parse(item.startsAt));
+}
+
+async function activeEnrollment(c: Context) {
+  const { data, error } = await c.admin
+    .from("enrollments")
+    .select(
+      "id, cohort_id, mentee_id, mentee:profiles!enrollments_mentee_id_fkey(email, full_name, display_name)",
+    )
+    .eq("mentee_id", c.userId)
+    .eq("status", "ativa")
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+async function offeringById(c: Context, id: string) {
+  const { data, error } = await c.admin
+    .from("booking_offerings")
+    .select(
+      "id, mentor_id, title, description, duration_minutes, buffer_minutes, booking_notice_hours, cancellation_notice_hours, timezone, audience, status, mentor:profiles!booking_offerings_mentor_id_fkey(full_name, display_name, email), cohorts:booking_offering_cohorts(cohort_id), rules:booking_availability_rules(id, weekday, start_time, end_time, valid_from, valid_until, slot_interval_minutes, active)",
+    )
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+function isEligibleForOffering(offering: any, enrollment: any) {
+  if (!offering || offering.status !== "active" || !enrollment) return false;
+  if (offering.audience === "all") return true;
+  return (offering.cohorts ?? []).some((row: any) => row.cohort_id === enrollment.cohort_id);
+}
+
+async function availableBookingSlots(
+  c: Context,
+  offering: any,
+  enrollment: any,
+  startsAt: string,
+  endsAt: string,
+) {
+  if (!isEligibleForOffering(offering, enrollment))
+    throw new Error("Horário indisponível para a sua turma.");
+  const windowStart = new Date(startsAt);
+  const windowEnd = new Date(endsAt);
+  if (
+    !Number.isFinite(windowStart.getTime()) ||
+    !Number.isFinite(windowEnd.getTime()) ||
+    windowEnd <= windowStart
+  )
+    throw new Error("Período inválido.");
+  const maxEnd = new Date(windowStart.getTime() + 45 * 86400000);
+  if (windowEnd > maxEnd) throw new Error("Consulte no máximo 45 dias por vez.");
+
+  const [{ data: reservations }, { data: exceptions }, mentorGoogle, menteeGoogle] =
+    await Promise.all([
+      c.admin
+        .from("booking_reservations")
+        .select("starts_at, ends_at")
+        .in("status", ["pending", "confirmed"])
+        .or(`mentor_id.eq.${offering.mentor_id},enrollment_id.eq.${enrollment.id}`)
+        .lt("starts_at", windowEnd.toISOString())
+        .gt("ends_at", windowStart.toISOString()),
+      c.admin
+        .from("booking_availability_exceptions")
+        .select("starts_at, ends_at, is_available")
+        .eq("offering_id", offering.id)
+        .lt("starts_at", windowEnd.toISOString())
+        .gt("ends_at", windowStart.toISOString()),
+      googleBusy(offering.mentor_id, windowStart.toISOString(), windowEnd.toISOString()),
+      googleBusy(c.userId, windowStart.toISOString(), windowEnd.toISOString()),
+    ]);
+
+  if (!mentorGoogle.connected)
+    throw new Error("A mentora precisa reconectar o Google Agenda antes de liberar reservas.");
+  const busy = [
+    ...(reservations ?? []).map((r: any) => ({ startsAt: r.starts_at, endsAt: r.ends_at })),
+    ...mentorGoogle.busy,
+    ...menteeGoogle.busy,
+    ...(exceptions ?? [])
+      .filter((item: any) => !item.is_available)
+      .map((item: any) => ({ startsAt: item.starts_at, endsAt: item.ends_at })),
+  ];
+  const nowWithNotice = Date.now() + Number(offering.booking_notice_hours) * 3600000;
+  const result: Array<{ startsAt: string; endsAt: string }> = [];
+  const cursor = new Date(
+    Date.UTC(windowStart.getUTCFullYear(), windowStart.getUTCMonth(), windowStart.getUTCDate()),
+  );
+  const last = new Date(
+    Date.UTC(windowEnd.getUTCFullYear(), windowEnd.getUTCMonth(), windowEnd.getUTCDate()),
+  );
+  for (; cursor <= last; cursor.setUTCDate(cursor.getUTCDate() + 1)) {
+    const day = cursor.toISOString().slice(0, 10);
+    const weekday = cursor.getUTCDay();
+    for (const rule of (offering.rules ?? []).filter(
+      (r: any) => r.active && Number(r.weekday) === weekday,
+    )) {
+      if (day < rule.valid_from || (rule.valid_until && day > rule.valid_until)) continue;
+      const dayStart = Date.parse(`${day}T${String(rule.start_time).slice(0, 5)}:00-03:00`);
+      const dayEnd = Date.parse(`${day}T${String(rule.end_time).slice(0, 5)}:00-03:00`);
+      const step = Math.max(
+        Number(rule.slot_interval_minutes),
+        Number(offering.duration_minutes) + Number(offering.buffer_minutes),
+      );
+      for (
+        let start = dayStart;
+        start + Number(offering.duration_minutes) * 60000 <= dayEnd;
+        start += step * 60000
+      ) {
+        const end = start + Number(offering.duration_minutes) * 60000;
+        const slot = {
+          startsAt: new Date(start).toISOString(),
+          endsAt: new Date(end).toISOString(),
+        };
+        if (start < windowStart.getTime() || end > windowEnd.getTime() || start < nowWithNotice)
+          continue;
+        if (!overlaps(slot.startsAt, slot.endsAt, busy)) result.push(slot);
+      }
+    }
+  }
+  return { slots: result, googleConnected: menteeGoogle.connected };
+}
+
 async function googleAction(c: Context, action: string, d: any) {
   if (action === "startGoogleConnect") {
     const { clientId, redirectUri } = googleOAuthConfig();
@@ -2239,8 +2393,9 @@ async function googleAction(c: Context, action: string, d: any) {
     return { ok: true };
   }
   if (action === "googleStatus") {
+    const tokens = await googleTokens(c.userId);
     const token = await googleAccess(c.userId);
-    if (!token)
+    if (!token || !hasGoogleFreeBusyScope(tokens))
       return { connected: false, reconnectRequired: !!(await googleTokens(c.userId)), email: null };
     const response = await googleFetch(c.userId, "/oauth2/v2/userinfo");
     const profile = response.ok ? await response.json() : null;
@@ -2260,7 +2415,355 @@ async function googleAction(c: Context, action: string, d: any) {
       .eq("connector_id", "google_calendar");
     return { ok: true };
   }
+
+  if (action === "getCalendarOverview") {
+    const startsAt = new Date(d.startsAt);
+    const endsAt = new Date(d.endsAt);
+    if (
+      !Number.isFinite(startsAt.getTime()) ||
+      !Number.isFinite(endsAt.getTime()) ||
+      endsAt <= startsAt
+    )
+      throw new Error("Período inválido.");
+    const tokens = await googleTokens(c.userId);
+    const token = await googleAccess(c.userId);
+    const googleConnected = !!token && hasGoogleFreeBusyScope(tokens);
+    let googleEvents: any[] = [];
+    if (googleConnected) {
+      const params = new URLSearchParams({
+        timeMin: startsAt.toISOString(),
+        timeMax: endsAt.toISOString(),
+        singleEvents: "true",
+        orderBy: "startTime",
+        maxResults: "2500",
+      });
+      const response = await googleFetch(
+        c.userId,
+        `/calendar/v3/calendars/primary/events?${params}`,
+      );
+      if (response.ok) {
+        const payload = await response.json();
+        googleEvents = (payload.items ?? []).flatMap((event: any) => {
+          const start = event.start?.dateTime;
+          const end = event.end?.dateTime;
+          if (!start || !end) return [];
+          return [
+            {
+              id: `google:${event.id}`,
+              title: event.summary || "Compromisso no Google Agenda",
+              startsAt: start,
+              endsAt: end,
+              source: "google",
+              kind: "google",
+              joinUrl: event.hangoutLink ?? null,
+            },
+          ];
+        });
+      }
+    }
+    const { data: meetings, error } = await c.db
+      .from("meetings")
+      .select("id, title, kind, scheduled_at, ends_at, duration_minutes, join_url")
+      .lt("scheduled_at", endsAt.toISOString())
+      .order("scheduled_at");
+    if (error) throw new Error(error.message);
+    const riseEvents = (meetings ?? [])
+      .map((meeting: any) => ({
+        id: `rise:${meeting.id}`,
+        title: meeting.title,
+        startsAt: meeting.scheduled_at,
+        endsAt:
+          meeting.ends_at ??
+          new Date(
+            Date.parse(meeting.scheduled_at) + Number(meeting.duration_minutes ?? 60) * 60000,
+          ).toISOString(),
+        source: "rise",
+        kind: meeting.kind === "individual" ? "individual" : "collective",
+        joinUrl: meeting.join_url,
+      }))
+      .filter((event: any) => Date.parse(event.endsAt) > startsAt.getTime());
+    return {
+      events: [...googleEvents, ...riseEvents].sort(
+        (a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt),
+      ),
+      googleConnected,
+      reconnectRequired: !!tokens && !googleConnected,
+    };
+  }
+
+  if (action === "listBookingOfferings") {
+    const staff = await isStaff(c);
+    const enrollment = staff ? null : await activeEnrollment(c);
+    const { data, error } = await c.admin
+      .from("booking_offerings")
+      .select(
+        "id, mentor_id, title, description, duration_minutes, buffer_minutes, cancellation_notice_hours, status, audience, mentor:profiles!booking_offerings_mentor_id_fkey(full_name, display_name), cohorts:booking_offering_cohorts(cohort_id), rules:booking_availability_rules(id, weekday, start_time, end_time, valid_from, valid_until, active)",
+      )
+      .neq("status", "archived")
+      .order("created_at", { ascending: false });
+    if (error) throw new Error(error.message);
+    const offerings = (data ?? [])
+      .filter((item: any) => staff || isEligibleForOffering(item, enrollment))
+      .map((item: any) => ({
+        id: item.id,
+        title: item.title,
+        description: item.description,
+        mentorId: item.mentor_id,
+        mentorName: item.mentor?.display_name || item.mentor?.full_name || "Mentora RISE",
+        durationMinutes: item.duration_minutes,
+        bufferMinutes: item.buffer_minutes,
+        cancellationNoticeHours: item.cancellation_notice_hours,
+        status: item.status,
+        cohortIds: (item.cohorts ?? []).map((row: any) => row.cohort_id),
+        rules: (item.rules ?? []).map((rule: any) => ({
+          id: rule.id,
+          weekday: rule.weekday,
+          startTime: rule.start_time,
+          endTime: rule.end_time,
+          validFrom: rule.valid_from,
+          validUntil: rule.valid_until,
+        })),
+      }));
+    return { offerings, staff };
+  }
+
+  if (action === "getAvailableBookingSlots") {
+    const enrollment = await activeEnrollment(c);
+    const offering = await offeringById(c, d.offeringId);
+    return availableBookingSlots(c, offering, enrollment, d.startsAt, d.endsAt);
+  }
+
+  if (action === "listMyBookings") {
+    const enrollment = await activeEnrollment(c);
+    if (!enrollment) return { bookings: [] };
+    const { data, error } = await c.admin
+      .from("booking_reservations")
+      .select(
+        "id, starts_at, ends_at, offering:booking_offerings(title, cancellation_notice_hours, mentor:profiles!booking_offerings_mentor_id_fkey(full_name, display_name))",
+      )
+      .eq("enrollment_id", enrollment.id)
+      .eq("status", "confirmed")
+      .gte("ends_at", new Date().toISOString())
+      .order("starts_at");
+    if (error) throw new Error(error.message);
+    return {
+      bookings: (data ?? []).map((item: any) => ({
+        id: item.id,
+        title: item.offering?.title ?? "Encontro individual 1:1",
+        mentorName:
+          item.offering?.mentor?.display_name || item.offering?.mentor?.full_name || "Mentora RISE",
+        startsAt: item.starts_at,
+        endsAt: item.ends_at,
+        cancellationNoticeHours: item.offering?.cancellation_notice_hours ?? 24,
+      })),
+    };
+  }
+
+  if (action === "bookOneToOne") {
+    const enrollment = await activeEnrollment(c);
+    const offering = await offeringById(c, d.offeringId);
+    const availability = await availableBookingSlots(c, offering, enrollment, d.startsAt, d.endsAt);
+    if (!availability.googleConnected)
+      throw new Error(
+        "Conecte seu Google Agenda antes de reservar para evitar conflito de horários.",
+      );
+    const slot = availability.slots.find(
+      (item) => item.startsAt === new Date(d.startsAt).toISOString(),
+    );
+    if (!slot) throw new Error("Esse horário não está mais disponível. Escolha outro.");
+    const { data: reservation, error: reserveError } = await c.admin
+      .from("booking_reservations")
+      .insert({
+        offering_id: offering.id,
+        mentor_id: offering.mentor_id,
+        enrollment_id: enrollment.id,
+        starts_at: slot.startsAt,
+        ends_at: slot.endsAt,
+        status: "pending",
+        booked_by: c.userId,
+      })
+      .select("id")
+      .single();
+    if (reserveError) throw new Error("Esse horário acabou de ser reservado. Escolha outro.");
+    let googleEventId: string | null = null;
+    try {
+      const mentee = enrollment.mentee;
+      const response = await googleFetch(
+        offering.mentor_id,
+        "/calendar/v3/calendars/primary/events?conferenceDataVersion=1&sendUpdates=all",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            summary: `RISE NOW · ${offering.title}`,
+            description: offering.description ?? "Encontro individual da mentoria RISE NOW.",
+            start: { dateTime: slot.startsAt, timeZone: offering.timezone },
+            end: { dateTime: slot.endsAt, timeZone: offering.timezone },
+            attendees: [{ email: mentee?.email }].filter((item) => item.email),
+            conferenceData: {
+              createRequest: {
+                requestId: reservation.id,
+                conferenceSolutionKey: { type: "hangoutsMeet" },
+              },
+            },
+          }),
+        },
+      );
+      if (!response.ok)
+        throw new Error("O Google não conseguiu criar o encontro. Tente novamente.");
+      const event = await response.json();
+      googleEventId = event.id;
+      const { data: meeting, error: meetingError } = await c.admin
+        .from("meetings")
+        .insert({
+          enrollment_id: enrollment.id,
+          title: offering.title,
+          description: offering.description,
+          kind: "individual",
+          scheduled_at: slot.startsAt,
+          ends_at: slot.endsAt,
+          duration_minutes: offering.duration_minutes,
+          join_url: event.hangoutLink ?? null,
+          audience: "selected",
+          mentor_id: offering.mentor_id,
+          mentor_name: offering.mentor?.display_name || offering.mentor?.full_name,
+          google_event_id: googleEventId,
+          created_by: offering.mentor_id,
+        })
+        .select("id")
+        .single();
+      if (meetingError) throw new Error(meetingError.message);
+      const { error: confirmError } = await c.admin
+        .from("booking_reservations")
+        .update({ status: "confirmed", meeting_id: meeting.id })
+        .eq("id", reservation.id);
+      if (confirmError) throw new Error(confirmError.message);
+      return { ok: true, meetingId: meeting.id };
+    } catch (error) {
+      if (googleEventId)
+        await googleFetch(
+          offering.mentor_id,
+          `/calendar/v3/calendars/primary/events/${encodeURIComponent(googleEventId)}?sendUpdates=all`,
+          { method: "DELETE" },
+        ).catch(() => null);
+      await c.admin.from("booking_reservations").delete().eq("id", reservation.id);
+      throw error;
+    }
+  }
+
+  if (action === "cancelOneToOne") {
+    const staff = await isStaff(c);
+    const { data: reservation, error } = await c.admin
+      .from("booking_reservations")
+      .select(
+        "id, starts_at, status, enrollment_id, meeting_id, offering:booking_offerings(cancellation_notice_hours), enrollment:enrollments(mentee_id), meeting:meetings(google_event_id, created_by)",
+      )
+      .eq("id", d.id)
+      .maybeSingle();
+    if (error || !reservation) throw new Error("Reserva não encontrada.");
+    if (!staff && reservation.enrollment?.mentee_id !== c.userId) throw new Error("Acesso negado.");
+    if (reservation.status !== "confirmed") throw new Error("A reserva já foi cancelada.");
+    if (
+      !staff &&
+      Date.parse(reservation.starts_at) - Date.now() <
+        Number(reservation.offering?.cancellation_notice_hours ?? 24) * 3600000
+    )
+      throw new Error("O prazo para cancelamento online encerrou. Fale com a equipe RISE.");
+    await c.admin
+      .from("booking_reservations")
+      .update({
+        status: "cancelled",
+        cancelled_by: c.userId,
+        cancelled_at: new Date().toISOString(),
+      })
+      .eq("id", reservation.id);
+    let googleWarning = false;
+    if (reservation.meeting?.google_event_id && reservation.meeting?.created_by) {
+      const response = await googleFetch(
+        reservation.meeting.created_by,
+        `/calendar/v3/calendars/primary/events/${encodeURIComponent(reservation.meeting.google_event_id)}?sendUpdates=all`,
+        { method: "DELETE" },
+      );
+      googleWarning = !response.ok && ![404, 410].includes(response.status);
+    }
+    if (reservation.meeting_id)
+      await c.admin.from("meetings").delete().eq("id", reservation.meeting_id);
+    return { ok: true, googleWarning };
+  }
+
   await requireStaff(c);
+
+  if (action === "createBookingOffering") {
+    if (!d.title || !d.mentorId || !Array.isArray(d.rules) || !d.rules.length)
+      throw new Error("Informe nome, mentora e pelo menos um horário semanal.");
+    const cohortIds = [...new Set((d.cohortIds ?? []).filter(Boolean))];
+    const audience = cohortIds.length ? "cohorts" : "all";
+    const { data: mentorRole } = await c.admin
+      .from("user_roles")
+      .select("user_id")
+      .eq("user_id", d.mentorId)
+      .in("role", ["admin", "mentor"])
+      .maybeSingle();
+    if (!mentorRole)
+      throw new Error("A mentora responsável não possui acesso ativo à equipe RISE.");
+    const mentorTokens = await googleTokens(d.mentorId);
+    if (!mentorTokens || !hasGoogleFreeBusyScope(mentorTokens))
+      throw new Error(
+        "A mentora responsável precisa conectar ou reconectar o Google Agenda primeiro.",
+      );
+    const { data: offering, error } = await c.admin
+      .from("booking_offerings")
+      .insert({
+        mentor_id: d.mentorId,
+        title: String(d.title).trim(),
+        description: String(d.description ?? "").trim() || null,
+        duration_minutes: Number(d.durationMinutes ?? 60),
+        buffer_minutes: Number(d.bufferMinutes ?? 15),
+        booking_notice_hours: Number(d.bookingNoticeHours ?? 24),
+        cancellation_notice_hours: Number(d.cancellationNoticeHours ?? 24),
+        audience,
+        created_by: c.userId,
+      })
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
+    try {
+      if (cohortIds.length) {
+        const { error: cohortError } = await c.admin
+          .from("booking_offering_cohorts")
+          .insert(cohortIds.map((cohort_id: string) => ({ offering_id: offering.id, cohort_id })));
+        if (cohortError) throw new Error(cohortError.message);
+      }
+      const { error: rulesError } = await c.admin.from("booking_availability_rules").insert(
+        d.rules.map((rule: any) => ({
+          offering_id: offering.id,
+          weekday: Number(rule.weekday),
+          start_time: rule.startTime,
+          end_time: rule.endTime,
+          valid_from: rule.validFrom,
+          valid_until: rule.validUntil || null,
+          slot_interval_minutes: Number(d.durationMinutes ?? 60) + Number(d.bufferMinutes ?? 15),
+        })),
+      );
+      if (rulesError) throw new Error(rulesError.message);
+    } catch (error) {
+      await c.admin.from("booking_offerings").delete().eq("id", offering.id);
+      throw error;
+    }
+    return { ok: true, id: offering.id };
+  }
+
+  if (action === "updateBookingOffering") {
+    if (!d.id || !["active", "paused", "archived"].includes(d.status))
+      throw new Error("Estado inválido.");
+    const { error } = await c.admin
+      .from("booking_offerings")
+      .update({ status: d.status })
+      .eq("id", d.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  }
+
   if (action === "updateMeeting") {
     const { error } = await c.db
       .from("meetings")
@@ -2294,13 +2797,20 @@ async function googleAction(c: Context, action: string, d: any) {
     .from("enrollments")
     .select("id, mentee:profiles!enrollments_mentee_id_fkey(email)")
     .eq("status", "ativa");
+  const cohortIds = [...new Set((d.cohortIds ?? (d.cohortId ? [d.cohortId] : [])).filter(Boolean))];
   if (d.audience === "cohort") query = query.eq("cohort_id", d.cohortId);
+  if (d.audience === "cohorts")
+    query = query.in(
+      "cohort_id",
+      cohortIds.length ? cohortIds : ["00000000-0000-0000-0000-000000000000"],
+    );
   if (d.audience === "selected")
     query = query.in(
       "id",
       d.enrollmentIds?.length ? d.enrollmentIds : ["00000000-0000-0000-0000-000000000000"],
     );
   const { data: invitees } = await query;
+  const invitedEnrollmentIds = (invitees ?? []).map((item: any) => item.id);
   const emails = (invitees ?? []).map((x: any) => x.mentee?.email).filter(Boolean);
   let mentorName = null;
   if (d.mentorId) {
@@ -2358,7 +2868,7 @@ async function googleAction(c: Context, action: string, d: any) {
       ends_at: d.endsAt,
       duration_minutes: minutes,
       join_url: joinUrl,
-      audience: d.audience,
+      audience: d.audience === "cohorts" ? "selected" : d.audience,
       cohort_id: d.audience === "cohort" ? d.cohortId : null,
       mentor_id: d.mentorId,
       mentor_name: mentorName,
@@ -2369,14 +2879,38 @@ async function googleAction(c: Context, action: string, d: any) {
     })
     .select("id")
     .single();
-  if (error) throw new Error(error.message);
-  if (d.audience === "selected" && d.enrollmentIds?.length) {
-    const { error: ae } = await c.db
-      .from("meeting_attendees")
-      .insert(
-        d.enrollmentIds.map((enrollment_id: string) => ({ meeting_id: meeting.id, enrollment_id })),
-      );
-    if (ae) throw new Error(ae.message);
+  if (error) {
+    if (googleEventId)
+      await googleFetch(
+        c.userId,
+        `/calendar/v3/calendars/primary/events/${encodeURIComponent(googleEventId)}?sendUpdates=all`,
+        { method: "DELETE" },
+      ).catch(() => null);
+    throw new Error(error.message);
+  }
+  const selectedEnrollmentIds =
+    d.audience === "cohorts"
+      ? invitedEnrollmentIds
+      : d.audience === "selected"
+        ? (d.enrollmentIds ?? [])
+        : [];
+  if (selectedEnrollmentIds.length) {
+    const { error: ae } = await c.db.from("meeting_attendees").insert(
+      selectedEnrollmentIds.map((enrollment_id: string) => ({
+        meeting_id: meeting.id,
+        enrollment_id,
+      })),
+    );
+    if (ae) {
+      await c.admin.from("meetings").delete().eq("id", meeting.id);
+      if (googleEventId)
+        await googleFetch(
+          c.userId,
+          `/calendar/v3/calendars/primary/events/${encodeURIComponent(googleEventId)}?sendUpdates=all`,
+          { method: "DELETE" },
+        ).catch(() => null);
+      throw new Error(ae.message);
+    }
   }
   return { ok: true, joinUrl };
 }
@@ -2472,6 +3006,14 @@ const groups = {
     "createMeeting",
     "updateMeeting",
     "cancelMeeting",
+    "getCalendarOverview",
+    "listBookingOfferings",
+    "createBookingOffering",
+    "updateBookingOffering",
+    "getAvailableBookingSlots",
+    "bookOneToOne",
+    "cancelOneToOne",
+    "listMyBookings",
   ]),
   whatsapp: new Set(["getWhatsAppAdminState", "saveWhatsAppSettings"]),
   profile: new Set(["getMentorDirectory"]),

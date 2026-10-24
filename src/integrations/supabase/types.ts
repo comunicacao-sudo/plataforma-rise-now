@@ -403,6 +403,281 @@ export type Database = {
           },
         ];
       };
+      booking_availability_exceptions: {
+        Row: {
+          created_at: string;
+          ends_at: string;
+          id: string;
+          is_available: boolean;
+          offering_id: string;
+          reason: string | null;
+          starts_at: string;
+        };
+        Insert: {
+          created_at?: string;
+          ends_at: string;
+          id?: string;
+          is_available?: boolean;
+          offering_id: string;
+          reason?: string | null;
+          starts_at: string;
+        };
+        Update: {
+          created_at?: string;
+          ends_at?: string;
+          id?: string;
+          is_available?: boolean;
+          offering_id?: string;
+          reason?: string | null;
+          starts_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "booking_availability_exceptions_offering_id_fkey";
+            columns: ["offering_id"];
+            isOneToOne: false;
+            referencedRelation: "booking_offerings";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      booking_availability_rules: {
+        Row: {
+          active: boolean;
+          created_at: string;
+          end_time: string;
+          id: string;
+          offering_id: string;
+          slot_interval_minutes: number;
+          start_time: string;
+          valid_from: string;
+          valid_until: string | null;
+          weekday: number;
+        };
+        Insert: {
+          active?: boolean;
+          created_at?: string;
+          end_time: string;
+          id?: string;
+          offering_id: string;
+          slot_interval_minutes?: number;
+          start_time: string;
+          valid_from?: string;
+          valid_until?: string | null;
+          weekday: number;
+        };
+        Update: {
+          active?: boolean;
+          created_at?: string;
+          end_time?: string;
+          id?: string;
+          offering_id?: string;
+          slot_interval_minutes?: number;
+          start_time?: string;
+          valid_from?: string;
+          valid_until?: string | null;
+          weekday?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "booking_availability_rules_offering_id_fkey";
+            columns: ["offering_id"];
+            isOneToOne: false;
+            referencedRelation: "booking_offerings";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      booking_offering_cohorts: {
+        Row: {
+          cohort_id: string;
+          offering_id: string;
+        };
+        Insert: {
+          cohort_id: string;
+          offering_id: string;
+        };
+        Update: {
+          cohort_id?: string;
+          offering_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "booking_offering_cohorts_cohort_id_fkey";
+            columns: ["cohort_id"];
+            isOneToOne: false;
+            referencedRelation: "cohorts";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "booking_offering_cohorts_offering_id_fkey";
+            columns: ["offering_id"];
+            isOneToOne: false;
+            referencedRelation: "booking_offerings";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      booking_offerings: {
+        Row: {
+          audience: string;
+          booking_notice_hours: number;
+          buffer_minutes: number;
+          cancellation_notice_hours: number;
+          created_at: string;
+          created_by: string;
+          description: string | null;
+          duration_minutes: number;
+          id: string;
+          mentor_id: string;
+          status: string;
+          timezone: string;
+          title: string;
+          updated_at: string;
+        };
+        Insert: {
+          audience?: string;
+          booking_notice_hours?: number;
+          buffer_minutes?: number;
+          cancellation_notice_hours?: number;
+          created_at?: string;
+          created_by: string;
+          description?: string | null;
+          duration_minutes?: number;
+          id?: string;
+          mentor_id: string;
+          status?: string;
+          timezone?: string;
+          title: string;
+          updated_at?: string;
+        };
+        Update: {
+          audience?: string;
+          booking_notice_hours?: number;
+          buffer_minutes?: number;
+          cancellation_notice_hours?: number;
+          created_at?: string;
+          created_by?: string;
+          description?: string | null;
+          duration_minutes?: number;
+          id?: string;
+          mentor_id?: string;
+          status?: string;
+          timezone?: string;
+          title?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "booking_offerings_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "booking_offerings_mentor_id_fkey";
+            columns: ["mentor_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      booking_reservations: {
+        Row: {
+          booked_by: string;
+          cancelled_at: string | null;
+          cancelled_by: string | null;
+          created_at: string;
+          ends_at: string;
+          enrollment_id: string;
+          id: string;
+          meeting_id: string | null;
+          mentor_id: string;
+          offering_id: string;
+          slot: unknown;
+          starts_at: string;
+          status: string;
+          updated_at: string;
+        };
+        Insert: {
+          booked_by: string;
+          cancelled_at?: string | null;
+          cancelled_by?: string | null;
+          created_at?: string;
+          ends_at: string;
+          enrollment_id: string;
+          id?: string;
+          meeting_id?: string | null;
+          mentor_id: string;
+          offering_id: string;
+          slot?: unknown;
+          starts_at: string;
+          status?: string;
+          updated_at?: string;
+        };
+        Update: {
+          booked_by?: string;
+          cancelled_at?: string | null;
+          cancelled_by?: string | null;
+          created_at?: string;
+          ends_at?: string;
+          enrollment_id?: string;
+          id?: string;
+          meeting_id?: string | null;
+          mentor_id?: string;
+          offering_id?: string;
+          slot?: unknown;
+          starts_at?: string;
+          status?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "booking_reservations_booked_by_fkey";
+            columns: ["booked_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "booking_reservations_cancelled_by_fkey";
+            columns: ["cancelled_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "booking_reservations_enrollment_id_fkey";
+            columns: ["enrollment_id"];
+            isOneToOne: false;
+            referencedRelation: "enrollments";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "booking_reservations_meeting_id_fkey";
+            columns: ["meeting_id"];
+            isOneToOne: true;
+            referencedRelation: "meetings";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "booking_reservations_mentor_id_fkey";
+            columns: ["mentor_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "booking_reservations_offering_id_fkey";
+            columns: ["offering_id"];
+            isOneToOne: false;
+            referencedRelation: "booking_offerings";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       cohorts: {
         Row: {
           created_at: string;
@@ -795,6 +1070,142 @@ export type Database = {
           },
         ];
       };
+      journey_stage_contents: {
+        Row: {
+          access_scope: string;
+          active: boolean;
+          cohort_id: string | null;
+          content_type: string;
+          created_at: string;
+          created_by: string | null;
+          description: string;
+          duration_minutes: number | null;
+          external_url: string | null;
+          file_path: string | null;
+          id: string;
+          legacy_key: string | null;
+          media_path: string | null;
+          mentee_id: string | null;
+          pillar_id: string;
+          position: number;
+          questionnaire: Json;
+          step_key: string;
+          title: string;
+          updated_at: string;
+        };
+        Insert: {
+          access_scope?: string;
+          active?: boolean;
+          cohort_id?: string | null;
+          content_type: string;
+          created_at?: string;
+          created_by?: string | null;
+          description?: string;
+          duration_minutes?: number | null;
+          external_url?: string | null;
+          file_path?: string | null;
+          id?: string;
+          legacy_key?: string | null;
+          media_path?: string | null;
+          mentee_id?: string | null;
+          pillar_id: string;
+          position?: number;
+          questionnaire?: Json;
+          step_key: string;
+          title: string;
+          updated_at?: string;
+        };
+        Update: {
+          access_scope?: string;
+          active?: boolean;
+          cohort_id?: string | null;
+          content_type?: string;
+          created_at?: string;
+          created_by?: string | null;
+          description?: string;
+          duration_minutes?: number | null;
+          external_url?: string | null;
+          file_path?: string | null;
+          id?: string;
+          legacy_key?: string | null;
+          media_path?: string | null;
+          mentee_id?: string | null;
+          pillar_id?: string;
+          position?: number;
+          questionnaire?: Json;
+          step_key?: string;
+          title?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "journey_stage_contents_cohort_id_fkey";
+            columns: ["cohort_id"];
+            isOneToOne: false;
+            referencedRelation: "cohorts";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "journey_stage_contents_mentee_id_fkey";
+            columns: ["mentee_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "journey_stage_contents_pillar_id_fkey";
+            columns: ["pillar_id"];
+            isOneToOne: false;
+            referencedRelation: "journey_pillars";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      journey_stage_questionnaire_responses: {
+        Row: {
+          answers: Json;
+          content_id: string;
+          enrollment_id: string;
+          id: string;
+          submitted_at: string | null;
+          updated_at: string;
+          user_id: string;
+        };
+        Insert: {
+          answers?: Json;
+          content_id: string;
+          enrollment_id: string;
+          id?: string;
+          submitted_at?: string | null;
+          updated_at?: string;
+          user_id: string;
+        };
+        Update: {
+          answers?: Json;
+          content_id?: string;
+          enrollment_id?: string;
+          id?: string;
+          submitted_at?: string | null;
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "journey_stage_questionnaire_responses_content_id_fkey";
+            columns: ["content_id"];
+            isOneToOne: false;
+            referencedRelation: "journey_stage_contents";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "journey_stage_questionnaire_responses_enrollment_id_fkey";
+            columns: ["enrollment_id"];
+            isOneToOne: false;
+            referencedRelation: "enrollments";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       journey_step_progress: {
         Row: {
           completed_at: string | null;
@@ -856,6 +1267,8 @@ export type Database = {
           cohort_id: string | null;
           completion_rule: string;
           cover_path: string | null;
+          cover_path_dark: string | null;
+          cover_path_light: string | null;
           created_at: string;
           description: string;
           duration_minutes: number | null;
@@ -889,6 +1302,8 @@ export type Database = {
           cohort_id?: string | null;
           completion_rule?: string;
           cover_path?: string | null;
+          cover_path_dark?: string | null;
+          cover_path_light?: string | null;
           created_at?: string;
           description?: string;
           duration_minutes?: number | null;
@@ -922,6 +1337,8 @@ export type Database = {
           cohort_id?: string | null;
           completion_rule?: string;
           cover_path?: string | null;
+          cover_path_dark?: string | null;
+          cover_path_light?: string | null;
           created_at?: string;
           description?: string;
           duration_minutes?: number | null;
@@ -1951,6 +2368,7 @@ export type Database = {
         Returns: boolean;
       };
       can_see_meeting: { Args: { _meeting_id: string }; Returns: boolean };
+      get_journey_media_path: { Args: { _step_key: string }; Returns: string };
       get_next_journey_step: { Args: never; Returns: Json };
       has_role: {
         Args: {
@@ -1983,6 +2401,18 @@ export type Database = {
           _type: string;
         };
         Returns: undefined;
+      };
+      public_staff_directory: {
+        Args: never;
+        Returns: {
+          avatar_url: string;
+          full_name: string;
+          id: string;
+          is_admin: boolean;
+          specialty: string;
+          staff_type: string;
+          title: string;
+        }[];
       };
       publish_journey_draft: {
         Args: {
