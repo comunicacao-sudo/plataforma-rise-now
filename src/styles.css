@@ -9131,3 +9131,6 @@ hr,
   .app-footer { flex-wrap:wrap; justify-content:center; text-align:center; padding-block:1.5rem; }
   .rise-app-footer-legal { margin:0; justify-items:center; width:100%; }
 }
+
+.login-panel__legal { margin-top: 2rem; color: rgba(242, 240, 239, 0.72); opacity: 0.85; }
+.login-panel__legal .rise-legal-links { font-size: 0.65rem; }
