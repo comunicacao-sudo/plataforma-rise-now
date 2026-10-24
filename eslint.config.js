@@ -15,8 +15,6 @@ export default tseslint.config(
       "supabase/functions",
       // Lovable regenerates these adapters and database types verbatim.
       // TypeScript still validates them; ESLint must not rewrite generated output.
-      "src/integrations/supabase/auth-middleware.ts",
-      "src/integrations/supabase/client.server.ts",
       "src/integrations/supabase/previewAuthStorage.ts",
       "src/integrations/supabase/types.ts",
     ],
