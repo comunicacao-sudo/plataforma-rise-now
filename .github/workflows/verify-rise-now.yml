@@ -27,18 +27,6 @@ jobs:
         uses: oven-sh/setup-bun@v2
       - name: Install locked dependencies
         run: bun install --frozen-lockfile
-      - name: Format legal pages for validation
-        run: npx prettier --write src/components/rise-legal.tsx src/routes/politica-de-privacidade.tsx src/routes/sobre.tsx src/routes/termos-de-uso.tsx
-      - name: Export formatted legal sources for commit
-        run: |
-          node - <<'NODE'
-          const fs = require("fs");
-          for (const file of ["src/components/rise-legal.tsx","src/routes/politica-de-privacidade.tsx","src/routes/sobre.tsx","src/routes/termos-de-uso.tsx"]) {
-            console.log("RISE_FORMAT_BEGIN:" + file);
-            console.log(Buffer.from(fs.readFileSync(file)).toString("base64"));
-            console.log("RISE_FORMAT_END:" + file);
-          }
-          NODE
       - name: Production build and Supabase bundle validation
         run: npm run build
       - name: TypeScript
