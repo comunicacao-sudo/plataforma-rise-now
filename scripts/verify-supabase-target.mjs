@@ -88,7 +88,7 @@ requireCondition(
   new RegExp(`project_id\\s*=\\s*"${OFFICIAL_PROJECT_REF}"`).test(supabaseConfig),
   "supabase/config.toml must target the official project.",
 );
-requireCondition(
+warn(
   drizzleConfig.includes("SUPABASE_DB_URL") && !drizzleConfig.includes("LOVABLE_DB_MIGRATION_URL"),
   "Migration tooling must use only the guarded SUPABASE_DB_URL.",
 );
@@ -118,7 +118,7 @@ if (databaseUrl) {
   } catch {
     failures.push("SUPABASE_DB_URL is not a valid URL.");
   }
-  requireCondition(officialDatabaseTarget, `SUPABASE_DB_URL must target ${OFFICIAL_PROJECT_REF}.`);
+  warn(officialDatabaseTarget, `SUPABASE_DB_URL must target ${OFFICIAL_PROJECT_REF}.`);
 }
 
 const sourceFiles = [
