@@ -305,6 +305,9 @@ function LoginScreen() {
               </div>
             </form>
           )}
+          <div className="login-panel__legal">
+            <LegalFooterLinks />
+          </div>
         </div>
       </section>
     </main>
