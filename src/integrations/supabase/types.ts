@@ -1555,6 +1555,7 @@ export type Database = {
           email: string
           full_name: string
           id: string
+          mentor_summary: string | null
           phone: string | null
           pillar: string | null
           primary_specialty_id: string | null
@@ -1573,6 +1574,7 @@ export type Database = {
           email: string
           full_name: string
           id?: string
+          mentor_summary?: string | null
           phone?: string | null
           pillar?: string | null
           primary_specialty_id?: string | null
@@ -1591,6 +1593,7 @@ export type Database = {
           email?: string
           full_name?: string
           id?: string
+          mentor_summary?: string | null
           phone?: string | null
           pillar?: string | null
           primary_specialty_id?: string | null
