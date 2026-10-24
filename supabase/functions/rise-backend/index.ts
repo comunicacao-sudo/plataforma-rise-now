@@ -1521,6 +1521,8 @@ const AI_AUDIENCE = "mentor_full";
 const AI_RESPONSE_FORMAT_NAME = "rise_assessment_interpretation";
 const AI_INSTRUCTIONS = `Você interpreta resultados já calculados do Mapeamento de Desenvolvimento RISE.
 O cálculo é definitivo e foi feito pelo algoritmo RISE. Nunca recalcule, corrija, estime, normalize ou invente pontuações.
+O instrumento RISE é inspirado no modelo DISC, sem alegação de certificação, oficialidade ou validação por terceiros.
+Os fatores D, I, S e C são intensidades independentes e não precisam somar 100%. Preserve Natural e Adaptado separadamente.
 Use somente os resultados fornecidos. Não faça diagnóstico clínico, não rotule a pessoa e não trate tendências como verdades absolutas.
 Escreva em português brasileiro, com linguagem respeitosa, objetiva e útil para desenvolvimento profissional.
 Cada afirmação deve ser compatível com os scores e evidências recebidos. Em evidence_notes, cite somente evidence_ids presentes na entrada.
@@ -1531,6 +1533,8 @@ function assessmentEvidenceIds(result: any) {
   const ids = new Set<string>();
   for (const collection of [
     result.indicators,
+    result.disc?.natural?.factors,
+    result.disc?.adapted?.factors,
     result.competencies,
     result.comparisons,
     result.motivations,
@@ -1550,7 +1554,8 @@ function assessmentAIInput(result: any) {
     methodology: {
       assessment_version: result.assessmentVersion,
       scoring_version: result.scoringVersion,
-      scale: "Scores determinísticos de 1 a 5. Diferenças são Adaptado menos Natural.",
+      scale:
+        "Competências usam scores determinísticos de 1 a 5. D, I, S e C usam intensidades independentes de 0 a 100 e não precisam somar 100%. Diferenças são Adaptado menos Natural.",
       constraints: [
         "Os scores não podem ser alterados.",
         "A interpretação é exploratória e não diagnóstica.",
@@ -1559,6 +1564,7 @@ function assessmentAIInput(result: any) {
     },
     calculated_result: {
       indicators: result.indicators,
+      disc: result.disc,
       competencies: result.competencies,
       comparisons: result.comparisons,
       motivations: result.motivations,
@@ -1794,7 +1800,6 @@ async function assessmentAction(c: Context, action: string, d: any) {
         "id, status, current_index, started_at, completed_at, report_status, assessment_version, scoring_version",
       )
       .eq("enrollment_id", enrollment.id)
-      .eq("assessment_version", ASSESSMENT_VERSION)
       .order("started_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -1815,7 +1820,6 @@ async function assessmentAction(c: Context, action: string, d: any) {
       .from("assessment_attempts")
       .select("id, status, current_index")
       .eq("enrollment_id", enrollment.id)
-      .eq("assessment_version", ASSESSMENT_VERSION)
       .eq("status", "in_progress")
       .order("started_at", { ascending: false })
       .limit(1)
@@ -1885,6 +1889,9 @@ async function assessmentAction(c: Context, action: string, d: any) {
       .from("assessment_attempts")
       .update({
         status: "completed",
+        assessment_version: ASSESSMENT_VERSION,
+        scoring_version: SCORING_VERSION,
+        prompt_version: PROMPT_VERSION,
         current_index: ASSESSMENT_QUESTIONS.length,
         completed_at: now,
         calculated_at: result.calculatedAt,

@@ -91,6 +91,52 @@ function ScoreBar({ value, natural }: { value: number; natural?: number | undefi
   );
 }
 
+function DiscProfile({ result }: { result: CalculatedAssessmentResult["disc"] }) {
+  const perspectives = [result.natural, result.adapted];
+  return (
+    <section className="assessment-disc" aria-labelledby="assessment-disc-title">
+      <header>
+        <span>RISE inspirado no modelo DISC</span>
+        <h3 id="assessment-disc-title">Seu perfil comportamental</h3>
+        <p>{result.scaleExplanation}</p>
+      </header>
+      <div className="assessment-disc__grid">
+        {perspectives.map((perspective) => (
+          <article key={perspective.perspective}>
+            <div className="assessment-disc__heading">
+              <div>
+                <span>Perfil {perspective.perspective === "natural" ? "Natural" : "Adaptado"}</span>
+                <strong>{perspective.label}</strong>
+              </div>
+              {perspective.balanced ? <em>Equilibrado</em> : null}
+            </div>
+            <div className="assessment-disc__factors">
+              {perspective.factors.map((factor) => (
+                <div
+                  key={factor.factor}
+                  className={`assessment-disc__factor is-${factor.factor.toLowerCase()}`}
+                >
+                  <b>{factor.factor}</b>
+                  <span>{factor.name}</span>
+                  <div aria-label={`${factor.name}: ${factor.score}%`}>
+                    <i style={{ width: `${factor.score}%` }} />
+                  </div>
+                  <strong>{factor.score}%</strong>
+                </div>
+              ))}
+            </div>
+          </article>
+        ))}
+      </div>
+      <small>
+        Natural representa tendências espontâneas relatadas. Adaptado representa como você relata
+        agir no contexto profissional. Empates e combinações são preservados, sem forçar um único
+        rótulo.
+      </small>
+    </section>
+  );
+}
+
 function EmptyAI({ type }: { type: "actions" | "questions" | "communication" | "books" }) {
   const content = {
     actions: [
@@ -384,6 +430,17 @@ function AssessmentReport({
           </button>
         </div>
       ) : null}
+      {result.disc ? (
+        <DiscProfile result={result.disc as CalculatedAssessmentResult["disc"]} />
+      ) : (
+        <section className="assessment-disc assessment-disc--legacy">
+          <h3>Resultado histórico preservado</h3>
+          <p>
+            Esta aplicação foi concluída antes da versão DISC 2.0. O resultado original continua
+            disponível sem recálculo ou alteração silenciosa.
+          </p>
+        </section>
+      )}
       <AIInterpretationPanel
         analysis={aiAnalysis ?? null}
         mentor={mentor}

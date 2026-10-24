@@ -38,7 +38,7 @@ test("cálculo é determinístico e mantém versionamento", () => {
   assert.deepEqual({ ...first, calculatedAt: "ignored" }, { ...second, calculatedAt: "ignored" });
 });
 
-test("Natural e Adaptado são calculados separadamente e comparados sem porcentagem", () => {
+test("Natural e Adaptado são calculados separadamente com DISC independente", () => {
   const input = ASSESSMENT_QUESTIONS.map((question) => ({
     itemId: question.id,
     value: question.perspective === "natural" ? 2 : question.perspective === "adapted" ? 4 : 3,
@@ -47,8 +47,57 @@ test("Natural e Adaptado são calculados separadamente e comparados sem porcenta
   assert.ok(result.competencies.every((item) => item.natural === 2));
   assert.ok(result.competencies.every((item) => item.adapted === 4));
   assert.ok(result.comparisons.every((item) => item.delta === 2));
+  assert.ok(result.disc.natural.factors.every((item) => item.score === 25));
+  assert.ok(result.disc.adapted.factors.every((item) => item.score === 75));
+  assert.equal(result.disc.natural.balanced, true);
+  assert.equal(result.disc.adapted.balanced, true);
   assert.match(result.summary.relevantDifference ?? "", /trabalho aparece maior/i);
-  assert.ok(!JSON.stringify(result).includes("%"));
+});
+
+test("DISC usa D, I, S e C como escalas independentes e preserva todas as evidências", () => {
+  const factorValues = new Map([
+    ["D", 5],
+    ["I", 4],
+    ["S", 2],
+    ["C", 1],
+  ]);
+  const input = ASSESSMENT_QUESTIONS.map((question) => {
+    if (question.perspective !== "natural" && question.perspective !== "adapted")
+      return { itemId: question.id, value: 3 };
+    const factor = ["initiative", "direction", "objectivity", "positioning"].includes(
+      question.baseKey ?? "",
+    )
+      ? "D"
+      : ["influence", "expression", "energy", "interaction"].includes(question.baseKey ?? "")
+        ? "I"
+        : ["people", "calm", "continuity", "focus", "autonomy"].includes(question.baseKey ?? "")
+          ? "S"
+          : "C";
+    return { itemId: question.id, value: factorValues.get(factor)! };
+  });
+  const result = calculateAssessment(input);
+  assert.deepEqual(
+    result.disc.natural.factors.map((item) => [item.factor, item.score]),
+    [
+      ["D", 100],
+      ["I", 75],
+      ["S", 25],
+      ["C", 0],
+    ],
+  );
+  assert.deepEqual(result.disc.natural.primary, ["D"]);
+  assert.equal(
+    result.disc.natural.factors.reduce((sum, item) => sum + item.score, 0),
+    200,
+  );
+  assert.equal(new Set(result.disc.natural.factors.flatMap((item) => item.evidence)).size, 19);
+});
+
+test("DISC reconhece empate e perfil equilibrado sem forçar rótulo único", () => {
+  const result = calculateAssessment(answers(3));
+  assert.equal(result.disc.natural.balanced, true);
+  assert.deepEqual(result.disc.natural.primary, ["D", "I", "S", "C"]);
+  assert.match(result.disc.natural.label, /equilibrado/i);
 });
 
 test("dois mentorados podem produzir resultados diferentes e nova aplicação não altera a anterior", () => {
@@ -73,6 +122,7 @@ test("relatório bloqueado omite leitura completa e relatório liberado a preser
   const released = filterAssessmentResultForAudience(result, "mentee_full");
   assert.equal("leadership" in locked, false);
   assert.equal("development" in locked, false);
+  assert.deepEqual(locked.disc, result.disc);
   assert.deepEqual(released.leadership, result.leadership);
   assert.deepEqual(released.development, result.development);
 });
@@ -157,7 +207,7 @@ test("integração de IA usa Responses API no backend e mantém idempotência no
   assert.match(backend, /queueAssessmentAISafely/);
   assert.match(migration, /unique index/i);
   assert.match(migration, /attempt_id, audience, prompt_version/i);
-  assert.equal(PROMPT_VERSION, "rise-insights-1.0");
+  assert.equal(PROMPT_VERSION, "rise-disc-insights-2.0");
 });
 
 test("backend usa os nomes reais dos parâmetros dos RPCs da jornada", () => {

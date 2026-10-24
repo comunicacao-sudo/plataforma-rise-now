@@ -1,7 +1,7 @@
-export const ASSESSMENT_VERSION = "rise-behavioral-1.0";
-export const SCORING_VERSION = "rise-scoring-1.0";
-export const PROMPT_VERSION = "rise-insights-1.0";
-export const AI_OUTPUT_SCHEMA_VERSION = "rise-ai-output-1.0";
+export const ASSESSMENT_VERSION = "rise-behavioral-disc-2.0";
+export const SCORING_VERSION = "rise-disc-scoring-2.0";
+export const PROMPT_VERSION = "rise-disc-insights-2.0";
+export const AI_OUTPUT_SCHEMA_VERSION = "rise-ai-output-2.0";
 
 export const AI_MENTEE_RELEASE_SECTIONS = [
   "summary_for_mentee",
@@ -310,6 +310,27 @@ export const IMPORTANCE_OPTIONS = [
 ] as const;
 
 export type AssessmentAnswer = { itemId: string; value: number };
+export type DiscFactor = "D" | "I" | "S" | "C";
+export type DiscFactorScore = {
+  factor: DiscFactor;
+  name: string;
+  score: number;
+  evidence: string[];
+};
+export type DiscPerspectiveResult = {
+  perspective: "natural" | "adapted";
+  factors: DiscFactorScore[];
+  primary: DiscFactor[];
+  secondary: DiscFactor[];
+  balanced: boolean;
+  label: string;
+};
+export type DiscAssessmentResult = {
+  methodology: "RISE inspirado no modelo DISC";
+  scaleExplanation: string;
+  natural: DiscPerspectiveResult;
+  adapted: DiscPerspectiveResult;
+};
 export type ScoredIndicator = {
   id: string;
   name: string;
@@ -395,6 +416,7 @@ export type CalculatedAssessmentResult = {
   promptVersion: string;
   calculatedAt: string;
   responseCount: number;
+  disc: DiscAssessmentResult;
   indicators: ScoredIndicator[];
   competencies: CompetencyInsight[];
   comparisons: Array<{
@@ -431,6 +453,7 @@ export function filterAssessmentResultForAudience(
     scoringVersion: result.scoringVersion,
     calculatedAt: result.calculatedAt,
     responseCount: result.responseCount,
+    disc: result.disc,
     indicators: result.indicators,
     competencies: result.competencies,
     comparisons: result.comparisons,
@@ -567,6 +590,85 @@ function scoreByKeys(values: Map<string, number>, perspective: "N" | "A", keys: 
   return { ids, values: ids.map((id) => values.get(id)!) };
 }
 
+/**
+ * Mapeamento metodológico RISE para os quatro fatores DISC.
+ * Cada item Natural possui um equivalente Adaptado com a mesma chave. As escalas são
+ * independentes: expressam intensidade de 0 a 100 e não precisam somar 100%.
+ */
+export const DISC_FACTOR_DEFINITIONS: ReadonlyArray<{
+  factor: DiscFactor;
+  name: string;
+  keys: readonly string[];
+}> = [
+  {
+    factor: "D",
+    name: "Dominância",
+    keys: ["initiative", "direction", "objectivity", "positioning"],
+  },
+  {
+    factor: "I",
+    name: "Influência",
+    keys: ["influence", "expression", "energy", "interaction"],
+  },
+  {
+    factor: "S",
+    name: "Estabilidade",
+    keys: ["people", "calm", "continuity", "focus", "autonomy"],
+  },
+  {
+    factor: "C",
+    name: "Conformidade",
+    keys: ["planning", "organization", "details", "caution", "decision", "divergence"],
+  },
+] as const;
+
+function discPercentage(responses: number[]) {
+  return Math.round(((average(responses) - 1) / 4) * 100);
+}
+
+function classifyDiscPerspective(
+  values: Map<string, number>,
+  perspective: "natural" | "adapted",
+): DiscPerspectiveResult {
+  const prefix = perspective === "natural" ? "N" : "A";
+  const factors = DISC_FACTOR_DEFINITIONS.map((definition): DiscFactorScore => {
+    const data = scoreByKeys(values, prefix, [...definition.keys]);
+    return {
+      factor: definition.factor,
+      name: definition.name,
+      score: discPercentage(data.values),
+      evidence: data.ids,
+    };
+  });
+  const ranked = [...factors].sort((a, b) => b.score - a.score || a.factor.localeCompare(b.factor));
+  const spread = ranked[0]!.score - ranked.at(-1)!.score;
+  const balanced = spread <= 10;
+  const topScore = ranked[0]!.score;
+  const primary = balanced
+    ? factors.map((factor) => factor.factor)
+    : ranked.filter((factor) => topScore - factor.score <= 5).map((factor) => factor.factor);
+  const primaryFloor = Math.min(
+    ...ranked.filter((factor) => primary.includes(factor.factor)).map((factor) => factor.score),
+  );
+  const secondary = balanced
+    ? []
+    : ranked
+        .filter((factor) => !primary.includes(factor.factor) && primaryFloor - factor.score <= 15)
+        .map((factor) => factor.factor);
+  const names = (ids: DiscFactor[]) =>
+    ids.map((id) => factors.find((factor) => factor.factor === id)!.name).join(" e ");
+  return {
+    perspective,
+    factors,
+    primary,
+    secondary,
+    balanced,
+    label: balanced
+      ? "Perfil equilibrado entre D, I, S e C"
+      : `Predominância ${names(primary)}${secondary.length ? ` com apoio de ${names(secondary)}` : ""}`,
+  };
+}
+
 export function calculateAssessment(answers: AssessmentAnswer[]): CalculatedAssessmentResult {
   const values = new Map(answers.map((answer) => [answer.itemId, answer.value]));
   const expected = new Set(ASSESSMENT_QUESTIONS.map((question) => question.id));
@@ -599,6 +701,13 @@ export function calculateAssessment(answers: AssessmentAnswer[]): CalculatedAsse
           : "As duas perspectivas aparecem próximas neste indicador de desenvolvimento RISE.",
     };
   });
+  const disc: DiscAssessmentResult = {
+    methodology: "RISE inspirado no modelo DISC",
+    scaleExplanation:
+      "Cada fator é uma escala independente de intensidade entre 0 e 100; os quatro valores não precisam somar 100%.",
+    natural: classifyDiscPerspective(values, "natural"),
+    adapted: classifyDiscPerspective(values, "adapted"),
+  };
 
   const indicatorGroups = [
     {
@@ -754,6 +863,7 @@ export function calculateAssessment(answers: AssessmentAnswer[]): CalculatedAsse
     promptVersion: PROMPT_VERSION,
     calculatedAt: new Date().toISOString(),
     responseCount: values.size,
+    disc,
     indicators,
     competencies,
     comparisons,
@@ -774,7 +884,8 @@ export function calculateAssessment(answers: AssessmentAnswer[]): CalculatedAsse
     },
     limitations: [
       "Autorrelato exploratório para conversas de desenvolvimento; não é diagnóstico nem avaliação objetiva de desempenho.",
-      "As pontuações usam a escala de 1 a 5 e não representam percentis ou porcentagens de personalidade.",
+      "O Mapeamento Comportamental RISE é inspirado no modelo DISC; não é um instrumento oficial, certificado ou validado por terceiros.",
+      "Os percentuais D, I, S e C representam intensidades independentes derivadas da escala de 1 a 5 e não são percentis populacionais nem precisam somar 100%.",
       "Diferenças entre perspectivas não comprovam sofrimento, falsidade, conflito ou adequação profissional.",
     ],
   };
