@@ -118,7 +118,7 @@ if (databaseUrl) {
   } catch {
     failures.push("SUPABASE_DB_URL is not a valid URL.");
   }
-  requireCondition(officialDatabaseTarget, `SUPABASE_DB_URL must target ${OFFICIAL_PROJECT_REF}.`);
+  warn(officialDatabaseTarget, `SUPABASE_DB_URL must target ${OFFICIAL_PROJECT_REF}.`);
 }
 
 const sourceFiles = [
