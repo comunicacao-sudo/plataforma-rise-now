@@ -958,11 +958,15 @@ function JourneyView({
   trail,
   onOpen,
   onOpenLibrary,
+  onOpenContent,
 }: {
   trail: Trail;
   onOpen: (l: TrailLesson) => void;
   onOpenLibrary: () => void;
+  onOpenContent: (stepKey: string) => void;
 }) {
+  const library = useJourneyContentLibrary(true);
+  const publishedSteps = library.data?.items ?? [];
   return (
     <main className="inner-page inner-page--section-hero">
       <SectionHero
@@ -998,23 +1002,17 @@ function JourneyView({
                   <h2>{item.title}</h2>
                   <p>{item.question}</p>
                   <ul className="timeline-lessons">
-                    {item.lessons.map((l) => (
-                      <li key={l.id}>
+                    {publishedSteps.filter((step) => step.monthNumber === item.month).map((step) => (
+                      <li key={step.stepKey}>
                         <button
                           type="button"
-                          disabled={
-                            l.kind === "aula" && item.month > trail.currentMonth && !l.completed
-                          }
-                          onClick={() => onOpen(l)}
-                          title={
-                            l.kind === "aula" && item.month > trail.currentMonth && !l.completed
-                              ? "Esta aula ainda não foi liberada"
-                              : undefined
-                          }
+                          disabled={step.availability !== "available"}
+                          onClick={() => onOpenContent(step.stepKey)}
+                          title={step.description || step.title}
                         >
-                          {l.completed ? <CheckCircle2 size={14} /> : <Play size={13} />}
-                          {l.title}
-                          <small>{l.kind === "aula" ? "Aula" : l.format}</small>
+                          {step.completed ? <CheckCircle2 size={14} /> : <Play size={13} />}
+                          {step.title}
+                          <small>{step.format === "recorded_class" ? "Aula" : "Etapa"}</small>
                         </button>
                       </li>
                     ))}
@@ -1151,7 +1149,7 @@ function MenteeArea({ view, onView }: { view: View; onView: (v: View) => void })
           onOpenContent={openJourneyContent}
         />
       ) : view === "jornada" ? (
-        <JourneyView trail={trail} onOpen={setLesson} onOpenLibrary={() => setLibraryOpen(true)} />
+        <JourneyView trail={trail} onOpen={setLesson} onOpenLibrary={() => setLibraryOpen(true)} onOpenContent={openJourneyContent} />
       ) : view === "agenda" ? (
         <AgendaView trail={trail} onOpen={setLesson} />
       ) : view === "entregas" ? (
