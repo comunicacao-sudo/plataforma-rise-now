@@ -105,7 +105,7 @@ async function getMentorDirectory(c: Context) {
   const emails = officialMentorDirectory.map((mentor) => mentor.email);
   const { data, error } = await c.admin
     .from("profiles")
-    .select("id, email, display_name, full_name, avatar_url, phone, contact_email")
+    .select("id, email, display_name, full_name, avatar_url, phone, contact_email, mentor_summary")
     .in("email", emails);
   if (error) throw new Error(error.message);
 
@@ -124,7 +124,7 @@ async function getMentorDirectory(c: Context) {
           phone: profile.phone ?? null,
           avatarUrl: profile.avatar_url ?? null,
           pillar: mentor.pillar,
-          summary: mentor.summary,
+          summary: String(profile.mentor_summary ?? "").trim() || mentor.summary,
         },
       ];
     }),
@@ -2053,6 +2053,19 @@ const googleScopes = [
   "profile",
   "https://www.googleapis.com/auth/calendar.events",
 ];
+const defaultAppBaseUrl = "https://board.mentoriarisenow.com.br";
+function googleOAuthConfig() {
+  const clientId = env("GOOGLE_CLIENT_ID");
+  const clientSecret = env("GOOGLE_CLIENT_SECRET");
+  const appBase = env("APP_BASE_URL") ?? defaultAppBaseUrl;
+  let redirectUri: string;
+  try {
+    redirectUri = new URL("/oauth/google/return", appBase).toString();
+  } catch {
+    throw new Error("APP_BASE_URL da conexão Google é inválida.");
+  }
+  return { clientId, clientSecret, redirectUri };
+}
 const bytes = (value: string) => new TextEncoder().encode(value);
 const b64 = (value: Uint8Array) => btoa(String.fromCharCode(...value));
 const unb64 = (value: string) => Uint8Array.from(atob(value), (c) => c.charCodeAt(0));
@@ -2161,9 +2174,9 @@ async function googleFetch(userId: string, path: string, init: RequestInit = {})
 }
 async function googleAction(c: Context, action: string, d: any) {
   if (action === "startGoogleConnect") {
-    const clientId = env("GOOGLE_CLIENT_ID");
-    const appBase = env("APP_BASE_URL");
-    if (!clientId || !appBase) throw new Error("Conexão com o Google ainda não configurada.");
+    const { clientId, redirectUri } = googleOAuthConfig();
+    if (!clientId)
+      throw new Error("Google Agenda ainda não configurado: GOOGLE_CLIENT_ID ausente.");
     const payload = b64(
       bytes(JSON.stringify({ userId: c.userId, expires: Date.now() + 10 * 60_000 })),
     )
@@ -2173,7 +2186,7 @@ async function googleAction(c: Context, action: string, d: any) {
     const state = `${payload}.${await hmac(payload)}`;
     const params = new URLSearchParams({
       client_id: clientId,
-      redirect_uri: new URL("/oauth/google/return", appBase).toString(),
+      redirect_uri: redirectUri,
       response_type: "code",
       access_type: "offline",
       prompt: "consent",
@@ -2184,6 +2197,9 @@ async function googleAction(c: Context, action: string, d: any) {
     return { authorizationUrl: `https://accounts.google.com/o/oauth2/v2/auth?${params}` };
   }
   if (action === "completeGoogleConnect") {
+    const { clientId, clientSecret, redirectUri } = googleOAuthConfig();
+    if (!clientId || !clientSecret)
+      throw new Error("Google Agenda ainda não configurado no servidor.");
     const [payload, signature] = String(d.state ?? "").split(".");
     if (!payload || signature !== (await hmac(payload))) throw new Error("Estado OAuth inválido.");
     const state = JSON.parse(new TextDecoder().decode(unb64url(payload)));
@@ -2194,13 +2210,27 @@ async function googleAction(c: Context, action: string, d: any) {
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
         code: d.code,
-        client_id: env("GOOGLE_CLIENT_ID")!,
-        client_secret: env("GOOGLE_CLIENT_SECRET")!,
-        redirect_uri: new URL("/oauth/google/return", env("APP_BASE_URL")!).toString(),
+        client_id: clientId,
+        client_secret: clientSecret,
+        redirect_uri: redirectUri,
         grant_type: "authorization_code",
       }),
     });
-    if (!response.ok) throw new Error("O Google não concluiu a conexão.");
+    if (!response.ok) {
+      const googleError = (await response.json().catch(() => null)) as {
+        error?: string;
+        error_description?: string;
+      } | null;
+      console.error("Google OAuth token exchange failed", {
+        status: response.status,
+        error: googleError?.error ?? "unknown",
+      });
+      throw new Error(
+        googleError?.error === "redirect_uri_mismatch"
+          ? "O redirect do Google Agenda não está autorizado no Google Cloud."
+          : "O Google não concluiu a conexão. Autorize novamente e tente de novo.",
+      );
+    }
     const tokens = await response.json();
     await saveGoogle(c.userId, {
       ...tokens,

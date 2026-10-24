@@ -20,9 +20,12 @@ function OAuthReturn() {
   const [message, setMessage] = useState("Finalizando a conexão…");
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const notify = (type: "riseGoogleOAuthComplete" | "riseGoogleOAuthFailed") => {
+    const notify = (
+      type: "riseGoogleOAuthComplete" | "riseGoogleOAuthFailed",
+      failureMessage?: string,
+    ) => {
       window.opener?.postMessage(
-        { type, connectorId: "google_calendar", code: null },
+        { type, connectorId: "google_calendar", message: failureMessage },
         window.location.origin,
       );
       window.close();
@@ -31,14 +34,16 @@ function OAuthReturn() {
     const state = params.get("state");
     if (!code || !state || params.get("error")) {
       setMessage("A conexão não foi concluída. Você pode fechar esta janela.");
-      notify("riseGoogleOAuthFailed");
+      notify("riseGoogleOAuthFailed", "A autorização do Google foi cancelada ou recusada.");
       return;
     }
     void completeGoogleConnect({ data: { code, state } })
       .then(() => notify("riseGoogleOAuthComplete"))
-      .catch(() => {
-        setMessage("A conexão não foi concluída. Você pode fechar esta janela.");
-        notify("riseGoogleOAuthFailed");
+      .catch((error: unknown) => {
+        const failureMessage =
+          error instanceof Error ? error.message : "A conexão não foi concluída. Tente de novo.";
+        setMessage(`${failureMessage} Você pode fechar esta janela.`);
+        notify("riseGoogleOAuthFailed", failureMessage);
       });
   }, []);
   return (

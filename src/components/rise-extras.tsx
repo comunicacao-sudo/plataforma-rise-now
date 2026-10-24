@@ -992,6 +992,7 @@ export type MyProfile = {
   avatar_url: string | null;
   phone: string | null;
   contact_email: string | null;
+  mentor_summary: string | null;
   profession: string | null;
   profession_visible: boolean;
   theme_preference: ThemePreference;
@@ -1008,7 +1009,7 @@ export function useMyProfile(enabled = true) {
       const { data } = await supabase
         .from("profiles")
         .select(
-          "id, email, display_name, full_name, title, avatar_url, phone, contact_email, profession, profession_visible, theme_preference",
+          "id, email, display_name, full_name, title, avatar_url, phone, contact_email, mentor_summary, profession, profession_visible, theme_preference",
         )
         .eq("id", userId)
         .maybeSingle();
@@ -1079,9 +1080,7 @@ function AvatarCropEditor({
     const measure = () => {
       const { width, height } = stage.getBoundingClientRect();
       setStageSize((current) =>
-        current.width === width && current.height === height
-          ? current
-          : { width, height },
+        current.width === width && current.height === height ? current : { width, height },
       );
     };
     measure();
@@ -1144,8 +1143,7 @@ function AvatarCropEditor({
 
   async function crop() {
     const image = imageRef.current;
-    if (!image?.naturalWidth || !image.naturalHeight || !baseScale || !cropDiameter)
-      return;
+    if (!image?.naturalWidth || !image.naturalHeight || !baseScale || !cropDiameter) return;
     setSaving(true);
     setCropError("");
     try {
@@ -1205,7 +1203,10 @@ function AvatarCropEditor({
         <div className="content-modal__body">
           <span className="eyebrow eyebrow--gold">Foto de perfil</span>
           <h2>Ajuste o enquadramento</h2>
-          <p>Veja a foto inteira e arraste para posicioná-la dentro do círculo. Use o zoom se precisar.</p>
+          <p>
+            Veja a foto inteira e arraste para posicioná-la dentro do círculo. Use o zoom se
+            precisar.
+          </p>
           <div
             ref={stageRef}
             className="avatar-crop-stage"
@@ -1263,7 +1264,11 @@ function AvatarCropEditor({
             />
             <span className="avatar-zoom__value">{Math.round(zoom * 100)}%</span>
           </label>
-          {cropError ? <p className="avatar-crop-error" role="alert">{cropError}</p> : null}
+          {cropError ? (
+            <p className="avatar-crop-error" role="alert">
+              {cropError}
+            </p>
+          ) : null}
           <div className="content-modal__actions">
             <button
               className="button button--glass"
@@ -1320,6 +1325,7 @@ export function ProfileModal({
     title: "",
     phone: "",
     contact_email: "",
+    mentor_summary: "",
     profession: "",
     profession_visible: false,
     theme_preference: "dark" as ThemePreference,
@@ -1335,6 +1341,7 @@ export function ProfileModal({
         title: p.title ?? "",
         phone: p.phone ?? "",
         contact_email: p.contact_email ?? "",
+        mentor_summary: p.mentor_summary ?? "",
         profession: p.profession ?? "",
         profession_visible: p.profession_visible ?? false,
         theme_preference:
@@ -1342,8 +1349,18 @@ export function ProfileModal({
       });
   }, [p, role]);
   if (!p) return null;
+  const currentProfile = p;
   const set =
-    (k: "display_name" | "full_name" | "title" | "phone" | "contact_email" | "profession") =>
+    (
+      k:
+        | "display_name"
+        | "full_name"
+        | "title"
+        | "phone"
+        | "contact_email"
+        | "mentor_summary"
+        | "profession",
+    ) =>
     (e: { target: { value: string } }) =>
       setForm({ ...form, [k]: e.target.value });
 
@@ -1355,7 +1372,7 @@ export function ProfileModal({
   }
   async function uploadPhoto(file: File) {
     setBusy(true);
-    const path = `${p!.id}/${Date.now()}.webp`;
+    const path = `${currentProfile.id}/${Date.now()}.webp`;
     const { error } = await supabase.storage.from("avatars").upload(path, file, { upsert: true });
     if (error) {
       setBusy(false);
@@ -1365,7 +1382,7 @@ export function ProfileModal({
     const { error: profileError } = await supabase
       .from("profiles")
       .update({ avatar_url: url })
-      .eq("id", p!.id);
+      .eq("id", currentProfile.id);
     if (profileError) {
       setBusy(false);
       return setMsg("A foto foi enviada, mas o perfil não pôde ser atualizado.");
@@ -1389,6 +1406,8 @@ export function ProfileModal({
     if (form.full_name.trim().length < 2) return setMsg("Informe seu nome completo.");
     if (form.contact_email && !/^\S+@\S+\.\S+$/.test(form.contact_email))
       return setMsg("Email de contato inválido.");
+    if (role !== "mentee" && form.mentor_summary.trim().length > 600)
+      return setMsg("O texto de apresentação precisa ter no máximo 600 caracteres.");
     setBusy(true);
     const { error } = await supabase
       .from("profiles")
@@ -1398,11 +1417,13 @@ export function ProfileModal({
         title: form.title.trim() || null,
         phone: form.phone.trim() || null,
         contact_email: form.contact_email.trim() || null,
+        mentor_summary:
+          role === "mentee" ? currentProfile.mentor_summary : form.mentor_summary.trim() || null,
         profession: form.profession.trim() || null,
         profession_visible: form.profession_visible,
         theme_preference: role === "mentee" ? "dark" : form.theme_preference,
       })
-      .eq("id", p!.id);
+      .eq("id", currentProfile.id);
     setBusy(false);
     if (error) return setMsg("Não foi possível salvar.");
     setMsg("Perfil salvo.");
@@ -1542,6 +1563,19 @@ export function ProfileModal({
               <label className="ops-field">
                 <span>Email de contato</span>
                 <input type="email" value={form.contact_email} onChange={set("contact_email")} />
+              </label>
+              <label className="ops-field">
+                <span>
+                  O que abordamos <small>Visível para as mentoradas</small>
+                </span>
+                <textarea
+                  value={form.mentor_summary}
+                  onChange={set("mentor_summary")}
+                  maxLength={600}
+                  rows={4}
+                  placeholder="Conte, de forma breve, os temas e resultados trabalhados na sua frente."
+                />
+                <small>{form.mentor_summary.length}/600 caracteres</small>
               </label>
             </>
           )}

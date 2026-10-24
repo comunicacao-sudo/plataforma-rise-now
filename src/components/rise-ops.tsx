@@ -364,7 +364,14 @@ function waitForOAuth(popup: Window) {
       cleanup();
       if (t === "riseGoogleOAuthComplete")
         resolve(typeof e.data?.code === "string" ? e.data.code : null);
-      else reject(new Error("failed"));
+      else
+        reject(
+          new Error(
+            typeof e.data?.message === "string"
+              ? e.data.message
+              : "A conexão não foi concluída. Tente de novo.",
+          ),
+        );
     };
     window.addEventListener("message", onMessage);
     const poll = window.setInterval(() => {
@@ -404,9 +411,13 @@ export function GoogleCalendarCard({ audience = "staff" }: { audience?: "staff" 
           ? "Google reconectado."
           : "Google Agenda conectado.",
       );
-    } catch {
+    } catch (error) {
       popup.close();
-      setMsg("A conexão não foi concluída. Tente de novo.");
+      setMsg(
+        error instanceof Error && error.message !== "closed"
+          ? error.message
+          : "A conexão não foi concluída. Tente de novo.",
+      );
     } finally {
       setBusy(false);
     }
