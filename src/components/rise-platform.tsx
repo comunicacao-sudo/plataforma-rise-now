@@ -956,12 +956,10 @@ function PageIntro({ eyebrow, title, copy }: { eyebrow: string; title: string; c
 
 function JourneyView({
   trail,
-  onOpen,
   onOpenLibrary,
   onOpenContent,
 }: {
   trail: Trail;
-  onOpen: (l: TrailLesson) => void;
   onOpenLibrary: () => void;
   onOpenContent: (stepKey: string) => void;
 }) {
@@ -1149,7 +1147,7 @@ function MenteeArea({ view, onView }: { view: View; onView: (v: View) => void })
           onOpenContent={openJourneyContent}
         />
       ) : view === "jornada" ? (
-        <JourneyView trail={trail} onOpen={setLesson} onOpenLibrary={() => setLibraryOpen(true)} onOpenContent={openJourneyContent} />
+        <JourneyView trail={trail} onOpenLibrary={() => setLibraryOpen(true)} onOpenContent={openJourneyContent} />
       ) : view === "agenda" ? (
         <AgendaView trail={trail} onOpen={setLesson} />
       ) : view === "entregas" ? (
