@@ -9380,3 +9380,44 @@ hr,
     background-position: center center;
   }
 }
+
+
+/* Public legal pages: standalone, accessible without authentication. */
+.rise-public-shell { min-height:100dvh; display:flex; flex-direction:column; color:#D7B07A; background: #26312F url("/brand/platform-dark.webp") center/cover fixed; font-family:"Montserrat",sans-serif; }
+.rise-public-skip { position:absolute; top:-100px; left:1rem; z-index:10; background:white; color:#26312F; padding:.7rem 1rem; }
+.rise-public-skip:focus { top:1rem; }
+.rise-public-header,.rise-public-footer { width:min(100% - 3rem,1000px); margin-inline:auto; display:flex; align-items:center; justify-content:space-between; gap:1rem; }
+.rise-public-header { padding:1.1rem 0; border-bottom:1px solid rgba(215,176,122,.25); }
+.rise-public-brand img { display:block; object-fit:contain; }
+.rise-public-access { color:#D7B07A; text-decoration:none; font-size:.8rem; border:1px solid rgba(215,176,122,.4); border-radius:2rem; padding:.65rem 1rem; }
+.rise-public-main { width:min(100% - 3rem,840px); margin:0 auto; padding:4rem 0 5rem; flex:1; }
+.rise-public-heading { border-bottom:1px solid rgba(215,176,122,.25); padding-bottom:2.2rem; margin-bottom:2.5rem; }
+.rise-public-eyebrow { color:#D7B07A; font-size:.72rem; text-transform:uppercase; letter-spacing:.15em; }
+.rise-public-heading h1 { font-size:clamp(2.1rem,5.5vw,4rem); line-height:1.08; letter-spacing:-.045em; color:white; font-weight:500; margin:1rem 0; }
+.rise-public-heading p { font-size:1rem; line-height:1.8; margin:0; max-width:47rem; }
+.rise-public-document { display:grid; gap:2rem; color:#F5E6D4; }
+.rise-public-document section { display:grid; gap:.85rem; }
+.rise-public-document h2 { color:#D7B07A; font-size:1.15rem; font-weight:600; line-height:1.5; margin:0; }
+.rise-public-document p,.rise-public-document li { font-size:.9rem; line-height:1.9; margin:0; overflow-wrap:anywhere; }
+.rise-public-document ul { margin:0; padding-left:1.2rem; display:grid; gap:.35rem; }
+.rise-public-document a { color:#F4CC90; text-underline-offset:3px; }
+.rise-public-review { padding:1rem 1.2rem; border-left:2px solid #D7B07A; background:rgba(0,0,0,.14); }
+.rise-public-updated { font-size:.75rem!important; color:#D7B07A; }
+.rise-public-footer { padding:1.5rem 0 2.25rem; border-top:1px solid rgba(215,176,122,.25); color:#D7B07A; font-size:.72rem; }
+.rise-legal-links { display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:.55rem; font-size:.7rem; }
+.rise-legal-links a { color:inherit; text-decoration:underline; text-decoration-color:rgba(215,176,122,.3); text-underline-offset:4px; }
+.rise-legal-links a:hover,.rise-legal-links a:focus-visible { text-decoration-color:currentColor; }
+.rise-app-footer-legal { display:grid; gap:.5rem; margin-left:auto; justify-items:end; }
+.rise-app-footer-legal .rise-legal-links { opacity:.85; font-size:.65rem; }
+.rise-app-footer-legal > span { font-size:.55rem; }
+.platform-shell[data-theme="light"] .rise-app-footer-legal { color:#26312F; }
+@media(max-width:700px) {
+  .rise-public-header,.rise-public-footer { width:min(100% - 2rem,1000px); }
+  .rise-public-main { width:min(100% - 2rem,840px); padding:2.5rem 0 3rem; }
+  .rise-public-footer { flex-direction:column; }
+  .app-footer { flex-wrap:wrap; justify-content:center; text-align:center; padding-block:1.5rem; }
+  .rise-app-footer-legal { margin:0; justify-items:center; width:100%; }
+}
+
+.login-panel__legal { margin-top: 2rem; color: rgba(242, 240, 239, 0.72); opacity: 0.85; }
+.login-panel__legal .rise-legal-links { font-size: 0.65rem; }

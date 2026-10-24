@@ -78,6 +78,7 @@ import {
 import { resolveAppRole, type AppRole } from "@/lib/access";
 import { liveJourneyQueryOptions, resolveJourneyThemeCovers } from "@/lib/journey-sync";
 import { SectionHero } from "@/components/section-hero";
+import { LegalFooterLinks } from "@/components/rise-legal";
 
 type Role = AppRole;
 type View =
@@ -304,6 +305,9 @@ function LoginScreen() {
               </div>
             </form>
           )}
+          <div className="login-panel__legal">
+            <LegalFooterLinks />
+          </div>
         </div>
       </section>
     </main>
@@ -1175,7 +1179,10 @@ function AppFooter({ role, onView }: { role: Role; onView: (view: View) => void 
     <footer className="app-footer page-width">
       <RiseMark compact onActivate={() => onView(role === "mentee" ? "inicio" : "painel")} />
       <p>Reflexão, Identidade, Segurança e Evolução</p>
-      <span>© 2026 RISE NOW · Ambiente privado</span>
+      <div className="rise-app-footer-legal">
+        <LegalFooterLinks />
+        <span>© 2026 RISE NOW · Ambiente privado</span>
+      </div>
     </footer>
   );
 }
