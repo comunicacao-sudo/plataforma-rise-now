@@ -330,6 +330,7 @@ function AssessmentReport({
   ].filter((item, index, collection) => collection.indexOf(item) === index);
   const actionSuggestions = aiOutput?.development_recommendations?.filter(Boolean) ?? [];
   const recommendedReadings = aiOutput?.recommended_readings ?? [];
+  const showReportContext = !hideTabs || tab === "Mapeamento";
   const maxDiff = [...(result.comparisons ?? [])].sort(
     (a, b) => Math.abs(b.delta) - Math.abs(a.delta),
   )[0];
@@ -403,26 +404,29 @@ function AssessmentReport({
 
   return (
     <div className="assessment-report">
-      <div className="assessment-report__hero">
-        <div>
-          <span className="eyebrow eyebrow--gold">Mapeamento Comportamental RISE</span>
-          <h2>{result.summary?.headline ?? "Resultado em construção"}</h2>
-          <p>
-            Aplicação de {formatDate(attempt?.completed_at)} · versão {attempt?.assessment_version}
-          </p>
+      {showReportContext ? (
+        <div className="assessment-report__hero">
+          <div>
+            <span className="eyebrow eyebrow--gold">Mapeamento Comportamental RISE</span>
+            <h2>{result.summary?.headline ?? "Resultado em construção"}</h2>
+            <p>
+              Aplicação de {formatDate(attempt?.completed_at)} · versão{" "}
+              {attempt?.assessment_version}
+            </p>
+          </div>
+          <span
+            className={`assessment-release assessment-release--${isReleased ? "released" : "locked"}`}
+          >
+            {isReleased ? <CheckCircle2 size={17} /> : <LockKeyhole size={17} />}
+            {isReleased
+              ? "Completo liberado"
+              : mentor
+                ? "Completo bloqueado para mentorada"
+                : "Resumo disponível"}
+          </span>
         </div>
-        <span
-          className={`assessment-release assessment-release--${isReleased ? "released" : "locked"}`}
-        >
-          {isReleased ? <CheckCircle2 size={17} /> : <LockKeyhole size={17} />}
-          {isReleased
-            ? "Completo liberado"
-            : mentor
-              ? "Completo bloqueado para mentorada"
-              : "Resumo disponível"}
-        </span>
-      </div>
-      {mentor && !isReleased ? (
+      ) : null}
+      {showReportContext && mentor && !isReleased ? (
         <div className="assessment-release-action">
           <div>
             <ShieldCheck size={21} />
@@ -436,9 +440,9 @@ function AssessmentReport({
           </button>
         </div>
       ) : null}
-      {result.disc ? (
+      {showReportContext && result.disc ? (
         <DiscProfile result={result.disc as CalculatedAssessmentResult["disc"]} />
-      ) : (
+      ) : showReportContext ? (
         <section className="assessment-disc assessment-disc--legacy">
           <h3>Resultado histórico preservado</h3>
           <p>
@@ -446,13 +450,15 @@ function AssessmentReport({
             disponível sem recálculo ou alteração silenciosa.
           </p>
         </section>
-      )}
-      <AIInterpretationPanel
-        analysis={aiAnalysis ?? null}
-        mentor={mentor}
-        busy={aiBusy}
-        onGenerate={(force) => void generateInterpretation(force)}
-      />
+      ) : null}
+      {showReportContext ? (
+        <AIInterpretationPanel
+          analysis={aiAnalysis ?? null}
+          mentor={mentor}
+          busy={aiBusy}
+          onGenerate={(force) => void generateInterpretation(force)}
+        />
+      ) : null}
       {actionMessage ? (
         <p className="form-message" role="status">
           {actionMessage}
@@ -474,7 +480,7 @@ function AssessmentReport({
       ) : null}
 
       {tab === "Visão geral" ? (
-        <section className="assessment-section">
+        <section className="assessment-section assessment-section--overview">
           <div className="assessment-overview-grid">
             <article>
               <span>Respostas</span>
@@ -535,8 +541,9 @@ function AssessmentReport({
       ) : null}
 
       {tab === "Mapeamento" ? (
-        <section className="assessment-section">
+        <section className="assessment-section assessment-section--mapping">
           <header>
+            <span className="assessment-section__eyebrow">Leitura comparativa</span>
             <h3>Perfil Natural × Perfil Adaptado</h3>
             <p>
               Natural representa a tendência espontânea relatada. Adaptado representa como a pessoa
@@ -575,8 +582,9 @@ function AssessmentReport({
       ) : null}
 
       {tab === "Liderança" && full ? (
-        <section className="assessment-section">
+        <section className="assessment-section assessment-section--leadership">
           <header>
+            <span className="assessment-section__eyebrow">Liderança</span>
             <h3>Como essa pessoa tende a liderar</h3>
             <p>
               Indicadores de desenvolvimento baseados nas práticas relatadas, sem classificar um
@@ -612,8 +620,9 @@ function AssessmentReport({
       ) : null}
 
       {tab === "Competências" && full ? (
-        <section className="assessment-section">
+        <section className="assessment-section assessment-section--competencies">
           <header>
+            <span className="assessment-section__eyebrow">Competências</span>
             <h3>Mapa de competências RISE</h3>
             <p>
               Tendências observadas nas respostas; não comprovam competência profissional objetiva.
@@ -624,7 +633,7 @@ function AssessmentReport({
               <article key={item.id}>
                 <div>
                   <strong>{item.name}</strong>
-                  <span>{item.adapted.toFixed(1)}</span>
+                  <span>Natural × Adaptado</span>
                 </div>
                 <ScoreBar value={item.adapted} natural={item.natural} />
                 <p>{item.definition}</p>
@@ -636,8 +645,9 @@ function AssessmentReport({
       ) : null}
 
       {tab === "Pontos a desenvolver" && full ? (
-        <section className="assessment-section">
+        <section className="assessment-section assessment-section--development">
           <header>
+            <span className="assessment-section__eyebrow">Desenvolvimento</span>
             <h3>Pontos a desenvolver</h3>
             <p>Prioridades exploratórias para a conversa de mentoria.</p>
           </header>
@@ -663,9 +673,10 @@ function AssessmentReport({
       ) : null}
 
       {tab === "Plano de desenvolvimento" ? (
-        <section className="assessment-section">
+        <section className="assessment-section assessment-section--plan">
           <header className="assessment-section__actions">
             <div>
+              <span className="assessment-section__eyebrow">Acompanhamento</span>
               <h3>Plano de desenvolvimento</h3>
               <p>Ações acordadas entre mentora e mentorada, com acompanhamento de progresso.</p>
             </div>
@@ -804,8 +815,9 @@ function AssessmentReport({
       ) : null}
 
       {tab === "Leituras recomendadas" ? (
-        <section className="assessment-section">
+        <section className="assessment-section assessment-section--readings">
           <header>
+            <span className="assessment-section__eyebrow">Curadoria personalizada</span>
             <h3>Leituras recomendadas</h3>
             <p>Indicações personalizadas que exigem validação antes de serem exibidas.</p>
           </header>
@@ -853,8 +865,9 @@ function AssessmentReport({
       ) : null}
 
       {tab === "Testes realizados" ? (
-        <section className="assessment-section">
+        <section className="assessment-section assessment-section--history">
           <header>
+            <span className="assessment-section__eyebrow">Histórico preservado</span>
             <h3>Testes realizados</h3>
             <p>Cada aplicação mantém sua versão e regra de cálculo original.</p>
           </header>
@@ -867,7 +880,9 @@ function AssessmentReport({
                   {formatDate(item.completed_at)} · versão {item.assessment_version}
                 </span>
               </div>
-              <span>{item.status === "completed" ? "Concluído" : "Em andamento"}</span>
+              <span className={`assessment-history-status is-${item.status}`}>
+                {item.status === "completed" ? "Concluído" : "Em andamento"}
+              </span>
             </article>
           ))}
         </section>

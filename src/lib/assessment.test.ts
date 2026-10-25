@@ -291,3 +291,30 @@ test("perfil da mentorada direciona cada aba para a seção funcional correspond
   assert.match(report, /activeTab=\{activeTab\}/);
   assert.match(report, /Pesquisar e gerar leituras/);
 });
+
+test("relatório mantém hierarquia visual consistente e não duplica o contexto nas abas externas", () => {
+  const report = readFileSync(
+    new URL("../components/rise-assessment.tsx", import.meta.url),
+    "utf8",
+  );
+  const styles = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
+
+  assert.match(report, /const showReportContext = !hideTabs \|\| tab === "Mapeamento"/);
+  for (const section of [
+    "mapping",
+    "leadership",
+    "competencies",
+    "development",
+    "plan",
+    "readings",
+    "history",
+  ]) {
+    assert.match(report, new RegExp(`assessment-section assessment-section--${section}`));
+  }
+  assert.match(styles, /\.assessment-section__eyebrow/);
+  assert.match(
+    styles,
+    /\.assessment-comparison-list\s*\{[\s\S]*grid-template-columns:\s*repeat\(2/,
+  );
+  assert.match(styles, /\.assessment-reading-empty\s*\{[\s\S]*border:/);
+});
