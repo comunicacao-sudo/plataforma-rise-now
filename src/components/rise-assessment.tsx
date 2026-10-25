@@ -137,37 +137,36 @@ function DiscProfile({ result }: { result: CalculatedAssessmentResult["disc"] })
   );
 }
 
-function EmptyAI({ type }: { type: "actions" | "questions" | "communication" | "books" }) {
-  const content = {
-    actions: [
-      Target,
-      "Plano de ação sugerido",
-      "Sugestões aguardando análise da IA. A mentora poderá aceitar, adaptar ou ignorar antes de criar o plano oficial.",
-    ],
-    questions: [
-      MessageCircleQuestion,
-      "Perguntas para aprofundar",
-      "Perguntas personalizadas serão geradas quando a integração de IA estiver disponível.",
-    ],
-    communication: [
-      UsersRound,
-      "Eficácia da comunicação",
-      "Orientações de abordagem, feedback e negociação aguardando análise da IA.",
-    ],
-    books: [
-      BookOpen,
-      "Leituras recomendadas",
-      "Recomendações aguardando análise da IA. Nenhum livro fictício será exibido.",
-    ],
-  } as const;
-  const [Icon, title, copy] = content[type];
+function AIListCard({
+  icon: Icon,
+  title,
+  items,
+  emptyCopy,
+  privateToMentor = false,
+}: {
+  icon: typeof Sparkles;
+  title: string;
+  items: string[];
+  emptyCopy: string;
+  privateToMentor?: boolean;
+}) {
   return (
-    <article className="assessment-ai-empty">
+    <article className={`assessment-ai-card${items.length ? "" : " is-empty"}`}>
       <Icon size={24} />
       <div>
-        <span>Integração preparada</span>
+        <span>
+          {privateToMentor ? "Orientação privada da mentoria" : "Interpretação personalizada"}
+        </span>
         <h3>{title}</h3>
-        <p>{copy}</p>
+        {items.length ? (
+          <ul>
+            {items.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        ) : (
+          <p>{emptyCopy}</p>
+        )}
       </div>
     </article>
   );
@@ -231,15 +230,6 @@ function AIInterpretationPanel({
     );
   if (!output?.summary_for_mentee) return null;
 
-  const sections: Array<[keyof AIAssessmentInterpretation, string]> = [
-    ["strengths", "Forças observadas"],
-    ["competencies", "Competências em evidência"],
-    ["development_points", "Pontos de desenvolvimento"],
-    ["attention_points", "Pontos de atenção"],
-    ["behavior_patterns", "Padrões comportamentais"],
-    ["development_recommendations", "Recomendações de desenvolvimento"],
-    ["mentor_guidance", "Orientações para a mentoria"],
-  ];
   return (
     <section className="assessment-ai-panel assessment-ai-panel--generated">
       <header>
@@ -255,22 +245,9 @@ function AIInterpretationPanel({
       </header>
       <h3>{output.profile_essence ?? "Leitura personalizada"}</h3>
       <p>{output.summary_for_mentee}</p>
-      <div className="assessment-ai-panel__grid">
-        {sections.map(([key, title]) => {
-          const values = output[key];
-          if (!Array.isArray(values) || !values.length || key === "evidence_notes") return null;
-          return (
-            <article key={key}>
-              <strong>{title}</strong>
-              <ul>
-                {(values as string[]).map((value) => (
-                  <li key={value}>{value}</li>
-                ))}
-              </ul>
-            </article>
-          );
-        })}
-      </div>
+      <small className="assessment-ai-panel__hint">
+        A análise detalhada está organizada nas abas abaixo para facilitar a leitura.
+      </small>
       {mentor && output.evidence_notes?.length ? (
         <details>
           <summary>Evidências para revisão da equipe</summary>
@@ -330,14 +307,19 @@ function AssessmentReport({
   const isReleased = attempt?.report_status === "full_report_released";
   const visibleTabs = full
     ? tabs
-    : ([
-        "Visão geral",
-        "Mapeamento",
-        "Testes realizados",
-        "Plano de desenvolvimento",
-        "Leituras recomendadas",
-      ] as const);
+    : (["Visão geral", "Mapeamento", "Testes realizados", "Plano de desenvolvimento"] as const);
   const competencies = result.competencies ?? [];
+  const aiOutput = aiAnalysis?.output as Partial<AIAssessmentInterpretation> | null | undefined;
+  const reflectionQuestions =
+    aiOutput?.reflection_questions?.filter(Boolean) ??
+    result.development?.map((item) => item.reflectionQuestion).filter(Boolean) ??
+    [];
+  const communicationGuidance = [
+    ...(aiOutput?.communication_guidance?.filter(Boolean) ?? []),
+    ...(mentor ? (aiOutput?.mentor_guidance?.filter(Boolean) ?? []) : []),
+  ].filter((item, index, collection) => collection.indexOf(item) === index);
+  const actionSuggestions = aiOutput?.development_recommendations?.filter(Boolean) ?? [];
+  const recommendedReadings = aiOutput?.recommended_readings ?? [];
   const maxDiff = [...(result.comparisons ?? [])].sort(
     (a, b) => Math.abs(b.delta) - Math.abs(a.delta),
   )[0];
@@ -581,8 +563,19 @@ function AssessmentReport({
             ))}
           </div>
           <div className="assessment-ai-grid">
-            <EmptyAI type="questions" />
-            <EmptyAI type="communication" />
+            <AIListCard
+              icon={MessageCircleQuestion}
+              title="Perguntas para aprofundar"
+              items={reflectionQuestions}
+              emptyCopy="Esta versão da interpretação ainda não contém perguntas personalizadas."
+            />
+            <AIListCard
+              icon={UsersRound}
+              title="Eficácia da comunicação"
+              items={communicationGuidance}
+              emptyCopy="Esta versão da interpretação ainda não contém orientações de comunicação."
+              privateToMentor={mentor}
+            />
           </div>
         </section>
       ) : null}
@@ -629,7 +622,12 @@ function AssessmentReport({
               </article>
             ))}
           </div>
-          <EmptyAI type="actions" />
+          <AIListCard
+            icon={Target}
+            title="Plano de ação sugerido"
+            items={actionSuggestions}
+            emptyCopy="Esta versão da interpretação ainda não contém ações sugeridas."
+          />
         </section>
       ) : null}
 
@@ -780,7 +778,34 @@ function AssessmentReport({
             <h3>Leituras recomendadas</h3>
             <p>Indicações personalizadas que exigem validação antes de serem exibidas.</p>
           </header>
-          <EmptyAI type="books" />
+          {recommendedReadings.length ? (
+            <div className="assessment-reading-grid">
+              {recommendedReadings.map((reading) => (
+                <article key={`${reading.title}-${reading.author}`}>
+                  <BookOpen size={22} />
+                  <div>
+                    <h3>{reading.title}</h3>
+                    <span>{reading.author}</span>
+                    <p>{reading.rationale}</p>
+                    <div className="assessment-reading-sources">
+                      {reading.sources.map((source) => (
+                        <a key={source.url} href={source.url} target="_blank" rel="noreferrer">
+                          {source.title}
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <AIListCard
+              icon={BookOpen}
+              title="Leituras recomendadas"
+              items={[]}
+              emptyCopy="Nenhuma leitura foi validada nesta versão da interpretação. Regere a análise para pesquisar recomendações verificáveis."
+            />
+          )}
         </section>
       ) : null}
 
