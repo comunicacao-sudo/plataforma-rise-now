@@ -1526,6 +1526,8 @@ Os fatores D, I, S e C são intensidades independentes e não precisam somar 100
 Use somente os resultados fornecidos. Não faça diagnóstico clínico, não rotule a pessoa e não trate tendências como verdades absolutas.
 Escreva em português brasileiro, com linguagem respeitosa, objetiva e útil para desenvolvimento profissional.
 Cada afirmação deve ser compatível com os scores e evidências recebidos. Em evidence_notes, cite somente evidence_ids presentes na entrada.
+Gere reflection_questions como perguntas abertas, communication_guidance como orientações práticas e development_recommendations como ações observáveis.
+Para recommended_readings, pesquise na web e recomende somente livros reais, com autor correto e ao menos uma fonte HTTPS confiável por obra. Não invente títulos, autores ou links.
 summary_for_mentee deve ser um resumo seguro e acolhedor. mentor_guidance e evidence_notes são exclusivos da equipe até revisão.
 Retorne exclusivamente o JSON definido pelo schema.`;
 
@@ -1607,6 +1609,8 @@ async function requestAssessmentInterpretation(result: any) {
       max_output_tokens: 6000,
       instructions: AI_INSTRUCTIONS,
       input: JSON.stringify(assessmentAIInput(result)),
+      tools: [{ type: "web_search", search_context_size: "low" }],
+      tool_choice: "required",
       text: {
         format: {
           type: "json_schema",

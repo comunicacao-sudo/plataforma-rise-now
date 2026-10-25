@@ -1,7 +1,7 @@
 export const ASSESSMENT_VERSION = "rise-behavioral-disc-2.0";
 export const SCORING_VERSION = "rise-disc-scoring-2.0";
-export const PROMPT_VERSION = "rise-disc-insights-2.0";
-export const AI_OUTPUT_SCHEMA_VERSION = "rise-ai-output-2.0";
+export const PROMPT_VERSION = "rise-disc-insights-2.1";
+export const AI_OUTPUT_SCHEMA_VERSION = "rise-ai-output-2.1";
 
 export const AI_MENTEE_RELEASE_SECTIONS = [
   "summary_for_mentee",
@@ -12,6 +12,9 @@ export const AI_MENTEE_RELEASE_SECTIONS = [
   "attention_points",
   "behavior_patterns",
   "development_recommendations",
+  "reflection_questions",
+  "communication_guidance",
+  "recommended_readings",
 ] as const;
 
 export const AI_MENTOR_SECTIONS = [
@@ -25,6 +28,16 @@ export type AIAssessmentEvidenceNote = {
   evidence_ids: string[];
 };
 
+export type AIAssessmentReading = {
+  title: string;
+  author: string;
+  rationale: string;
+  sources: Array<{
+    title: string;
+    url: string;
+  }>;
+};
+
 export type AIAssessmentInterpretation = {
   summary_for_mentee: string;
   profile_essence: string;
@@ -34,6 +47,9 @@ export type AIAssessmentInterpretation = {
   attention_points: string[];
   behavior_patterns: string[];
   development_recommendations: string[];
+  reflection_questions: string[];
+  communication_guidance: string[];
+  recommended_readings: AIAssessmentReading[];
   mentor_guidance: string[];
   evidence_notes: AIAssessmentEvidenceNote[];
 };
@@ -72,6 +88,39 @@ export const AI_ASSESSMENT_OUTPUT_JSON_SCHEMA = {
       type: "array",
       items: { type: "string", minLength: 1 },
     },
+    reflection_questions: {
+      type: "array",
+      items: { type: "string", minLength: 1 },
+    },
+    communication_guidance: {
+      type: "array",
+      items: { type: "string", minLength: 1 },
+    },
+    recommended_readings: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["title", "author", "rationale", "sources"],
+        properties: {
+          title: { type: "string", minLength: 1 },
+          author: { type: "string", minLength: 1 },
+          rationale: { type: "string", minLength: 1 },
+          sources: {
+            type: "array",
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: ["title", "url"],
+              properties: {
+                title: { type: "string", minLength: 1 },
+                url: { type: "string", minLength: 1 },
+              },
+            },
+          },
+        },
+      },
+    },
     mentor_guidance: { type: "array", items: { type: "string", minLength: 1 } },
     evidence_notes: {
       type: "array",
@@ -102,7 +151,10 @@ export function parseAIAssessmentInterpretation(value: unknown): AIAssessmentInt
   const candidate = value as Record<string, unknown>;
   const arrayFields = AI_MENTOR_SECTIONS.filter(
     (field) =>
-      field !== "summary_for_mentee" && field !== "profile_essence" && field !== "evidence_notes",
+      field !== "summary_for_mentee" &&
+      field !== "profile_essence" &&
+      field !== "evidence_notes" &&
+      field !== "recommended_readings",
   );
   if (
     !isNonEmptyString(candidate["summary_for_mentee"]) ||
@@ -111,6 +163,29 @@ export function parseAIAssessmentInterpretation(value: unknown): AIAssessmentInt
     throw new Error("A interpretação da IA não contém os resumos obrigatórios.");
   if (arrayFields.some((field) => !isStringArray(candidate[field])))
     throw new Error("A interpretação da IA contém uma seção em formato inválido.");
+  if (
+    !Array.isArray(candidate["recommended_readings"]) ||
+    candidate["recommended_readings"].some(
+      (item) =>
+        !item ||
+        typeof item !== "object" ||
+        Array.isArray(item) ||
+        !isNonEmptyString((item as Record<string, unknown>)["title"]) ||
+        !isNonEmptyString((item as Record<string, unknown>)["author"]) ||
+        !isNonEmptyString((item as Record<string, unknown>)["rationale"]) ||
+        !Array.isArray((item as Record<string, unknown>)["sources"]) ||
+        ((item as Record<string, unknown>)["sources"] as unknown[]).some(
+          (source) =>
+            !source ||
+            typeof source !== "object" ||
+            Array.isArray(source) ||
+            !isNonEmptyString((source as Record<string, unknown>)["title"]) ||
+            !isNonEmptyString((source as Record<string, unknown>)["url"]) ||
+            !/^https:\/\//i.test(String((source as Record<string, unknown>)["url"])),
+        ),
+    )
+  )
+    throw new Error("As leituras recomendadas da interpretação da IA estão inválidas.");
   if (
     !Array.isArray(candidate["evidence_notes"]) ||
     candidate["evidence_notes"].some(

@@ -166,6 +166,16 @@ const aiFixture = {
   attention_points: ["Ponto de atenção."],
   behavior_patterns: ["Padrão relatado."],
   development_recommendations: ["Recomendação prática."],
+  reflection_questions: ["Qual situação concreta merece ser aprofundada?"],
+  communication_guidance: ["Combine contexto, mensagem e confirmação de entendimento."],
+  recommended_readings: [
+    {
+      title: "Livro real",
+      author: "Autoria verificada",
+      rationale: "Leitura ligada ao objetivo de desenvolvimento.",
+      sources: [{ title: "Fonte editorial", url: "https://example.com/livro" }],
+    },
+  ],
   mentor_guidance: ["Orientação exclusiva para a mentoria."],
   evidence_notes: [{ note: "Leitura apoiada pelas respostas.", evidence_ids: ["N01", "A01"] }],
 };
@@ -179,6 +189,16 @@ test("contrato da interpretação aceita somente a saída estruturada completa",
   assert.throws(
     () => parseAIAssessmentInterpretation({ ...aiFixture, summary_for_mentee: "" }),
     /resumos obrigatórios/i,
+  );
+  assert.throws(
+    () =>
+      parseAIAssessmentInterpretation({
+        ...aiFixture,
+        recommended_readings: [
+          { ...aiFixture.recommended_readings[0], sources: [{ title: "Fonte", url: "inventada" }] },
+        ],
+      }),
+    /leituras recomendadas/i,
   );
 });
 
@@ -204,10 +224,12 @@ test("integração de IA usa Responses API no backend e mantém idempotência no
   assert.match(backend, /type:\s*"json_schema"/);
   assert.match(backend, /strict:\s*true/);
   assert.match(backend, /store:\s*false/);
+  assert.match(backend, /type:\s*"web_search"/);
+  assert.match(backend, /tool_choice:\s*"required"/);
   assert.match(backend, /queueAssessmentAISafely/);
   assert.match(migration, /unique index/i);
   assert.match(migration, /attempt_id, audience, prompt_version/i);
-  assert.equal(PROMPT_VERSION, "rise-disc-insights-2.0");
+  assert.equal(PROMPT_VERSION, "rise-disc-insights-2.1");
 });
 
 test("backend usa os nomes reais dos parâmetros dos RPCs da jornada", () => {
@@ -225,4 +247,28 @@ test("backend usa os nomes reais dos parâmetros dos RPCs da jornada", () => {
   );
   assert.doesNotMatch(backend, /rpc\("save_journey_draft",\s*\{\s*_pillar_id:/);
   assert.doesNotMatch(backend, /rpc\("publish_journey_draft",\s*\{\s*_pillar_id:/);
+});
+
+test("publicação da jornada aceita frase de impacto opcional e preserva o rascunho em falha", () => {
+  const migration = readFileSync(
+    new URL("../../drizzle/migrations/0041_fix_journey_publish_validation.sql", import.meta.url),
+    "utf8",
+  );
+  const editor = readFileSync(new URL("../components/journey-admin.tsx", import.meta.url), "utf8");
+  assert.match(migration, /coalesce\(trim\(title\), ''\) = ''/i);
+  assert.match(migration, /coalesce\(trim\(description\), ''\) = ''/i);
+  assert.doesNotMatch(migration, /impact_lead\s*=\s*''/i);
+  assert.match(editor, /O rascunho foi salvo, mas a publicação não foi concluída/);
+  assert.match(editor, /invalidateJourneyData\(qc\)/);
+});
+
+test("relatório distribui a interpretação gerada e não exibe placeholders de integração", () => {
+  const report = readFileSync(
+    new URL("../components/rise-assessment.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(report, /reflection_questions/);
+  assert.match(report, /communication_guidance/);
+  assert.match(report, /recommended_readings/);
+  assert.doesNotMatch(report, /Integração preparada/);
 });

@@ -531,8 +531,17 @@ export function JourneyAdmin() {
 
   async function publishNow() {
     if (!selectedPillarId || !data) return;
+    const incomplete = steps.filter((step) => !step.title.trim() || !step.description.trim());
+    if (incomplete.length) {
+      const labels = incomplete
+        .map((step, index) => step.title.trim() || `Etapa ${index + 1}`)
+        .join(", ");
+      setMessage(`Preencha título e descrição antes de publicar: ${labels}.`);
+      return;
+    }
     setBusy("publish");
     setMessage("");
+    let draftWasSaved = false;
     try {
       // Always persist the exact editor state immediately before publishing.
       // This keeps the newly published version and the fresh draft clone identical,
@@ -544,6 +553,7 @@ export function JourneyAdmin() {
           steps,
         },
       });
+      draftWasSaved = true;
 
       await publish({
         data: {
@@ -565,7 +575,18 @@ export function JourneyAdmin() {
 
       setMessage("Alterações publicadas com sucesso.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Não foi possível publicar.");
+      const detail = error instanceof Error ? error.message : "Não foi possível publicar.";
+      if (draftWasSaved) {
+        setLocalSteps(null);
+        await invalidateJourneyData(qc);
+        await qc.refetchQueries({
+          queryKey: ["journey-editor", pillarId],
+          type: "active",
+        });
+        setMessage(`O rascunho foi salvo, mas a publicação não foi concluída: ${detail}`);
+      } else {
+        setMessage(detail);
+      }
     } finally {
       setBusy("");
     }
