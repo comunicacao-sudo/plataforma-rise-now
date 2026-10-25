@@ -465,6 +465,12 @@ export function JourneyAdmin() {
 
   const selectedPillarId = data?.selected?.id;
   const dirty = localSteps !== null;
+  const invalidSteps = steps.filter((step) =>
+    !step.title.trim() || !step.description.trim() ||
+    (step.accessScope === "cohort" && !step.cohortId) ||
+    (step.accessScope === "mentee" && !step.menteeId)
+  );
+  const canPublish = steps.length > 0 && invalidSteps.length === 0;
   const previewStep = useMemo<NextJourneyStep | null>(
     () =>
       preview
@@ -531,6 +537,10 @@ export function JourneyAdmin() {
 
   async function publishNow() {
     if (!selectedPillarId || !data) return;
+    if (!canPublish) {
+      setMessage("Revise título, descrição e público das etapas antes de publicar.");
+      return;
+    }
     setBusy("publish");
     setMessage("");
     try {
@@ -646,7 +656,7 @@ export function JourneyAdmin() {
             className="button button--primary"
             type="button"
             onClick={() => setPublishOpen(true)}
-            disabled={busy !== "" || !steps.length}
+            disabled={busy !== "" || !canPublish}
           >
             <Send size={17} /> Publicar este pilar
           </button>
@@ -762,7 +772,7 @@ export function JourneyAdmin() {
           {message ? (
             <p role="status">{message}</p>
           ) : (
-            <p>Salvar rascunho não altera a jornada publicada.</p>
+            <p>Salvar rascunho não altera a jornada publicada. A frase de impacto é opcional; publique o pilar para atualizar os mentorados.</p>
           )}
         </div>
         <div>
@@ -786,7 +796,7 @@ export function JourneyAdmin() {
             className="button button--primary"
             type="button"
             onClick={() => setPublishOpen(true)}
-            disabled={busy !== "" || !steps.length}
+            disabled={busy !== "" || !canPublish}
           >
             <Send size={17} /> Publicar alterações
           </button>
