@@ -2,7 +2,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   ArrowLeft,
-  BookOpen,
   CalendarDays,
   CalendarPlus,
   Check,
@@ -46,7 +45,10 @@ import {
 } from "@/components/rise-extras";
 import { JourneyAdmin } from "@/components/journey-admin";
 import { JourneyContentAdmin } from "@/components/journey-content-admin";
-import { AssessmentMentorContent } from "@/components/rise-assessment";
+import {
+  AssessmentMentorContent,
+  type AssessmentMentorSection,
+} from "@/components/rise-assessment";
 import { WhatsAppAdmin } from "@/components/whatsapp-admin";
 import { RiseCalendar, StaffBookingOfferings } from "@/components/rise-calendar";
 
@@ -1599,6 +1601,13 @@ const menteeProfileTabs: Array<{ id: MenteeProfileTab; label: string }> = [
   { id: "rise90", label: "RISE 90" },
 ];
 
+const assessmentTabByProfile: Partial<Record<MenteeProfileTab, AssessmentMentorSection>> = {
+  mapeamento: "Mapeamento",
+  testes: "Testes realizados",
+  plano: "Plano de desenvolvimento",
+  leituras: "Leituras recomendadas",
+};
+
 function MenteeProfilePage({
   enrollment,
   tab,
@@ -1610,6 +1619,8 @@ function MenteeProfilePage({
   onTab: (tab: MenteeProfileTab) => void;
   onBack: () => void;
 }) {
+  const assessmentTab = assessmentTabByProfile[tab];
+
   return (
     <main className="inner-page mentee-profile-page">
       <section className="page-width ops-section">
@@ -1658,15 +1669,13 @@ function MenteeProfilePage({
               </article>
             </div>
           ) : null}
-          {tab === "mapeamento" || tab === "testes" || tab === "plano" ? (
-            <AssessmentMentorContent enrollmentId={enrollment.id} name={enrollment.name} />
-          ) : null}
-          {tab === "leituras" ? (
-            <div className="ops-empty mentee-readings-empty">
-              <BookOpen size={28} />
-              <h2>Nenhuma leitura recomendada cadastrada</h2>
-              <p>A fonte de recomendações ainda não foi definida.</p>
-            </div>
+          {assessmentTab ? (
+            <AssessmentMentorContent
+              enrollmentId={enrollment.id}
+              name={enrollment.name}
+              activeTab={assessmentTab}
+              hideTabs
+            />
           ) : null}
           {tab === "rise90" ? (
             <Rise90StaffContent enrollmentId={enrollment.id} name={enrollment.name} />

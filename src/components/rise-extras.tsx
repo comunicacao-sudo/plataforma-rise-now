@@ -830,7 +830,19 @@ export function Rise90Live({ enrollmentId }: { enrollmentId: string }) {
 }
 
 export function Rise90StaffContent({ enrollmentId, name }: { enrollmentId: string; name: string }) {
-  const { data: goals = [] } = useGoals(enrollmentId);
+  const { data: goals = [], isLoading, isError, refetch } = useGoals(enrollmentId);
+  if (isLoading) return <div className="assessment-loading">Carregando RISE 90…</div>;
+  if (isError)
+    return (
+      <div className="assessment-empty">
+        <Target size={32} />
+        <h2>Não foi possível carregar o RISE 90</h2>
+        <p>A conexão não foi concluída. Tente novamente sem sair desta página.</p>
+        <button type="button" onClick={() => void refetch()}>
+          Tentar novamente
+        </button>
+      </div>
+    );
   return (
     <div className="rise90-staff-content">
       <span className="eyebrow eyebrow--gold">RISE 90</span>

@@ -69,6 +69,10 @@ const tabs = [
   "Leituras recomendadas",
 ] as const;
 type ReportTab = (typeof tabs)[number];
+export type AssessmentMentorSection = Extract<
+  ReportTab,
+  "Mapeamento" | "Testes realizados" | "Plano de desenvolvimento" | "Leituras recomendadas"
+>;
 
 function formatDate(value?: string | null) {
   if (!value) return "Não informado";
@@ -272,6 +276,8 @@ function AssessmentReport({
   mentor = false,
   enrollmentId,
   onChanged,
+  activeTab,
+  hideTabs = false,
 }: {
   result: PublicResult;
   full: boolean;
@@ -282,14 +288,18 @@ function AssessmentReport({
   mentor?: boolean;
   enrollmentId?: string | undefined;
   onChanged?: (() => void) | undefined;
+  activeTab?: ReportTab | undefined;
+  hideTabs?: boolean | undefined;
 }) {
-  const [tab, setTab] = useState<ReportTab>("Visão geral");
+  const [internalTab, setInternalTab] = useState<ReportTab>("Visão geral");
+  const tab = activeTab ?? internalTab;
   const [previewRelease, setPreviewRelease] = useState(false);
   const release = useServerFn(releaseAssessmentReport);
   const generateAI = useServerFn(generateAssessmentInterpretation);
   const savePlan = useServerFn(saveAssessmentDevelopmentPlan);
   const [busy, setBusy] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
+  const [actionMessage, setActionMessage] = useState("");
   const [planOpen, setPlanOpen] = useState(false);
   const [plan, setPlan] = useState({
     priorityFocus: "",
@@ -327,10 +337,14 @@ function AssessmentReport({
   async function confirmRelease() {
     if (!enrollmentId) return;
     setBusy(true);
+    setActionMessage("");
     try {
       await release({ data: { enrollmentId, attemptId: attempt.id } });
       setPreviewRelease(false);
+      setActionMessage("O mapeamento completo foi liberado para a mentorada.");
       onChanged?.();
+    } catch {
+      setActionMessage("Não foi possível liberar o mapeamento. Tente novamente.");
     } finally {
       setBusy(false);
     }
@@ -344,6 +358,7 @@ function AssessmentReport({
     )
       return;
     setBusy(true);
+    setActionMessage("");
     try {
       await savePlan({
         data: {
@@ -355,7 +370,10 @@ function AssessmentReport({
         },
       });
       setPlanOpen(false);
+      setActionMessage("Plano de desenvolvimento salvo com sucesso.");
       onChanged?.();
+    } catch {
+      setActionMessage("Não foi possível salvar o plano. Revise os campos e tente novamente.");
     } finally {
       setBusy(false);
     }
@@ -369,9 +387,15 @@ function AssessmentReport({
     )
       return;
     setAiBusy(true);
+    setActionMessage("");
     try {
       await generateAI({ data: { attemptId: attempt.id, force } });
+      setActionMessage("A interpretação personalizada foi atualizada.");
       onChanged?.();
+    } catch {
+      setActionMessage(
+        "A interpretação não pôde ser gerada agora. Nenhum resultado falso foi criado.",
+      );
     } finally {
       setAiBusy(false);
     }
@@ -429,18 +453,25 @@ function AssessmentReport({
         busy={aiBusy}
         onGenerate={(force) => void generateInterpretation(force)}
       />
-      <nav className="assessment-tabs" aria-label="Seções do mapeamento">
-        {visibleTabs.map((item) => (
-          <button
-            key={item}
-            type="button"
-            className={tab === item ? "is-active" : ""}
-            onClick={() => setTab(item)}
-          >
-            {item}
-          </button>
-        ))}
-      </nav>
+      {actionMessage ? (
+        <p className="form-message" role="status">
+          {actionMessage}
+        </p>
+      ) : null}
+      {!hideTabs ? (
+        <nav className="assessment-tabs" aria-label="Seções do mapeamento">
+          {visibleTabs.map((item) => (
+            <button
+              key={item}
+              type="button"
+              className={tab === item ? "is-active" : ""}
+              onClick={() => setInternalTab(item)}
+            >
+              {item}
+            </button>
+          ))}
+        </nav>
+      ) : null}
 
       {tab === "Visão geral" ? (
         <section className="assessment-section">
@@ -799,12 +830,24 @@ function AssessmentReport({
               ))}
             </div>
           ) : (
-            <AIListCard
-              icon={BookOpen}
-              title="Leituras recomendadas"
-              items={[]}
-              emptyCopy="Nenhuma leitura foi validada nesta versão da interpretação. Regere a análise para pesquisar recomendações verificáveis."
-            />
+            <div className="assessment-reading-empty">
+              <AIListCard
+                icon={BookOpen}
+                title="Leituras recomendadas"
+                items={[]}
+                emptyCopy="Nenhuma leitura foi validada nesta versão da interpretação. Gere a versão atual para pesquisar recomendações verificáveis."
+              />
+              {mentor ? (
+                <button
+                  type="button"
+                  disabled={aiBusy}
+                  onClick={() => void generateInterpretation(Boolean(aiAnalysis))}
+                >
+                  <Sparkles size={17} />
+                  {aiBusy ? "Pesquisando…" : "Pesquisar e gerar leituras"}
+                </button>
+              ) : null}
+            </div>
           )}
         </section>
       ) : null}
@@ -1194,9 +1237,13 @@ export function AssessmentProfileModal({ onClose }: { onClose: () => void }) {
 export function AssessmentMentorContent({
   enrollmentId,
   name,
+  activeTab,
+  hideTabs = false,
 }: {
   enrollmentId: string;
   name: string;
+  activeTab?: AssessmentMentorSection | undefined;
+  hideTabs?: boolean | undefined;
 }) {
   const load = useServerFn(getMentorAssessmentProfile);
   const query = useQuery({
@@ -1208,6 +1255,15 @@ export function AssessmentMentorContent({
     <div className="mentee-profile-assessment">
       {query.isLoading ? (
         <div className="assessment-loading">Carregando mapeamento…</div>
+      ) : query.isError ? (
+        <div className="assessment-empty">
+          <BrainCircuit size={34} />
+          <h2>Não foi possível carregar o acompanhamento</h2>
+          <p>A conexão não foi concluída. Tente novamente sem sair desta página.</p>
+          <button type="button" onClick={() => void query.refetch()}>
+            Tentar novamente
+          </button>
+        </div>
       ) : query.data?.latest?.calculated_result ? (
         <AssessmentReport
           result={query.data.latest.calculated_result as PublicResult}
@@ -1218,6 +1274,8 @@ export function AssessmentMentorContent({
           attempts={query.data.attempts ?? []}
           plans={query.data.plans ?? []}
           aiAnalysis={query.data.aiAnalysis ?? null}
+          activeTab={activeTab}
+          hideTabs={hideTabs}
           onChanged={() => void query.refetch()}
         />
       ) : (

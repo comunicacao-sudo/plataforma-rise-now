@@ -3814,6 +3814,27 @@ hr,
 .assessment-reading-sources a:hover {
   background: rgba(235, 192, 99, 0.1);
 }
+.assessment-reading-empty {
+  display: grid;
+  gap: 0.8rem;
+}
+.assessment-reading-empty > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  justify-self: start;
+  border: 1px solid rgba(235, 192, 99, 0.42);
+  border-radius: 0.7rem;
+  padding: 0.72rem 0.95rem;
+  background: rgba(235, 192, 99, 0.14);
+  color: #f8df9c;
+  cursor: pointer;
+}
+.assessment-reading-empty > button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
 .assessment-section__actions {
   display: flex;
   justify-content: space-between;

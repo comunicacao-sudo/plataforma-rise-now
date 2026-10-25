@@ -272,3 +272,22 @@ test("relatório distribui a interpretação gerada e não exibe placeholders de
   assert.match(report, /recommended_readings/);
   assert.doesNotMatch(report, /Integração preparada/);
 });
+
+test("perfil da mentorada direciona cada aba para a seção funcional correspondente", () => {
+  const profile = readFileSync(new URL("../components/rise-ops.tsx", import.meta.url), "utf8");
+  const report = readFileSync(
+    new URL("../components/rise-assessment.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(profile, /mapeamento:\s*"Mapeamento"/);
+  assert.match(profile, /testes:\s*"Testes realizados"/);
+  assert.match(profile, /plano:\s*"Plano de desenvolvimento"/);
+  assert.match(profile, /leituras:\s*"Leituras recomendadas"/);
+  assert.match(profile, /activeTab=\{assessmentTab\}/);
+  assert.match(profile, /hideTabs/);
+  assert.doesNotMatch(profile, /A fonte de recomendações ainda não foi definida/);
+  assert.match(report, /const tab = activeTab \?\? internalTab/);
+  assert.match(report, /activeTab=\{activeTab\}/);
+  assert.match(report, /Pesquisar e gerar leituras/);
+});
