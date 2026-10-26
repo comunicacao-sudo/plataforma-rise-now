@@ -69,6 +69,10 @@ const tabs = [
   "Leituras recomendadas",
 ] as const;
 type ReportTab = (typeof tabs)[number];
+export type AssessmentMentorSection = Extract<
+  ReportTab,
+  "Mapeamento" | "Testes realizados" | "Plano de desenvolvimento" | "Leituras recomendadas"
+>;
 
 function formatDate(value?: string | null) {
   if (!value) return "Não informado";
@@ -272,6 +276,8 @@ function AssessmentReport({
   mentor = false,
   enrollmentId,
   onChanged,
+  activeTab,
+  hideTabs = false,
 }: {
   result: PublicResult;
   full: boolean;
@@ -282,14 +288,18 @@ function AssessmentReport({
   mentor?: boolean;
   enrollmentId?: string | undefined;
   onChanged?: (() => void) | undefined;
+  activeTab?: ReportTab | undefined;
+  hideTabs?: boolean | undefined;
 }) {
-  const [tab, setTab] = useState<ReportTab>("Visão geral");
+  const [internalTab, setInternalTab] = useState<ReportTab>("Visão geral");
+  const tab = activeTab ?? internalTab;
   const [previewRelease, setPreviewRelease] = useState(false);
   const release = useServerFn(releaseAssessmentReport);
   const generateAI = useServerFn(generateAssessmentInterpretation);
   const savePlan = useServerFn(saveAssessmentDevelopmentPlan);
   const [busy, setBusy] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
+  const [actionMessage, setActionMessage] = useState("");
   const [planOpen, setPlanOpen] = useState(false);
   const [plan, setPlan] = useState({
     priorityFocus: "",
@@ -320,6 +330,7 @@ function AssessmentReport({
   ].filter((item, index, collection) => collection.indexOf(item) === index);
   const actionSuggestions = aiOutput?.development_recommendations?.filter(Boolean) ?? [];
   const recommendedReadings = aiOutput?.recommended_readings ?? [];
+  const showReportContext = !hideTabs || tab === "Mapeamento";
   const maxDiff = [...(result.comparisons ?? [])].sort(
     (a, b) => Math.abs(b.delta) - Math.abs(a.delta),
   )[0];
@@ -327,10 +338,14 @@ function AssessmentReport({
   async function confirmRelease() {
     if (!enrollmentId) return;
     setBusy(true);
+    setActionMessage("");
     try {
       await release({ data: { enrollmentId, attemptId: attempt.id } });
       setPreviewRelease(false);
+      setActionMessage("O mapeamento completo foi liberado para a mentorada.");
       onChanged?.();
+    } catch {
+      setActionMessage("Não foi possível liberar o mapeamento. Tente novamente.");
     } finally {
       setBusy(false);
     }
@@ -344,6 +359,7 @@ function AssessmentReport({
     )
       return;
     setBusy(true);
+    setActionMessage("");
     try {
       await savePlan({
         data: {
@@ -355,7 +371,10 @@ function AssessmentReport({
         },
       });
       setPlanOpen(false);
+      setActionMessage("Plano de desenvolvimento salvo com sucesso.");
       onChanged?.();
+    } catch {
+      setActionMessage("Não foi possível salvar o plano. Revise os campos e tente novamente.");
     } finally {
       setBusy(false);
     }
@@ -369,9 +388,15 @@ function AssessmentReport({
     )
       return;
     setAiBusy(true);
+    setActionMessage("");
     try {
       await generateAI({ data: { attemptId: attempt.id, force } });
+      setActionMessage("A interpretação personalizada foi atualizada.");
       onChanged?.();
+    } catch {
+      setActionMessage(
+        "A interpretação não pôde ser gerada agora. Nenhum resultado falso foi criado.",
+      );
     } finally {
       setAiBusy(false);
     }
@@ -379,26 +404,29 @@ function AssessmentReport({
 
   return (
     <div className="assessment-report">
-      <div className="assessment-report__hero">
-        <div>
-          <span className="eyebrow eyebrow--gold">Mapeamento Comportamental RISE</span>
-          <h2>{result.summary?.headline ?? "Resultado em construção"}</h2>
-          <p>
-            Aplicação de {formatDate(attempt?.completed_at)} · versão {attempt?.assessment_version}
-          </p>
+      {showReportContext ? (
+        <div className="assessment-report__hero">
+          <div>
+            <span className="eyebrow eyebrow--gold">Mapeamento Comportamental RISE</span>
+            <h2>{result.summary?.headline ?? "Resultado em construção"}</h2>
+            <p>
+              Aplicação de {formatDate(attempt?.completed_at)} · versão{" "}
+              {attempt?.assessment_version}
+            </p>
+          </div>
+          <span
+            className={`assessment-release assessment-release--${isReleased ? "released" : "locked"}`}
+          >
+            {isReleased ? <CheckCircle2 size={17} /> : <LockKeyhole size={17} />}
+            {isReleased
+              ? "Completo liberado"
+              : mentor
+                ? "Completo bloqueado para mentorada"
+                : "Resumo disponível"}
+          </span>
         </div>
-        <span
-          className={`assessment-release assessment-release--${isReleased ? "released" : "locked"}`}
-        >
-          {isReleased ? <CheckCircle2 size={17} /> : <LockKeyhole size={17} />}
-          {isReleased
-            ? "Completo liberado"
-            : mentor
-              ? "Completo bloqueado para mentorada"
-              : "Resumo disponível"}
-        </span>
-      </div>
-      {mentor && !isReleased ? (
+      ) : null}
+      {showReportContext && mentor && !isReleased ? (
         <div className="assessment-release-action">
           <div>
             <ShieldCheck size={21} />
@@ -412,9 +440,9 @@ function AssessmentReport({
           </button>
         </div>
       ) : null}
-      {result.disc ? (
+      {showReportContext && result.disc ? (
         <DiscProfile result={result.disc as CalculatedAssessmentResult["disc"]} />
-      ) : (
+      ) : showReportContext ? (
         <section className="assessment-disc assessment-disc--legacy">
           <h3>Resultado histórico preservado</h3>
           <p>
@@ -422,28 +450,37 @@ function AssessmentReport({
             disponível sem recálculo ou alteração silenciosa.
           </p>
         </section>
-      )}
-      <AIInterpretationPanel
-        analysis={aiAnalysis ?? null}
-        mentor={mentor}
-        busy={aiBusy}
-        onGenerate={(force) => void generateInterpretation(force)}
-      />
-      <nav className="assessment-tabs" aria-label="Seções do mapeamento">
-        {visibleTabs.map((item) => (
-          <button
-            key={item}
-            type="button"
-            className={tab === item ? "is-active" : ""}
-            onClick={() => setTab(item)}
-          >
-            {item}
-          </button>
-        ))}
-      </nav>
+      ) : null}
+      {showReportContext ? (
+        <AIInterpretationPanel
+          analysis={aiAnalysis ?? null}
+          mentor={mentor}
+          busy={aiBusy}
+          onGenerate={(force) => void generateInterpretation(force)}
+        />
+      ) : null}
+      {actionMessage ? (
+        <p className="form-message" role="status">
+          {actionMessage}
+        </p>
+      ) : null}
+      {!hideTabs ? (
+        <nav className="assessment-tabs" aria-label="Seções do mapeamento">
+          {visibleTabs.map((item) => (
+            <button
+              key={item}
+              type="button"
+              className={tab === item ? "is-active" : ""}
+              onClick={() => setInternalTab(item)}
+            >
+              {item}
+            </button>
+          ))}
+        </nav>
+      ) : null}
 
       {tab === "Visão geral" ? (
-        <section className="assessment-section">
+        <section className="assessment-section assessment-section--overview">
           <div className="assessment-overview-grid">
             <article>
               <span>Respostas</span>
@@ -504,8 +541,9 @@ function AssessmentReport({
       ) : null}
 
       {tab === "Mapeamento" ? (
-        <section className="assessment-section">
+        <section className="assessment-section assessment-section--mapping">
           <header>
+            <span className="assessment-section__eyebrow">Leitura comparativa</span>
             <h3>Perfil Natural × Perfil Adaptado</h3>
             <p>
               Natural representa a tendência espontânea relatada. Adaptado representa como a pessoa
@@ -544,8 +582,9 @@ function AssessmentReport({
       ) : null}
 
       {tab === "Liderança" && full ? (
-        <section className="assessment-section">
+        <section className="assessment-section assessment-section--leadership">
           <header>
+            <span className="assessment-section__eyebrow">Liderança</span>
             <h3>Como essa pessoa tende a liderar</h3>
             <p>
               Indicadores de desenvolvimento baseados nas práticas relatadas, sem classificar um
@@ -581,8 +620,9 @@ function AssessmentReport({
       ) : null}
 
       {tab === "Competências" && full ? (
-        <section className="assessment-section">
+        <section className="assessment-section assessment-section--competencies">
           <header>
+            <span className="assessment-section__eyebrow">Competências</span>
             <h3>Mapa de competências RISE</h3>
             <p>
               Tendências observadas nas respostas; não comprovam competência profissional objetiva.
@@ -593,7 +633,7 @@ function AssessmentReport({
               <article key={item.id}>
                 <div>
                   <strong>{item.name}</strong>
-                  <span>{item.adapted.toFixed(1)}</span>
+                  <span>Natural × Adaptado</span>
                 </div>
                 <ScoreBar value={item.adapted} natural={item.natural} />
                 <p>{item.definition}</p>
@@ -605,8 +645,9 @@ function AssessmentReport({
       ) : null}
 
       {tab === "Pontos a desenvolver" && full ? (
-        <section className="assessment-section">
+        <section className="assessment-section assessment-section--development">
           <header>
+            <span className="assessment-section__eyebrow">Desenvolvimento</span>
             <h3>Pontos a desenvolver</h3>
             <p>Prioridades exploratórias para a conversa de mentoria.</p>
           </header>
@@ -632,9 +673,10 @@ function AssessmentReport({
       ) : null}
 
       {tab === "Plano de desenvolvimento" ? (
-        <section className="assessment-section">
+        <section className="assessment-section assessment-section--plan">
           <header className="assessment-section__actions">
             <div>
+              <span className="assessment-section__eyebrow">Acompanhamento</span>
               <h3>Plano de desenvolvimento</h3>
               <p>Ações acordadas entre mentora e mentorada, com acompanhamento de progresso.</p>
             </div>
@@ -773,8 +815,9 @@ function AssessmentReport({
       ) : null}
 
       {tab === "Leituras recomendadas" ? (
-        <section className="assessment-section">
+        <section className="assessment-section assessment-section--readings">
           <header>
+            <span className="assessment-section__eyebrow">Curadoria personalizada</span>
             <h3>Leituras recomendadas</h3>
             <p>Indicações personalizadas que exigem validação antes de serem exibidas.</p>
           </header>
@@ -799,19 +842,32 @@ function AssessmentReport({
               ))}
             </div>
           ) : (
-            <AIListCard
-              icon={BookOpen}
-              title="Leituras recomendadas"
-              items={[]}
-              emptyCopy="Nenhuma leitura foi validada nesta versão da interpretação. Regere a análise para pesquisar recomendações verificáveis."
-            />
+            <div className="assessment-reading-empty">
+              <AIListCard
+                icon={BookOpen}
+                title="Leituras recomendadas"
+                items={[]}
+                emptyCopy="Nenhuma leitura foi validada nesta versão da interpretação. Gere a versão atual para pesquisar recomendações verificáveis."
+              />
+              {mentor ? (
+                <button
+                  type="button"
+                  disabled={aiBusy}
+                  onClick={() => void generateInterpretation(Boolean(aiAnalysis))}
+                >
+                  <Sparkles size={17} />
+                  {aiBusy ? "Pesquisando…" : "Pesquisar e gerar leituras"}
+                </button>
+              ) : null}
+            </div>
           )}
         </section>
       ) : null}
 
       {tab === "Testes realizados" ? (
-        <section className="assessment-section">
+        <section className="assessment-section assessment-section--history">
           <header>
+            <span className="assessment-section__eyebrow">Histórico preservado</span>
             <h3>Testes realizados</h3>
             <p>Cada aplicação mantém sua versão e regra de cálculo original.</p>
           </header>
@@ -824,7 +880,9 @@ function AssessmentReport({
                   {formatDate(item.completed_at)} · versão {item.assessment_version}
                 </span>
               </div>
-              <span>{item.status === "completed" ? "Concluído" : "Em andamento"}</span>
+              <span className={`assessment-history-status is-${item.status}`}>
+                {item.status === "completed" ? "Concluído" : "Em andamento"}
+              </span>
             </article>
           ))}
         </section>
@@ -1194,9 +1252,13 @@ export function AssessmentProfileModal({ onClose }: { onClose: () => void }) {
 export function AssessmentMentorContent({
   enrollmentId,
   name,
+  activeTab,
+  hideTabs = false,
 }: {
   enrollmentId: string;
   name: string;
+  activeTab?: AssessmentMentorSection | undefined;
+  hideTabs?: boolean | undefined;
 }) {
   const load = useServerFn(getMentorAssessmentProfile);
   const query = useQuery({
@@ -1208,6 +1270,15 @@ export function AssessmentMentorContent({
     <div className="mentee-profile-assessment">
       {query.isLoading ? (
         <div className="assessment-loading">Carregando mapeamento…</div>
+      ) : query.isError ? (
+        <div className="assessment-empty">
+          <BrainCircuit size={34} />
+          <h2>Não foi possível carregar o acompanhamento</h2>
+          <p>A conexão não foi concluída. Tente novamente sem sair desta página.</p>
+          <button type="button" onClick={() => void query.refetch()}>
+            Tentar novamente
+          </button>
+        </div>
       ) : query.data?.latest?.calculated_result ? (
         <AssessmentReport
           result={query.data.latest.calculated_result as PublicResult}
@@ -1218,6 +1289,8 @@ export function AssessmentMentorContent({
           attempts={query.data.attempts ?? []}
           plans={query.data.plans ?? []}
           aiAnalysis={query.data.aiAnalysis ?? null}
+          activeTab={activeTab}
+          hideTabs={hideTabs}
           onChanged={() => void query.refetch()}
         />
       ) : (
