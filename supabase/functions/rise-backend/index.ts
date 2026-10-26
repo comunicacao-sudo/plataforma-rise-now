@@ -1524,11 +1524,23 @@ O cálculo é definitivo e foi feito pelo algoritmo RISE. Nunca recalcule, corri
 O instrumento RISE é inspirado no modelo DISC, sem alegação de certificação, oficialidade ou validação por terceiros.
 Os fatores D, I, S e C são intensidades independentes e não precisam somar 100%. Preserve Natural e Adaptado separadamente.
 Use somente os resultados fornecidos. Não faça diagnóstico clínico, não rotule a pessoa e não trate tendências como verdades absolutas.
-Escreva em português brasileiro, com linguagem respeitosa, objetiva e útil para desenvolvimento profissional.
-Cada afirmação deve ser compatível com os scores e evidências recebidos. Em evidence_notes, cite somente evidence_ids presentes na entrada.
-Gere reflection_questions como perguntas abertas, communication_guidance como orientações práticas e development_recommendations como ações observáveis.
+Escreva em português brasileiro, com linguagem respeitosa, clara, aprofundada e útil para desenvolvimento profissional. Evite frases telegráficas, repetição entre seções e generalidades que serviriam para qualquer pessoa.
+Cada afirmação deve ser compatível com os scores e evidências recebidos. Diferencie observação, hipótese exploratória, possível impacto e sugestão prática. Em evidence_notes, cite somente evidence_ids presentes na entrada.
+Entregue profundidade equivalente a uma devolutiva profissional completa:
+- summary_for_mentee: síntese acolhedora em 3 a 5 parágrafos, conectando perfil, contexto profissional, forças e prioridades sem expor notas privadas;
+- profile_essence: leitura integrada e específica, sem rótulo definitivo;
+- natural_profile_insights e adapted_profile_insights: explique padrões, recursos, necessidades e possíveis efeitos de cada perspectiva;
+- adaptation_dynamics: compare Natural e Adaptado, destacando aproximações, contrastes, possíveis demandas do contexto e perguntas que merecem validação;
+- strengths, competencies e leadership_insights: descreva manifestação provável, contribuição e condição em que cada recurso tende a funcionar melhor;
+- development_points, attention_points e behavior_patterns: apresente hipóteses cuidadosas, possíveis impactos e sinais concretos a observar, sem concluir incapacidade;
+- development_recommendations: ações observáveis, pequenas, mensuráveis e aplicáveis ao trabalho;
+- reflection_questions: perguntas abertas, específicas e não indutivas;
+- communication_guidance: orientações práticas de comunicação, feedback, alinhamento e tomada de decisão;
+- mentor_guidance: hipóteses e cuidados exclusivos da equipe, incluindo o que validar antes de concluir;
+- mentor_conversation_agenda: sequência sugerida para uma conversa de devolutiva, com objetivo e foco de cada etapa.
 Para recommended_readings, pesquise na web e recomende somente livros reais, com autor correto e ao menos uma fonte HTTPS confiável por obra. Não invente títulos, autores ou links.
 summary_for_mentee deve ser um resumo seguro e acolhedor. mentor_guidance e evidence_notes são exclusivos da equipe até revisão.
+Não repita scores em todas as seções e não crie percentis, benchmarks, diagnósticos ou comparações populacionais.
 Retorne exclusivamente o JSON definido pelo schema.`;
 
 function assessmentEvidenceIds(result: any) {
@@ -1606,7 +1618,7 @@ async function requestAssessmentInterpretation(result: any) {
       model,
       store: false,
       reasoning: { effort: "low" },
-      max_output_tokens: 6000,
+      max_output_tokens: 12000,
       instructions: AI_INSTRUCTIONS,
       input: JSON.stringify(assessmentAIInput(result)),
       tools: [{ type: "web_search", search_context_size: "low" }],
@@ -1620,7 +1632,7 @@ async function requestAssessmentInterpretation(result: any) {
         },
       },
     }),
-    signal: AbortSignal.timeout(90_000),
+    signal: AbortSignal.timeout(120_000),
   });
   if (!response.ok)
     throw new Error(`A OpenAI retornou HTTP ${response.status} para a geração da interpretação.`);

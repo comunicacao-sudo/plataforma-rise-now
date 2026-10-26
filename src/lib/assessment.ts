@@ -1,13 +1,17 @@
 export const ASSESSMENT_VERSION = "rise-behavioral-disc-2.0";
 export const SCORING_VERSION = "rise-disc-scoring-2.0";
-export const PROMPT_VERSION = "rise-disc-insights-2.1";
-export const AI_OUTPUT_SCHEMA_VERSION = "rise-ai-output-2.1";
+export const PROMPT_VERSION = "rise-disc-insights-2.2";
+export const AI_OUTPUT_SCHEMA_VERSION = "rise-ai-output-2.2";
 
 export const AI_MENTEE_RELEASE_SECTIONS = [
   "summary_for_mentee",
   "profile_essence",
+  "natural_profile_insights",
+  "adapted_profile_insights",
+  "adaptation_dynamics",
   "strengths",
   "competencies",
+  "leadership_insights",
   "development_points",
   "attention_points",
   "behavior_patterns",
@@ -20,6 +24,7 @@ export const AI_MENTEE_RELEASE_SECTIONS = [
 export const AI_MENTOR_SECTIONS = [
   ...AI_MENTEE_RELEASE_SECTIONS,
   "mentor_guidance",
+  "mentor_conversation_agenda",
   "evidence_notes",
 ] as const;
 
@@ -41,8 +46,12 @@ export type AIAssessmentReading = {
 export type AIAssessmentInterpretation = {
   summary_for_mentee: string;
   profile_essence: string;
+  natural_profile_insights: string[];
+  adapted_profile_insights: string[];
+  adaptation_dynamics: string[];
   strengths: string[];
   competencies: string[];
+  leadership_insights: string[];
   development_points: string[];
   attention_points: string[];
   behavior_patterns: string[];
@@ -51,6 +60,7 @@ export type AIAssessmentInterpretation = {
   communication_guidance: string[];
   recommended_readings: AIAssessmentReading[];
   mentor_guidance: string[];
+  mentor_conversation_agenda: string[];
   evidence_notes: AIAssessmentEvidenceNote[];
 };
 
@@ -77,27 +87,84 @@ export const AI_ASSESSMENT_OUTPUT_JSON_SCHEMA = {
   additionalProperties: false,
   required: [...AI_MENTOR_SECTIONS],
   properties: {
-    summary_for_mentee: { type: "string", minLength: 1 },
-    profile_essence: { type: "string", minLength: 1 },
-    strengths: { type: "array", items: { type: "string", minLength: 1 } },
-    competencies: { type: "array", items: { type: "string", minLength: 1 } },
-    development_points: { type: "array", items: { type: "string", minLength: 1 } },
-    attention_points: { type: "array", items: { type: "string", minLength: 1 } },
-    behavior_patterns: { type: "array", items: { type: "string", minLength: 1 } },
+    summary_for_mentee: { type: "string", minLength: 320 },
+    profile_essence: { type: "string", minLength: 160 },
+    natural_profile_insights: {
+      type: "array",
+      minItems: 3,
+      maxItems: 5,
+      items: { type: "string", minLength: 120 },
+    },
+    adapted_profile_insights: {
+      type: "array",
+      minItems: 3,
+      maxItems: 5,
+      items: { type: "string", minLength: 120 },
+    },
+    adaptation_dynamics: {
+      type: "array",
+      minItems: 3,
+      maxItems: 5,
+      items: { type: "string", minLength: 120 },
+    },
+    strengths: {
+      type: "array",
+      minItems: 4,
+      maxItems: 6,
+      items: { type: "string", minLength: 100 },
+    },
+    competencies: {
+      type: "array",
+      minItems: 4,
+      maxItems: 6,
+      items: { type: "string", minLength: 100 },
+    },
+    leadership_insights: {
+      type: "array",
+      minItems: 4,
+      maxItems: 6,
+      items: { type: "string", minLength: 100 },
+    },
+    development_points: {
+      type: "array",
+      minItems: 3,
+      maxItems: 5,
+      items: { type: "string", minLength: 110 },
+    },
+    attention_points: {
+      type: "array",
+      minItems: 3,
+      maxItems: 5,
+      items: { type: "string", minLength: 100 },
+    },
+    behavior_patterns: {
+      type: "array",
+      minItems: 4,
+      maxItems: 6,
+      items: { type: "string", minLength: 100 },
+    },
     development_recommendations: {
       type: "array",
-      items: { type: "string", minLength: 1 },
+      minItems: 4,
+      maxItems: 6,
+      items: { type: "string", minLength: 100 },
     },
     reflection_questions: {
       type: "array",
-      items: { type: "string", minLength: 1 },
+      minItems: 5,
+      maxItems: 7,
+      items: { type: "string", minLength: 40 },
     },
     communication_guidance: {
       type: "array",
-      items: { type: "string", minLength: 1 },
+      minItems: 4,
+      maxItems: 6,
+      items: { type: "string", minLength: 90 },
     },
     recommended_readings: {
       type: "array",
+      minItems: 3,
+      maxItems: 4,
       items: {
         type: "object",
         additionalProperties: false,
@@ -108,6 +175,8 @@ export const AI_ASSESSMENT_OUTPUT_JSON_SCHEMA = {
           rationale: { type: "string", minLength: 1 },
           sources: {
             type: "array",
+            minItems: 1,
+            maxItems: 2,
             items: {
               type: "object",
               additionalProperties: false,
@@ -121,9 +190,22 @@ export const AI_ASSESSMENT_OUTPUT_JSON_SCHEMA = {
         },
       },
     },
-    mentor_guidance: { type: "array", items: { type: "string", minLength: 1 } },
+    mentor_guidance: {
+      type: "array",
+      minItems: 4,
+      maxItems: 6,
+      items: { type: "string", minLength: 110 },
+    },
+    mentor_conversation_agenda: {
+      type: "array",
+      minItems: 4,
+      maxItems: 6,
+      items: { type: "string", minLength: 80 },
+    },
     evidence_notes: {
       type: "array",
+      minItems: 5,
+      maxItems: 8,
       items: {
         type: "object",
         additionalProperties: false,

@@ -3654,6 +3654,10 @@ hr,
   grid-template-columns: 1fr 1fr;
   gap: 0.8rem;
 }
+.assessment-ai-grid--overview,
+.assessment-ai-grid--mapping {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
 .assessment-ai-card {
   display: flex;
   gap: 0.8rem;
@@ -3681,6 +3685,10 @@ hr,
 }
 .assessment-ai-card h3 {
   margin: 0.2rem 0;
+  font-family: var(--font-serif);
+  font-size: 1.12rem;
+  font-weight: 500;
+  line-height: 1.25;
 }
 .assessment-ai-card p {
   margin: 0;
@@ -3701,6 +3709,10 @@ hr,
   color: rgba(255, 248, 236, 0.76);
   line-height: 1.5;
   overflow-wrap: anywhere;
+}
+.assessment-ai-card li + li {
+  padding-top: 0.55rem;
+  border-top: 1px solid rgba(235, 192, 99, 0.11);
 }
 .assessment-ai-card li::before {
   content: "✦";
@@ -3741,6 +3753,24 @@ hr,
 .assessment-ai-panel li {
   color: rgba(255, 248, 236, 0.76);
   line-height: 1.55;
+}
+.assessment-ai-panel__essence,
+.assessment-ai-panel__summary p {
+  white-space: pre-line;
+}
+.assessment-ai-panel__summary {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.95rem;
+  border: 1px solid rgba(235, 192, 99, 0.13);
+  border-radius: 0.7rem;
+  background: rgba(255, 255, 255, 0.025);
+}
+.assessment-ai-panel__summary > strong {
+  color: #f4d787;
+  font-size: 0.76rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 .assessment-ai-panel button {
   border: 1px solid rgba(235, 192, 99, 0.45);
@@ -4170,6 +4200,8 @@ hr,
   .assessment-leadership-grid,
   .assessment-competency-grid,
   .assessment-ai-grid,
+  .assessment-ai-grid--overview,
+  .assessment-ai-grid--mapping,
   .assessment-reading-grid,
   .assessment-form-grid {
     grid-template-columns: 1fr;
