@@ -247,8 +247,14 @@ function AIInterpretationPanel({
           </button>
         ) : null}
       </header>
-      <h3>{output.profile_essence ?? "Leitura personalizada"}</h3>
-      <p>{output.summary_for_mentee}</p>
+      <h3>{output.profile_essence ? "Leitura integrada do perfil" : "Leitura personalizada"}</h3>
+      {output.profile_essence ? (
+        <p className="assessment-ai-panel__essence">{output.profile_essence}</p>
+      ) : null}
+      <div className="assessment-ai-panel__summary">
+        <strong>Resumo para compartilhamento</strong>
+        <p>{output.summary_for_mentee}</p>
+      </div>
       <small className="assessment-ai-panel__hint">
         A análise detalhada está organizada nas abas abaixo para facilitar a leitura.
       </small>
@@ -320,6 +326,15 @@ function AssessmentReport({
     : (["Visão geral", "Mapeamento", "Testes realizados", "Plano de desenvolvimento"] as const);
   const competencies = result.competencies ?? [];
   const aiOutput = aiAnalysis?.output as Partial<AIAssessmentInterpretation> | null | undefined;
+  const naturalProfileInsights = aiOutput?.natural_profile_insights?.filter(Boolean) ?? [];
+  const adaptedProfileInsights = aiOutput?.adapted_profile_insights?.filter(Boolean) ?? [];
+  const adaptationDynamics = aiOutput?.adaptation_dynamics?.filter(Boolean) ?? [];
+  const aiStrengths = aiOutput?.strengths?.filter(Boolean) ?? [];
+  const aiCompetencies = aiOutput?.competencies?.filter(Boolean) ?? [];
+  const leadershipInsights = aiOutput?.leadership_insights?.filter(Boolean) ?? [];
+  const developmentPoints = aiOutput?.development_points?.filter(Boolean) ?? [];
+  const attentionPoints = aiOutput?.attention_points?.filter(Boolean) ?? [];
+  const behaviorPatterns = aiOutput?.behavior_patterns?.filter(Boolean) ?? [];
   const reflectionQuestions =
     aiOutput?.reflection_questions?.filter(Boolean) ??
     result.development?.map((item) => item.reflectionQuestion).filter(Boolean) ??
@@ -329,8 +344,15 @@ function AssessmentReport({
     ...(mentor ? (aiOutput?.mentor_guidance?.filter(Boolean) ?? []) : []),
   ].filter((item, index, collection) => collection.indexOf(item) === index);
   const actionSuggestions = aiOutput?.development_recommendations?.filter(Boolean) ?? [];
+  const mentorConversationAgenda = mentor
+    ? (aiOutput?.mentor_conversation_agenda?.filter(Boolean) ?? [])
+    : [];
   const recommendedReadings = aiOutput?.recommended_readings ?? [];
   const showReportContext = !hideTabs || tab === "Mapeamento";
+  const showLeadership = full && (tab === "Liderança" || (hideTabs && tab === "Mapeamento"));
+  const showCompetencies = full && (tab === "Competências" || (hideTabs && tab === "Mapeamento"));
+  const showDevelopment =
+    full && (tab === "Pontos a desenvolver" || (hideTabs && tab === "Mapeamento"));
   const maxDiff = [...(result.comparisons ?? [])].sort(
     (a, b) => Math.abs(b.delta) - Math.abs(a.delta),
   )[0];
@@ -536,6 +558,28 @@ function AssessmentReport({
               </ul>
             </article>
           </div>
+          {aiStrengths.length || behaviorPatterns.length || attentionPoints.length ? (
+            <div className="assessment-ai-grid assessment-ai-grid--overview">
+              <AIListCard
+                icon={Sparkles}
+                title="Forças em contexto"
+                items={aiStrengths}
+                emptyCopy="A interpretação atual ainda não detalhou as forças em contexto."
+              />
+              <AIListCard
+                icon={BrainCircuit}
+                title="Padrões observáveis"
+                items={behaviorPatterns}
+                emptyCopy="A interpretação atual ainda não detalhou os padrões observáveis."
+              />
+              <AIListCard
+                icon={ShieldCheck}
+                title="Pontos de atenção"
+                items={attentionPoints}
+                emptyCopy="A interpretação atual ainda não detalhou os pontos de atenção."
+              />
+            </div>
+          ) : null}
           <p className="assessment-notice">{result.summary?.notice}</p>
         </section>
       ) : null}
@@ -572,6 +616,30 @@ function AssessmentReport({
               </article>
             ))}
           </div>
+          {naturalProfileInsights.length ||
+          adaptedProfileInsights.length ||
+          adaptationDynamics.length ? (
+            <div className="assessment-ai-grid assessment-ai-grid--mapping">
+              <AIListCard
+                icon={BrainCircuit}
+                title="Leitura do perfil Natural"
+                items={naturalProfileInsights}
+                emptyCopy="A interpretação atual ainda não contém esta leitura."
+              />
+              <AIListCard
+                icon={UsersRound}
+                title="Leitura do perfil Adaptado"
+                items={adaptedProfileInsights}
+                emptyCopy="A interpretação atual ainda não contém esta leitura."
+              />
+              <AIListCard
+                icon={ArrowRight}
+                title="Dinâmica de adaptação"
+                items={adaptationDynamics}
+                emptyCopy="A interpretação atual ainda não contém esta comparação."
+              />
+            </div>
+          ) : null}
           <div className="assessment-limitations">
             <h3>Limites desta leitura</h3>
             {result.limitations?.map((line) => (
@@ -581,7 +649,7 @@ function AssessmentReport({
         </section>
       ) : null}
 
-      {tab === "Liderança" && full ? (
+      {showLeadership ? (
         <section className="assessment-section assessment-section--leadership">
           <header>
             <span className="assessment-section__eyebrow">Liderança</span>
@@ -601,6 +669,14 @@ function AssessmentReport({
               </article>
             ))}
           </div>
+          {leadershipInsights.length ? (
+            <AIListCard
+              icon={BrainCircuit}
+              title="Leitura integrada de liderança"
+              items={leadershipInsights}
+              emptyCopy="A interpretação atual ainda não contém esta leitura."
+            />
+          ) : null}
           <div className="assessment-ai-grid">
             <AIListCard
               icon={MessageCircleQuestion}
@@ -619,7 +695,7 @@ function AssessmentReport({
         </section>
       ) : null}
 
-      {tab === "Competências" && full ? (
+      {showCompetencies ? (
         <section className="assessment-section assessment-section--competencies">
           <header>
             <span className="assessment-section__eyebrow">Competências</span>
@@ -641,10 +717,26 @@ function AssessmentReport({
               </article>
             ))}
           </div>
+          {aiCompetencies.length || aiStrengths.length ? (
+            <div className="assessment-ai-grid">
+              <AIListCard
+                icon={Target}
+                title="Competências em contexto"
+                items={aiCompetencies}
+                emptyCopy="A interpretação atual ainda não detalhou as competências."
+              />
+              <AIListCard
+                icon={Sparkles}
+                title="Como potencializar as forças"
+                items={aiStrengths}
+                emptyCopy="A interpretação atual ainda não detalhou as forças."
+              />
+            </div>
+          ) : null}
         </section>
       ) : null}
 
-      {tab === "Pontos a desenvolver" && full ? (
+      {showDevelopment ? (
         <section className="assessment-section assessment-section--development">
           <header>
             <span className="assessment-section__eyebrow">Desenvolvimento</span>
@@ -663,12 +755,32 @@ function AssessmentReport({
               </article>
             ))}
           </div>
-          <AIListCard
-            icon={Target}
-            title="Plano de ação sugerido"
-            items={actionSuggestions}
-            emptyCopy="Esta versão da interpretação ainda não contém ações sugeridas."
-          />
+          <div className="assessment-ai-grid">
+            <AIListCard
+              icon={BrainCircuit}
+              title="Hipóteses de desenvolvimento"
+              items={developmentPoints}
+              emptyCopy="Esta versão da interpretação ainda não contém hipóteses aprofundadas."
+            />
+            <AIListCard
+              icon={ShieldCheck}
+              title="Sinais para observar"
+              items={attentionPoints}
+              emptyCopy="Esta versão da interpretação ainda não contém sinais personalizados."
+            />
+            <AIListCard
+              icon={Target}
+              title="Plano de ação sugerido"
+              items={actionSuggestions}
+              emptyCopy="Esta versão da interpretação ainda não contém ações sugeridas."
+            />
+            <AIListCard
+              icon={MessageCircleQuestion}
+              title="Perguntas para a conversa"
+              items={reflectionQuestions}
+              emptyCopy="Esta versão da interpretação ainda não contém perguntas personalizadas."
+            />
+          </div>
         </section>
       ) : null}
 
@@ -686,6 +798,15 @@ function AssessmentReport({
               </button>
             ) : null}
           </header>
+          {mentorConversationAgenda.length ? (
+            <AIListCard
+              icon={ClipboardList}
+              title="Roteiro sugerido para a devolutiva"
+              items={mentorConversationAgenda}
+              emptyCopy="A interpretação atual ainda não contém um roteiro de conversa."
+              privateToMentor
+            />
+          ) : null}
           {planOpen ? (
             <div className="assessment-plan-form">
               <h3>Plano acordado</h3>

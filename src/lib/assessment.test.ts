@@ -160,8 +160,12 @@ test("etapa do mapeamento permanece logo após o Mapa de Esclarecimento", () => 
 const aiFixture = {
   summary_for_mentee: "Resumo seguro para a mentorada.",
   profile_essence: "Essência exploratória do perfil.",
+  natural_profile_insights: ["Leitura aprofundada do perfil Natural."],
+  adapted_profile_insights: ["Leitura aprofundada do perfil Adaptado."],
+  adaptation_dynamics: ["Comparação cuidadosa entre as duas perspectivas."],
   strengths: ["Força baseada no resultado."],
   competencies: ["Competência observada."],
+  leadership_insights: ["Hipótese contextual sobre a prática de liderança."],
   development_points: ["Ponto de desenvolvimento."],
   attention_points: ["Ponto de atenção."],
   behavior_patterns: ["Padrão relatado."],
@@ -177,6 +181,7 @@ const aiFixture = {
     },
   ],
   mentor_guidance: ["Orientação exclusiva para a mentoria."],
+  mentor_conversation_agenda: ["Começar validando a leitura com a mentorada."],
   evidence_notes: [{ note: "Leitura apoiada pelas respostas.", evidence_ids: ["N01", "A01"] }],
 };
 
@@ -229,7 +234,9 @@ test("integração de IA usa Responses API no backend e mantém idempotência no
   assert.match(backend, /queueAssessmentAISafely/);
   assert.match(migration, /unique index/i);
   assert.match(migration, /attempt_id, audience, prompt_version/i);
-  assert.equal(PROMPT_VERSION, "rise-disc-insights-2.1");
+  assert.equal(PROMPT_VERSION, "rise-disc-insights-2.2");
+  assert.match(backend, /Entregue profundidade equivalente a uma devolutiva profissional completa/);
+  assert.match(backend, /max_output_tokens:\s*12000/);
 });
 
 test("backend usa os nomes reais dos parâmetros dos RPCs da jornada", () => {
@@ -270,6 +277,13 @@ test("relatório distribui a interpretação gerada e não exibe placeholders de
   assert.match(report, /reflection_questions/);
   assert.match(report, /communication_guidance/);
   assert.match(report, /recommended_readings/);
+  assert.match(report, /natural_profile_insights/);
+  assert.match(report, /adapted_profile_insights/);
+  assert.match(report, /adaptation_dynamics/);
+  assert.match(report, /mentor_conversation_agenda/);
+  assert.match(report, /tab === "Liderança" \|\| \(hideTabs && tab === "Mapeamento"\)/);
+  assert.match(report, /tab === "Competências" \|\| \(hideTabs && tab === "Mapeamento"\)/);
+  assert.match(report, /tab === "Pontos a desenvolver" \|\| \(hideTabs && tab === "Mapeamento"\)/);
   assert.doesNotMatch(report, /Integração preparada/);
 });
 
