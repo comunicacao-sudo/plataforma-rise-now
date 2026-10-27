@@ -30,7 +30,21 @@ function PublicPageShell({
       </a>
       <header className="rise-public-header">
         <a className="rise-public-brand" href="/sobre" aria-label="RISE Now — sobre a plataforma">
-          <img src="/brand/rise-logo-white-app.webp" width="92" height="72" alt="RISE Now" />
+          <img
+            className="rise-public-brand__dark"
+            src="/brand/rise-logo-white-app.webp"
+            width="92"
+            height="72"
+            alt="RISE Now"
+          />
+          <img
+            className="rise-public-brand__light"
+            src="/brand/rise-logo-marsala-app.webp"
+            width="92"
+            height="72"
+            alt=""
+            aria-hidden="true"
+          />
         </a>
         <a className="rise-public-access" href="/">
           Acessar a plataforma
@@ -332,3 +346,4 @@ export function TermsOfUsePage() {
     </PublicPageShell>
   );
 }
+

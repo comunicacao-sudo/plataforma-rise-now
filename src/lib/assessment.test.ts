@@ -291,6 +291,24 @@ test("relatório distribui a interpretação gerada e não exibe placeholders de
   assert.doesNotMatch(report, /Integração preparada/);
 });
 
+test("falha da versão atual preserva a última interpretação válida e permite nova tentativa", () => {
+  const backend = readFileSync(
+    new URL("../../supabase/functions/rise-backend/index.ts", import.meta.url),
+    "utf8",
+  );
+  const report = readFileSync(
+    new URL("../components/rise-assessment.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(backend, /legacy\?\.status === "generated"/);
+  assert.match(backend, /fallbackPromptVersion = legacy\.prompt_version/);
+  assert.match(report, /analysis\.status === "failed" && !output\?\.summary_for_mentee/);
+  assert.match(report, /A interpretação anterior/);
+  assert.match(report, /A versão mais completa continua pendente/);
+  assert.match(report, /analysis\.fallbackPromptVersion \?\? analysis\.promptVersion/);
+});
+
 test("perfil da mentorada direciona cada aba para a seção funcional correspondente", () => {
   const profile = readFileSync(new URL("../components/rise-ops.tsx", import.meta.url), "utf8");
   const report = readFileSync(
@@ -336,3 +354,4 @@ test("relatório mantém hierarquia visual consistente e não duplica o contexto
   );
   assert.match(styles, /\.assessment-reading-empty\s*\{[\s\S]*border:/);
 });
+

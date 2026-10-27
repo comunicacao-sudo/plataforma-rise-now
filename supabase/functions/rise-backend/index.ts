@@ -14,7 +14,7 @@ import {
   filterAssessmentResultForAudience,
   parseAIAssessmentInterpretation,
   projectAIAssessmentSections,
-} from "../../../src/lib/assessment.ts";
+} from "./assessment.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -1720,13 +1720,19 @@ async function persistCompletedAssessmentAI(
   });
 }
 
-async function applyAssessmentResponseState(row: any, attemptId: string, payload: any, model: string) {
+async function applyAssessmentResponseState(
+  row: any,
+  attemptId: string,
+  payload: any,
+  model: string,
+) {
   if (payload?.status === "completed") {
     await persistCompletedAssessmentAI(row.id, attemptId, payload, model);
     return "generated";
   }
   if (["failed", "cancelled", "incomplete"].includes(String(payload?.status))) {
-    const detail = payload?.error?.message ?? payload?.incomplete_details?.reason ?? payload?.status;
+    const detail =
+      payload?.error?.message ?? payload?.incomplete_details?.reason ?? payload?.status;
     await markAssessmentAIFailed(
       row.id,
       attemptId,
@@ -1883,8 +1889,9 @@ async function refreshPendingAssessmentAI(row: any) {
 }
 
 async function assessmentAIView(attemptId: string, options: { staff: boolean; released: boolean }) {
-  let row = await findAssessmentAIOutput(attemptId);
-  if (!row)
+  let row = await findAssessmentAIOutput(attemptId, PROMPT_VERSION);
+  const legacy = await findAssessmentAIOutput(attemptId);
+  if (!row && !legacy)
     return {
       status: "unavailable",
       promptVersion: PROMPT_VERSION,
@@ -1892,14 +1899,27 @@ async function assessmentAIView(attemptId: string, options: { staff: boolean; re
       authorizedSections: [],
       output: null,
       canRetry: true,
+      fallbackPromptVersion: null,
     };
+  if (!row && legacy) row = legacy;
   if (row.status === "pending") row = await refreshPendingAssessmentAI(row);
   let output = null;
+  let fallbackPromptVersion: string | null = null;
   if (row.status === "generated" && row.output) {
     if (options.staff) output = row.output;
     else if (options.released)
       output = projectAIAssessmentSections(row.output, row.authorized_sections ?? []);
     else output = projectAIAssessmentSections(row.output, ["summary_for_mentee"]);
+  } else if (
+    legacy?.status === "generated" &&
+    legacy.output &&
+    legacy.prompt_version !== row.prompt_version
+  ) {
+    fallbackPromptVersion = legacy.prompt_version;
+    if (options.staff) output = legacy.output;
+    else if (options.released)
+      output = projectAIAssessmentSections(legacy.output, legacy.authorized_sections ?? []);
+    else output = projectAIAssessmentSections(legacy.output, ["summary_for_mentee"]);
   }
   return {
     status: row.status,
@@ -1912,6 +1932,7 @@ async function assessmentAIView(attemptId: string, options: { staff: boolean; re
         : ["summary_for_mentee"],
     output,
     canRetry: row.status === "failed" || (options.staff && row.status === "generated"),
+    fallbackPromptVersion,
   };
 }
 
@@ -3229,3 +3250,4 @@ Deno.serve(async (request: Request) => {
     );
   }
 });
+

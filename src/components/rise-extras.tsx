@@ -21,6 +21,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { SectionHero } from "@/components/section-hero";
 import { getMentorDirectory } from "@/lib/mentor-directory.functions";
+import { applyRiseTheme, normalizeRiseTheme } from "@/lib/theme";
 
 /* ================= Calendar ================= */
 
@@ -1356,8 +1357,7 @@ export function ProfileModal({
         mentor_summary: p.mentor_summary ?? "",
         profession: p.profession ?? "",
         profession_visible: p.profession_visible ?? false,
-        theme_preference:
-          role === "mentee" ? "dark" : p.theme_preference === "light" ? "light" : "dark",
+        theme_preference: normalizeRiseTheme(p.theme_preference),
       });
   }, [p, role]);
   if (!p) return null;
@@ -1411,6 +1411,23 @@ export function ProfileModal({
     setPhotoFile(null);
     setMsg("Foto atualizada.");
   }
+  async function selectTheme(theme: ThemePreference) {
+    setForm((current) => ({ ...current, theme_preference: theme }));
+    applyRiseTheme(theme);
+    setMsg("");
+    const { error } = await supabase
+      .from("profiles")
+      .update({ theme_preference: theme })
+      .eq("id", currentProfile.id);
+    if (error) {
+      setMsg("O tema foi aplicado neste dispositivo, mas não foi possível sincronizá-lo.");
+      return;
+    }
+    qc.setQueryData<MyProfile | null>(["my-profile"], (current) =>
+      current ? { ...current, theme_preference: theme } : current,
+    );
+    setMsg("Tema sincronizado no seu perfil.");
+  }
   async function save() {
     setMsg("");
     if (form.display_name.trim().length < 2)
@@ -1433,11 +1450,15 @@ export function ProfileModal({
           role === "mentee" ? currentProfile.mentor_summary : form.mentor_summary.trim() || null,
         profession: form.profession.trim() || null,
         profession_visible: form.profession_visible,
-        theme_preference: role === "mentee" ? "dark" : form.theme_preference,
+        theme_preference: form.theme_preference,
       })
       .eq("id", currentProfile.id);
     setBusy(false);
     if (error) return setMsg("Não foi possível salvar.");
+    qc.setQueryData<MyProfile | null>(["my-profile"], (current) =>
+      current ? { ...current, ...form, theme_preference: form.theme_preference } : current,
+    );
+    applyRiseTheme(form.theme_preference);
     setMsg("Perfil salvo.");
     void qc.invalidateQueries();
   }
@@ -1467,29 +1488,19 @@ export function ProfileModal({
                 type="button"
                 className={form.theme_preference === "dark" ? "is-active" : ""}
                 aria-pressed={form.theme_preference === "dark"}
-                onClick={() => setForm({ ...form, theme_preference: "dark" })}
+                onClick={() => void selectTheme("dark")}
               >
                 <Moon size={17} /> Escuro
                 <span>#26312F</span>
               </button>
               <button
                 type="button"
-                className={[
-                  form.theme_preference === "light" ? "is-active" : "",
-                  role === "mentee" ? "is-disabled" : "",
-                ]
-                  .filter(Boolean)
-                  .join(" ")}
+                className={form.theme_preference === "light" ? "is-active" : ""}
                 aria-pressed={form.theme_preference === "light"}
-                aria-disabled={role === "mentee"}
-                disabled={role === "mentee"}
-                title={
-                  role === "mentee" ? "Tema claro em teste. Será liberado em breve." : undefined
-                }
-                onClick={() => setForm({ ...form, theme_preference: "light" })}
+                onClick={() => void selectTheme("light")}
               >
                 <Sun size={17} /> Claro
-                <span>{role === "mentee" ? "Em teste" : "#FFFFFF"}</span>
+                <span>#FFFFFF</span>
               </button>
             </div>
           </fieldset>
@@ -1702,3 +1713,4 @@ export function MenteeContactCard({ enrollmentId }: { enrollmentId: string }) {
     </div>
   );
 }
+

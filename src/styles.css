@@ -94,28 +94,33 @@ input:focus-visible {
 .platform-shell,
 .platform-shell[data-theme="dark"] {
   --rise-graphite: #26312f;
-  --rise-sand: #efc875;
+  --rise-sand: #d7b07a;
   --rise-terracotta: #b8755d;
   --rise-white: #ffffff;
   --platform-background: var(--rise-graphite);
   --platform-title: var(--rise-white);
-  --platform-text: var(--rise-sand);
-  --platform-muted: rgba(239, 200, 117, 0.78);
-  --platform-line: rgba(239, 200, 117, 0.3);
-  --platform-line-strong: rgba(239, 200, 117, 0.52);
-  --platform-surface: rgba(38, 49, 47, 0.9);
-  --platform-surface-soft: rgba(255, 255, 255, 0.045);
-  --platform-surface-strong: #1f2927;
+  --platform-text: #e8ded0;
+  --platform-muted: #a7b8a8;
+  --platform-line: rgba(215, 176, 122, 0.3);
+  --platform-line-strong: rgba(215, 176, 122, 0.56);
+  --platform-surface: rgba(36, 74, 69, 0.92);
+  --platform-surface-soft: rgba(36, 74, 69, 0.62);
+  --platform-surface-strong: #244a45;
   --platform-overlay: rgba(23, 31, 29, 0.82);
   --platform-shadow: rgba(8, 13, 12, 0.42);
+  --platform-card: rgba(36, 74, 69, 0.92);
+  --status-success: #8fbf91;
+  --status-warning: #e1b96f;
+  --status-danger: #e58e86;
+  --status-info: #9bb9c7;
   --background: var(--rise-graphite);
-  --foreground: var(--rise-sand);
-  --card: #2d3a37;
+  --foreground: #e8ded0;
+  --card: #244a45;
   --primary: var(--rise-sand);
-  --secondary: #34423f;
-  --muted: #303d3a;
-  --muted-foreground: rgba(239, 200, 117, 0.78);
-  --border: rgba(239, 200, 117, 0.24);
+  --secondary: #a7b8a8;
+  --muted: #314b47;
+  --muted-foreground: #a7b8a8;
+  --border: rgba(215, 176, 122, 0.3);
   --marsala: var(--rise-sand);
   --marsala-bright: var(--rise-sand);
   --rose: rgba(239, 200, 117, 0.8);
@@ -140,21 +145,26 @@ input:focus-visible {
   --platform-title: var(--rise-terracotta);
   --platform-text: var(--rise-graphite);
   --platform-muted: rgba(38, 49, 47, 0.7);
-  --platform-line: color-mix(in srgb, var(--rise-terracotta) 25%, white);
-  --platform-line-strong: color-mix(in srgb, var(--rise-terracotta) 48%, white);
-  --platform-surface: rgba(255, 255, 255, 0.92);
-  --platform-surface-soft: rgba(184, 117, 93, 0.055);
-  --platform-surface-strong: #fffaf7;
+  --platform-line: #e9d6ce;
+  --platform-line-strong: #d9b9ac;
+  --platform-surface: rgba(232, 222, 208, 0.94);
+  --platform-surface-soft: rgba(232, 222, 208, 0.66);
+  --platform-surface-strong: #e8ded0;
   --platform-overlay: rgba(255, 255, 255, 0.84);
   --platform-shadow: rgba(38, 49, 47, 0.12);
+  --platform-card: rgba(232, 222, 208, 0.94);
+  --status-success: #32745a;
+  --status-warning: #8b5c13;
+  --status-danger: #a23d37;
+  --status-info: #315f76;
   --background: var(--rise-white);
   --foreground: var(--rise-graphite);
-  --card: var(--rise-white);
-  --primary: var(--rise-terracotta);
-  --secondary: #fff7f3;
-  --muted: #f9efeb;
+  --card: #e8ded0;
+  --primary: var(--rise-graphite);
+  --secondary: #e9d6ce;
+  --muted: #f3e8df;
   --muted-foreground: rgba(38, 49, 47, 0.7);
-  --border: color-mix(in srgb, var(--rise-terracotta) 25%, white);
+  --border: #e9d6ce;
   --marsala: var(--rise-terracotta);
   --marsala-bright: var(--rise-terracotta);
   --rose: rgba(38, 49, 47, 0.72);
@@ -8228,11 +8238,11 @@ hr,
   color: var(--rise-graphite);
 }
 .platform-shell[data-theme="light"] :where(.button--primary, .status-pill) {
-  background: var(--rise-terracotta);
+  background: var(--rise-graphite);
   color: var(--rise-white);
 }
 .platform-shell[data-theme="light"] .button--primary:hover {
-  background: color-mix(in srgb, var(--rise-terracotta) 88%, black);
+  background: color-mix(in srgb, var(--rise-graphite) 88%, black);
 }
 .platform-shell[data-theme="light"] .button--glass {
   border-color: var(--platform-line-strong);
@@ -9690,9 +9700,8 @@ hr,
    O hero de onboarding conserva sua arte própria nas regras de .next-step-hero. */
 .platform-shell,
 .platform-shell[data-theme="dark"],
-.platform-shell[data-theme="light"],
-.login-shell,
-.loading-screen {
+html[data-theme="dark"] .login-shell,
+html[data-theme="dark"] .loading-screen {
   background-color: #082a24;
   background-image: url("/brand/rise-platform-fixed-background.png");
   background-repeat: no-repeat;
@@ -9700,6 +9709,19 @@ hr,
   background-size: cover;
   background-attachment: fixed;
   background-blend-mode: normal;
+}
+
+.platform-shell[data-theme="light"],
+html[data-theme="light"] .login-shell,
+html[data-theme="light"] .loading-screen {
+  background-color: #ffffff;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.74), rgba(255, 255, 255, 0.82)),
+    url("/brand/platform-light.webp");
+  background-repeat: no-repeat;
+  background-position: center center;
+  background-size: cover;
+  background-attachment: fixed;
 }
 
 .platform-shell :where(.inner-page, .mentee-home-view, .recorded-background) {
@@ -9726,8 +9748,10 @@ hr,
   .platform-shell,
   .platform-shell[data-theme="dark"],
   .platform-shell[data-theme="light"],
-  .login-shell,
-  .loading-screen {
+  html[data-theme="dark"] .login-shell,
+  html[data-theme="light"] .login-shell,
+  html[data-theme="dark"] .loading-screen,
+  html[data-theme="light"] .loading-screen {
     background-position: center center;
   }
 }
@@ -9738,8 +9762,35 @@ hr,
   display: flex;
   flex-direction: column;
   color: #d7b07a;
-  background: #26312f url("/brand/platform-dark.webp") center/cover fixed;
+  background: #082a24 url("/brand/rise-platform-fixed-background.png") center/cover fixed;
   font-family: "Montserrat", sans-serif;
+}
+
+html[data-theme="light"] .rise-public-shell {
+  color: #26312f;
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.76), rgba(255, 255, 255, 0.84)),
+    #ffffff url("/brand/platform-light.webp") center/cover fixed;
+}
+html[data-theme="light"] .rise-public-heading h1,
+html[data-theme="light"] .rise-public-document h2 {
+  color: #b8755d;
+}
+html[data-theme="light"] .rise-public-document,
+html[data-theme="light"] .rise-public-access,
+html[data-theme="light"] .rise-public-footer,
+html[data-theme="light"] .rise-public-eyebrow,
+html[data-theme="light"] .rise-public-updated {
+  color: #26312f;
+}
+html[data-theme="light"] .rise-public-header,
+html[data-theme="light"] .rise-public-footer,
+html[data-theme="light"] .rise-public-heading {
+  border-color: #e9d6ce;
+}
+html[data-theme="light"] .rise-public-review {
+  border-left-color: #b8755d;
+  background: rgba(232, 222, 208, 0.72);
 }
 .rise-public-skip {
   position: absolute;
@@ -9924,3 +9975,137 @@ hr,
 .login-panel__legal .rise-legal-links {
   font-size: 0.65rem;
 }
+
+/* Global light theme — semantic bridge for authentication, modals, forms and reports. */
+.rise-public-brand__light {
+  display: none !important;
+}
+html[data-theme="light"] .rise-public-brand__dark {
+  display: none !important;
+}
+html[data-theme="light"] .rise-public-brand__light {
+  display: block !important;
+}
+
+html[data-theme="light"] body {
+  color: #26312f;
+  background: #ffffff;
+}
+html[data-theme="light"] .login-panel {
+  border-left-color: #e9d6ce;
+  background: rgba(255, 255, 255, 0.9);
+  color: #26312f;
+}
+html[data-theme="light"] .login-panel__copy h1,
+html[data-theme="light"] .login-form label,
+html[data-theme="light"] .access-sent strong {
+  color: #b8755d;
+}
+html[data-theme="light"]
+  :where(
+    .login-panel__copy p,
+    .login-form__hint,
+    .login-form__links > span,
+    .login-form__secondary .demo-link,
+    .login-panel__legal,
+    .access-sent p
+  ) {
+  color: #26312f;
+}
+html[data-theme="light"] :where(.login-form__control, .login-form > input) {
+  border-color: #e9d6ce;
+  background: rgba(232, 222, 208, 0.78);
+  color: #26312f;
+}
+html[data-theme="light"] :where(.login-form__control input, .login-form__reveal) {
+  color: #26312f;
+}
+html[data-theme="light"] .login-form__control:focus-within,
+html[data-theme="light"] .login-form > input:focus {
+  border-color: #b8755d;
+  box-shadow: 0 0 0 3px rgba(184, 117, 93, 0.14);
+}
+html[data-theme="light"] .login-panel .button--primary {
+  background: #26312f;
+  color: #ffffff;
+}
+html[data-theme="light"] .login-shell__art {
+  background: transparent;
+}
+html[data-theme="light"] .login-shell__art::before {
+  color: rgba(184, 117, 93, 0.07);
+}
+html[data-theme="light"] .login-shell__mantra {
+  color: #26312f;
+}
+
+.platform-shell[data-theme="light"]
+  :where(
+    .content-modal,
+    .ops-modal,
+    .journey-editor-modal,
+    .assessment-profile-modal,
+    .assessment-release-preview > div,
+    .goal-editor,
+    .confirm-dialog
+  ) {
+  border-color: var(--platform-line-strong);
+  background: var(--platform-surface-strong);
+  color: var(--platform-text);
+}
+.platform-shell[data-theme="light"]
+  :where(
+    .dashboard-card,
+    .content-card,
+    .ops-card,
+    .journey-step-row,
+    .assessment-section,
+    .assessment-question,
+    .assessment-ai-panel,
+    .assessment-ai-card,
+    .assessment-reading-grid article,
+    .recorded-card,
+    .mentor-card,
+    .mentee-profile-header
+  ) {
+  border-color: var(--platform-line);
+  background: var(--platform-surface);
+  color: var(--platform-text);
+  box-shadow: 0 12px 30px var(--platform-shadow);
+}
+.platform-shell[data-theme="light"]
+  :where(input, textarea, select, .login-form__control, .notebook-editor, .marker-form textarea) {
+  border-color: var(--platform-line-strong);
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--platform-text);
+}
+.platform-shell[data-theme="light"] :where(input, textarea)::placeholder {
+  color: rgba(38, 49, 47, 0.58);
+}
+.platform-shell[data-theme="light"]
+  :where(.assessment-tabs button.is-active, .ops-subnav button.is-active) {
+  background: #26312f;
+  color: #ffffff;
+}
+.platform-shell :where(.is-success, .status-success, .status-pill--success) {
+  color: var(--status-success);
+}
+.platform-shell :where(.is-warning, .status-warning, .status-pill--warning) {
+  color: var(--status-warning);
+}
+.platform-shell :where(.is-danger, .status-danger, .form-error) {
+  color: var(--status-danger);
+}
+.platform-shell :where(.is-info, .status-info) {
+  color: var(--status-info);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .platform-shell,
+  .login-shell,
+  .loading-screen,
+  .rise-public-shell {
+    background-attachment: scroll;
+  }
+}
+

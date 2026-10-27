@@ -88,7 +88,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         href: appCss,
       },
       { rel: "icon", href: "/favicon.png", type: "image/png" },
-      { rel: "preload", href: "/brand/platform-dark.webp", as: "image", type: "image/webp" },
+      {
+        rel: "preload",
+        href: "/brand/rise-platform-fixed-background.png",
+        as: "image",
+        type: "image/png",
+      },
+      { rel: "preload", href: "/brand/platform-light.webp", as: "image", type: "image/webp" },
       { rel: "preload", href: "/brand/rise-logo-white-app.webp", as: "image", type: "image/webp" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
@@ -105,9 +111,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 });
 
 function RootShell({ children }: { children: ReactNode }) {
+  const themeBootstrap = `(()=>{try{const k="rise-theme-preference";const t=localStorage.getItem(k)==="light"?"light":"dark";document.documentElement.dataset.theme=t;document.documentElement.style.colorScheme=t}catch{document.documentElement.dataset.theme="dark";document.documentElement.style.colorScheme="dark"}})()`;
   return (
-    <html lang="pt-BR">
+    <html lang="pt-BR" data-theme="dark" suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: themeBootstrap }} />
         <HeadContent />
       </head>
       <body>
@@ -128,3 +136,4 @@ function RootComponent() {
     </QueryClientProvider>
   );
 }
+
