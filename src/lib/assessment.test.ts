@@ -354,4 +354,3 @@ test("relatório mantém hierarquia visual consistente e não duplica o contexto
   );
   assert.match(styles, /\.assessment-reading-empty\s*\{[\s\S]*border:/);
 });
-

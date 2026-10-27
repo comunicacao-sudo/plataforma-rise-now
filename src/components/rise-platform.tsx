@@ -1436,4 +1436,3 @@ export function RisePlatform() {
     </div>
   );
 }
-

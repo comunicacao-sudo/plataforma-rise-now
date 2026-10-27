@@ -30,4 +30,3 @@ export function applyRiseTheme(theme: RiseTheme, persistLocally = true) {
   }
   window.dispatchEvent(new CustomEvent<RiseTheme>(RISE_THEME_EVENT, { detail: resolved }));
 }
-

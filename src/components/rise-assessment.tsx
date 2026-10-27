@@ -1603,4 +1603,3 @@ export function AssessmentVisualQuestionPreview() {
     </main>
   );
 }
-

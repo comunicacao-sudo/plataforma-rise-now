@@ -9,4 +9,3 @@ test("normalizeRiseTheme accepts only the two supported themes", () => {
   assert.equal(normalizeRiseTheme("system"), "dark");
   assert.equal(normalizeRiseTheme(null), "dark");
 });
-
