@@ -412,8 +412,12 @@ function AssessmentReport({
     setAiBusy(true);
     setActionMessage("");
     try {
-      await generateAI({ data: { attemptId: attempt.id, force } });
-      setActionMessage("A interpretação personalizada foi atualizada.");
+      const analysis = await generateAI({ data: { attemptId: attempt.id, force } });
+      setActionMessage(
+        analysis?.status === "pending"
+          ? "A interpretação foi iniciada. Esta tela será atualizada automaticamente."
+          : "A interpretação personalizada foi atualizada.",
+      );
       onChanged?.();
     } catch {
       setActionMessage(
@@ -1294,6 +1298,8 @@ function AssessmentProfilePage({
     queryKey: ["rise-assessment-profile"],
     queryFn: () => load(),
     retry: false,
+    refetchInterval: (current) =>
+      current.state.data?.aiAnalysis?.status === "pending" ? 5_000 : false,
   });
   if (query.isLoading)
     return (
@@ -1386,6 +1392,8 @@ export function AssessmentMentorContent({
     queryKey: ["mentor-assessment", enrollmentId],
     queryFn: () => load({ data: { enrollmentId } }),
     retry: false,
+    refetchInterval: (current) =>
+      current.state.data?.aiAnalysis?.status === "pending" ? 5_000 : false,
   });
   return (
     <div className="mentee-profile-assessment">

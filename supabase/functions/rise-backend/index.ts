@@ -1517,6 +1517,8 @@ async function plans(c: Context, attemptId: string, includePrivate: boolean) {
 }
 
 const OPENAI_RESPONSES_ENDPOINT = "https://api.openai.com/v1/responses";
+const OPENAI_BACKGROUND_POLL_INTERVAL_MS = 4_000;
+const OPENAI_BACKGROUND_POLL_WINDOW_MS = 280_000;
 const AI_AUDIENCE = "mentor_full";
 const AI_RESPONSE_FORMAT_NAME = "rise_assessment_interpretation";
 const AI_INSTRUCTIONS = `Você interpreta resultados já calculados do Mapeamento de Desenvolvimento RISE.
@@ -1602,41 +1604,15 @@ function responseOutputText(payload: any) {
   throw new Error("A OpenAI não retornou a interpretação estruturada.");
 }
 
-async function requestAssessmentInterpretation(result: any) {
+function openAIConfiguration() {
   const apiKey = Deno.env.get("OPENAI_API_KEY")?.trim();
   const model = Deno.env.get("OPENAI_MODEL")?.trim();
   if (!apiKey) throw new Error("OPENAI_API_KEY não configurada no backend.");
   if (!model) throw new Error("OPENAI_MODEL não configurado no backend.");
+  return { apiKey, model };
+}
 
-  const response = await fetch(OPENAI_RESPONSES_ENDPOINT, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model,
-      store: false,
-      reasoning: { effort: "low" },
-      max_output_tokens: 12000,
-      instructions: AI_INSTRUCTIONS,
-      input: JSON.stringify(assessmentAIInput(result)),
-      tools: [{ type: "web_search", search_context_size: "low" }],
-      tool_choice: "required",
-      text: {
-        format: {
-          type: "json_schema",
-          name: AI_RESPONSE_FORMAT_NAME,
-          strict: true,
-          schema: AI_ASSESSMENT_OUTPUT_JSON_SCHEMA,
-        },
-      },
-    }),
-    signal: AbortSignal.timeout(120_000),
-  });
-  if (!response.ok)
-    throw new Error(`A OpenAI retornou HTTP ${response.status} para a geração da interpretação.`);
-  const payload = await response.json();
+function assessmentInterpretationFromPayload(payload: any, model: string) {
   if (payload?.status !== "completed")
     throw new Error(
       `A OpenAI encerrou a geração com status ${String(payload?.status ?? "desconhecido")}.`,
@@ -1653,24 +1629,168 @@ async function requestAssessmentInterpretation(result: any) {
   };
 }
 
-async function runAssessmentAIGeneration(rowId: string, attemptId: string, result: any) {
+async function startAssessmentInterpretation(result: any) {
+  const { apiKey, model } = openAIConfiguration();
+
+  const response = await fetch(OPENAI_RESPONSES_ENDPOINT, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model,
+      background: true,
+      store: false,
+      reasoning: { effort: "low" },
+      max_output_tokens: 12000,
+      instructions: AI_INSTRUCTIONS,
+      input: JSON.stringify(assessmentAIInput(result)),
+      tools: [{ type: "web_search", search_context_size: "low" }],
+      tool_choice: "required",
+      text: {
+        format: {
+          type: "json_schema",
+          name: AI_RESPONSE_FORMAT_NAME,
+          strict: true,
+          schema: AI_ASSESSMENT_OUTPUT_JSON_SCHEMA,
+        },
+      },
+    }),
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!response.ok)
+    throw new Error(`A OpenAI retornou HTTP ${response.status} ao iniciar a interpretação.`);
+  const payload = await response.json();
+  if (!payload?.id) throw new Error("A OpenAI não retornou o identificador da interpretação.");
+  return { payload, model };
+}
+
+async function retrieveAssessmentInterpretation(responseId: string) {
+  const { apiKey, model } = openAIConfiguration();
+  const response = await fetch(`${OPENAI_RESPONSES_ENDPOINT}/${encodeURIComponent(responseId)}`, {
+    method: "GET",
+    headers: { Authorization: `Bearer ${apiKey}` },
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (!response.ok)
+    throw new Error(`A OpenAI retornou HTTP ${response.status} ao consultar a interpretação.`);
+  return { payload: await response.json(), model };
+}
+
+function pendingAssessmentControl(row: any) {
+  const value = row?.output;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const responseId = value._pending_response_id;
+  if (typeof responseId !== "string" || !responseId) return null;
+  return {
+    responseId,
+    model: typeof value._pending_model === "string" ? value._pending_model : "",
+    startedAt:
+      typeof value._pending_started_at === "string" ? value._pending_started_at : row.created_at,
+  };
+}
+
+async function markAssessmentAIFailed(rowId: string, attemptId: string, message: string) {
+  console.error("assessment_ai_failed", { attemptId, promptVersion: PROMPT_VERSION, message });
+  await admin
+    .from("assessment_ai_outputs")
+    .update({ status: "failed", output: null, generated_at: null })
+    .eq("id", rowId)
+    .eq("status", "pending");
+}
+
+async function persistCompletedAssessmentAI(
+  rowId: string,
+  attemptId: string,
+  payload: any,
+  model: string,
+) {
+  const output = assessmentInterpretationFromPayload(payload, model);
+  const { error } = await admin
+    .from("assessment_ai_outputs")
+    .update({ status: "generated", output, generated_at: new Date().toISOString() })
+    .eq("id", rowId)
+    .eq("status", "pending");
+  if (error) throw new Error(error.message);
+  console.info("assessment_ai_generated", {
+    attemptId,
+    promptVersion: PROMPT_VERSION,
+    responseId: payload.id,
+  });
+}
+
+async function applyAssessmentResponseState(row: any, attemptId: string, payload: any, model: string) {
+  if (payload?.status === "completed") {
+    await persistCompletedAssessmentAI(row.id, attemptId, payload, model);
+    return "generated";
+  }
+  if (["failed", "cancelled", "incomplete"].includes(String(payload?.status))) {
+    const detail = payload?.error?.message ?? payload?.incomplete_details?.reason ?? payload?.status;
+    await markAssessmentAIFailed(
+      row.id,
+      attemptId,
+      `A OpenAI encerrou a geração: ${String(detail ?? "status desconhecido")}.`,
+    );
+    return "failed";
+  }
+  return "pending";
+}
+
+async function pollAssessmentAI(row: any, attemptId: string, responseId: string) {
+  const deadline = Date.now() + OPENAI_BACKGROUND_POLL_WINDOW_MS;
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, OPENAI_BACKGROUND_POLL_INTERVAL_MS));
+    try {
+      const { payload, model } = await retrieveAssessmentInterpretation(responseId);
+      const state = await applyAssessmentResponseState(row, attemptId, payload, model);
+      if (state !== "pending") return;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Falha não identificada.";
+      console.warn("assessment_ai_poll_retry", {
+        attemptId,
+        promptVersion: PROMPT_VERSION,
+        responseId,
+        message,
+      });
+    }
+  }
+  console.info("assessment_ai_poll_deferred", {
+    attemptId,
+    promptVersion: PROMPT_VERSION,
+    responseId,
+  });
+}
+
+async function beginAssessmentAIGeneration(row: any, attemptId: string, result: any) {
   try {
-    const output = await requestAssessmentInterpretation(result);
+    const { payload, model } = await startAssessmentInterpretation(result);
+    if (payload.status === "completed") {
+      await persistCompletedAssessmentAI(row.id, attemptId, payload, model);
+      return;
+    }
+    if (!["queued", "in_progress"].includes(String(payload.status))) {
+      await applyAssessmentResponseState(row, attemptId, payload, model);
+      return;
+    }
+    const pendingOutput = {
+      _pending_response_id: String(payload.id),
+      _pending_model: model,
+      _pending_started_at: new Date().toISOString(),
+    };
     const { error } = await admin
       .from("assessment_ai_outputs")
-      .update({ status: "generated", output, generated_at: new Date().toISOString() })
-      .eq("id", rowId)
+      .update({ output: pendingOutput })
+      .eq("id", row.id)
       .eq("status", "pending");
     if (error) throw new Error(error.message);
-    console.info("assessment_ai_generated", { attemptId, promptVersion: PROMPT_VERSION });
+    const task = pollAssessmentAI({ ...row, output: pendingOutput }, attemptId, String(payload.id));
+    const edgeRuntime = (globalThis as any).EdgeRuntime;
+    if (edgeRuntime?.waitUntil) edgeRuntime.waitUntil(task);
+    else await task;
   } catch (error) {
     const message = error instanceof Error ? error.message : "Falha não identificada.";
-    console.error("assessment_ai_failed", { attemptId, promptVersion: PROMPT_VERSION, message });
-    await admin
-      .from("assessment_ai_outputs")
-      .update({ status: "failed", output: null, generated_at: null })
-      .eq("id", rowId)
-      .eq("status", "pending");
+    await markAssessmentAIFailed(row.id, attemptId, message);
   }
 }
 
@@ -1714,10 +1834,7 @@ async function createAssessmentAIOutput(attemptId: string, result: any) {
 async function queueAssessmentAI(attemptId: string, result: any) {
   const { row, shouldGenerate } = await createAssessmentAIOutput(attemptId, result);
   if (!row || !shouldGenerate) return row;
-  const task = runAssessmentAIGeneration(row.id, attemptId, result);
-  const edgeRuntime = (globalThis as any).EdgeRuntime;
-  if (edgeRuntime?.waitUntil) edgeRuntime.waitUntil(task);
-  else await task;
+  await beginAssessmentAIGeneration(row, attemptId, result);
   return row;
 }
 
@@ -1735,8 +1852,38 @@ async function queueAssessmentAISafely(attemptId: string, result: any) {
   }
 }
 
+async function refreshPendingAssessmentAI(row: any) {
+  const control = pendingAssessmentControl(row);
+  if (!control) return row;
+  try {
+    const { payload, model } = await retrieveAssessmentInterpretation(control.responseId);
+    const state = await applyAssessmentResponseState(row, row.attempt_id, payload, model);
+    if (state === "pending") return row;
+    return (await findAssessmentAIOutput(row.attempt_id, row.prompt_version)) ?? row;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Falha não identificada.";
+    const startedAt = new Date(control.startedAt ?? row.created_at ?? 0).getTime();
+    const expired = Number.isFinite(startedAt) && Date.now() - startedAt > 10 * 60_000;
+    if (expired && message.includes("HTTP 404")) {
+      await markAssessmentAIFailed(
+        row.id,
+        row.attempt_id,
+        "A resposta assíncrona expirou antes da conclusão e precisa ser gerada novamente.",
+      );
+      return (await findAssessmentAIOutput(row.attempt_id, row.prompt_version)) ?? row;
+    }
+    console.warn("assessment_ai_refresh_deferred", {
+      attemptId: row.attempt_id,
+      promptVersion: row.prompt_version,
+      responseId: control.responseId,
+      message,
+    });
+    return row;
+  }
+}
+
 async function assessmentAIView(attemptId: string, options: { staff: boolean; released: boolean }) {
-  const row = await findAssessmentAIOutput(attemptId);
+  let row = await findAssessmentAIOutput(attemptId);
   if (!row)
     return {
       status: "unavailable",
@@ -1746,6 +1893,7 @@ async function assessmentAIView(attemptId: string, options: { staff: boolean; re
       output: null,
       canRetry: true,
     };
+  if (row.status === "pending") row = await refreshPendingAssessmentAI(row);
   let output = null;
   if (row.status === "generated" && row.output) {
     if (options.staff) output = row.output;
@@ -1783,7 +1931,7 @@ async function generateAssessmentAIExplicitly(c: Context, d: any) {
     const created = await createAssessmentAIOutput(attempt.id, attempt.calculated_result);
     row = created.row;
     if (created.shouldGenerate && row)
-      await runAssessmentAIGeneration(row.id, attempt.id, attempt.calculated_result);
+      await beginAssessmentAIGeneration(row, attempt.id, attempt.calculated_result);
   } else if (row.status === "failed" || (row.status === "generated" && d.force)) {
     const { data, error } = await c.admin
       .from("assessment_ai_outputs")
@@ -1795,7 +1943,7 @@ async function generateAssessmentAIExplicitly(c: Context, d: any) {
     if (error) throw new Error(error.message);
     if (data) {
       row = data;
-      await runAssessmentAIGeneration(row.id, attempt.id, attempt.calculated_result);
+      await beginAssessmentAIGeneration(row, attempt.id, attempt.calculated_result);
     }
   }
   await audit(c, d.force ? "assessment_ai_regenerated" : "assessment_ai_retried", attempt.id, {

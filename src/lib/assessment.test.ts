@@ -228,7 +228,11 @@ test("integração de IA usa Responses API no backend e mantém idempotência no
   assert.match(backend, /Deno\.env\.get\("OPENAI_MODEL"\)/);
   assert.match(backend, /type:\s*"json_schema"/);
   assert.match(backend, /strict:\s*true/);
+  assert.match(backend, /background:\s*true/);
   assert.match(backend, /store:\s*false/);
+  assert.match(backend, /retrieveAssessmentInterpretation/);
+  assert.match(backend, /_pending_response_id/);
+  assert.doesNotMatch(backend, /AbortSignal\.timeout\(120_000\)/);
   assert.match(backend, /type:\s*"web_search"/);
   assert.match(backend, /tool_choice:\s*"required"/);
   assert.match(backend, /queueAssessmentAISafely/);
