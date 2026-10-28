@@ -511,7 +511,7 @@ function GoalEditor({
             />
             <img
               className="goal-editor__logo goal-editor__logo--light"
-              src="/brand/rise-logo-marsala-app.webp"
+              src="/brand/rise-logo-light-app.webp"
               alt=""
             />
           </span>

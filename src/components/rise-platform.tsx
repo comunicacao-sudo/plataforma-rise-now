@@ -147,7 +147,7 @@ function RiseMark({ compact = false, onActivate }: { compact?: boolean; onActiva
           className="rise-mark__logo rise-mark__logo--dark"
         />
         <img
-          src="/brand/rise-logo-marsala-app.webp"
+          src="/brand/rise-logo-light-app.webp"
           alt=""
           className="rise-mark__logo rise-mark__logo--light"
         />

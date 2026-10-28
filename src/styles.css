@@ -38,20 +38,18 @@
 
 :root {
   color-scheme: dark;
-  --background: #090607;
-  --foreground: #f4e8dd;
-  --card: #160c0f;
-  --primary: #5a0f14;
-  --secondary: #32151c;
-  --muted: #231519;
-  --muted-foreground: #9e8b86;
-  --border: rgba(244, 232, 221, 0.1);
-  --marsala: #5a0f14;
-  --marsala-bright: #8f2838;
-  --rose: #99666b;
-  --gold: #d0ac5c;
-  --cream: #f4e8dd;
-  --ink: #090607;
+  --background: #26312f;
+  --foreground: #e8ded0;
+  --card: #244a45;
+  --primary: #d7b07a;
+  --secondary: #314b47;
+  --muted: #314b47;
+  --muted-foreground: #a7b8a8;
+  --border: rgba(215, 176, 122, 0.3);
+  --rose: #b8755d;
+  --gold: #d7b07a;
+  --cream: #ffffff;
+  --ink: #26312f;
   --font-display: "Cormorant Garamond", Georgia, serif;
 }
 
@@ -121,8 +119,6 @@ input:focus-visible {
   --muted: #314b47;
   --muted-foreground: #a7b8a8;
   --border: rgba(215, 176, 122, 0.3);
-  --marsala: var(--rise-sand);
-  --marsala-bright: var(--rise-sand);
   --rose: rgba(239, 200, 117, 0.8);
   --gold: var(--rise-sand);
   --cream: var(--rise-white);
@@ -165,8 +161,6 @@ input:focus-visible {
   --muted: #f3e8df;
   --muted-foreground: rgba(38, 49, 47, 0.7);
   --border: #e9d6ce;
-  --marsala: var(--rise-terracotta);
-  --marsala-bright: var(--rise-terracotta);
   --rose: rgba(38, 49, 47, 0.72);
   --gold: var(--rise-terracotta);
   --cream: var(--rise-graphite);
@@ -2055,7 +2049,7 @@ hr,
 .goal-card__progress span {
   display: block;
   height: 100%;
-  background: linear-gradient(90deg, var(--marsala-bright), var(--gold));
+  background: linear-gradient(90deg, var(--rise-terracotta), var(--gold));
 }
 .goal-card > small {
   grid-column: 1/-1;
@@ -2895,11 +2889,9 @@ hr,
 .assessment-page {
   min-height: calc(100vh - var(--header-height, 76px));
   padding: 1.5rem 0 5rem;
-  color: #fff8ec;
-  background-color: #1b0909;
-  background-image:
-    linear-gradient(rgba(27, 9, 9, 0.16), rgba(27, 9, 9, 0.28)),
-    url("/images/rise-universal-waves.png");
+  color: var(--platform-text);
+  background-color: transparent;
+  background-image: none;
   background-position: center top;
   background-size: cover;
   background-attachment: fixed;
@@ -3149,10 +3141,8 @@ hr,
   margin: auto;
   overflow-y: auto;
   border-color: rgba(235, 192, 99, 0.32);
-  background-color: #1b0909;
-  background-image:
-    linear-gradient(rgba(27, 9, 9, 0.78), rgba(27, 9, 9, 0.94)),
-    url("/images/rise-universal-waves.png");
+  background-color: var(--platform-surface-strong);
+  background-image: none;
   background-size: cover;
 }
 .assessment-profile-modal .content-modal__body {
@@ -4277,7 +4267,7 @@ hr,
   border-radius: 1rem;
   overflow: hidden;
   border: 1px solid var(--hairline, rgba(208, 172, 92, 0.25));
-  background: radial-gradient(circle at 30% 20%, #5a0f14 0%, #1a0607 55%, #070203 100%);
+  background: radial-gradient(circle at 30% 20%, #315d57 0%, #082a24 55%, #041e19 100%);
 }
 .lesson-player__media {
   width: 100%;
@@ -4611,7 +4601,7 @@ hr,
 }
 .ops-status--em_revisao {
   color: var(--cream);
-  background: var(--marsala-bright);
+  background: var(--rise-terracotta);
 }
 .ops-status--concluida {
   color: var(--gold);
@@ -4707,7 +4697,7 @@ hr,
   font-size: 0.85rem;
 }
 .ops-pills button.is-active {
-  background: var(--marsala);
+  background: var(--rise-terracotta);
   border-color: var(--gold);
 }
 .ops-checks {
@@ -5509,14 +5499,14 @@ hr,
   min-height: clamp(620px, 56vw, 820px);
   overflow: hidden;
   color: #fff9f3;
-  background: #240606;
+  background: #082a24;
 }
 
 .next-step-hero__art {
   position: absolute;
   inset: 0;
   z-index: -2;
-  background-image: url("/images/rise-next-step-bg.png");
+  background-image: none;
   background-position: center;
   background-size: cover;
 }
@@ -5685,7 +5675,7 @@ hr,
 .platform-shell--mentee[data-theme="dark"] .mentee-home-view {
   min-height: calc(100vh - 72px);
   background-color: #26312f;
-  background-image: url("/brand/mentee-home-dark.webp");
+  background-image: none;
   background-position: top center;
   background-size: cover;
   background-repeat: no-repeat;
@@ -5804,10 +5794,8 @@ hr,
   isolation: isolate;
   min-height: 100vh;
   color: #f2f0ef !important;
-  background-color: #1b0909 !important;
-  background-image:
-    linear-gradient(rgba(27, 9, 9, 0.2), rgba(27, 9, 9, 0.3)),
-    url("/images/rise-recorded-lessons-bg.png") !important;
+  background-color: transparent !important;
+  background-image: none !important;
   background-position: top center !important;
   background-size: cover !important;
   background-attachment: fixed !important;
@@ -5818,7 +5806,7 @@ hr,
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  background: linear-gradient(180deg, rgba(27, 9, 9, 0.1), rgba(27, 9, 9, 0.68) 58%, #1b0909 100%);
+  background: linear-gradient(180deg, rgba(8, 42, 36, 0.08), rgba(8, 42, 36, 0.44) 58%, #082a24 100%);
 }
 .recorded-back {
   display: inline-flex;
@@ -7217,7 +7205,7 @@ hr,
   display: block;
   height: 100%;
   border-radius: 8px;
-  background: linear-gradient(90deg, var(--marsala-bright), var(--gold));
+  background: linear-gradient(90deg, var(--rise-terracotta), var(--gold));
   transition: width 0.4s;
 }
 .x-goal {
@@ -7820,7 +7808,7 @@ hr,
   place-items: center;
   border: 1px solid rgba(208, 172, 92, 0.44);
   border-radius: 0.65rem;
-  background: linear-gradient(135deg, #641319, #250909 55%, #6f1b18);
+  background: linear-gradient(135deg, #244a45, #26312f 55%, #315d57);
   box-shadow: 0 14px 32px rgba(0, 0, 0, 0.24);
 }
 .journey-content-cover > div {
@@ -7853,7 +7841,7 @@ hr,
   border: 1px solid rgba(208, 172, 92, 0.45);
   border-radius: 999px;
   padding: 0.28rem 0.58rem;
-  background: rgba(27, 9, 9, 0.88);
+  background: rgba(38, 49, 47, 0.92);
   color: var(--gold);
   font-size: 0.65rem;
   font-weight: 700;
@@ -9222,7 +9210,7 @@ hr,
 }
 .platform-shell .next-step-hero__art {
   background-color: #26312f;
-  background-image: url("/images/rise-next-step-bg.png");
+  background-image: none;
   background-repeat: no-repeat;
   background-position: center center;
   background-size: cover;
@@ -9330,7 +9318,7 @@ hr,
   color: #d7b07a;
 }
 .platform-shell[data-theme="light"] .next-step-hero__art {
-  background-image: url("/images/rise-next-step-bg.png");
+  background-image: none;
 }
 .platform-shell[data-theme="light"] .next-step-hero {
   background: #26312f;
@@ -9506,7 +9494,7 @@ hr,
 .platform-shell--mentee[data-theme="dark"] .next-step-hero__art {
   display: block;
   background-color: #26312f;
-  background-image: url("/__l5e/assets-v1/cd5f5f7f-0362-45aa-9cba-bf2043bdd01a/mentee-hero-broto.png");
+  background-image: none;
   background-repeat: no-repeat;
   background-size: cover;
   background-position: right center;
@@ -10106,6 +10094,312 @@ html[data-theme="light"] .login-shell__mantra {
   .loading-screen,
   .rise-public-shell {
     background-attachment: scroll;
+  }
+}
+
+/* 2026-10-28 — contraste final do tema claro e fundo contínuo da página inicial.
+   Esta arte é exclusiva da visão inicial da mentorada. As demais páginas mantêm
+   o cenário global e as capas próprias cadastradas para cada conteúdo. */
+.platform-shell--mentee .mentee-home-view {
+  min-height: 100vh;
+  background-color: #082a24 !important;
+  background-image: url("/brand/mentee-home-continuous-dark.png") !important;
+  background-repeat: no-repeat !important;
+  background-position: top center !important;
+  background-size: 100% auto !important;
+}
+
+.platform-shell--mentee[data-theme="light"] .mentee-home-view {
+  background-color: #ffffff !important;
+  background-image: url("/brand/mentee-home-continuous-light.png") !important;
+}
+
+.platform-shell--mentee .mentee-home-view :where(.next-step-hero, .dashboard-body) {
+  background: transparent !important;
+}
+
+.platform-shell--mentee .mentee-home-view .next-step-hero__art,
+.platform-shell--mentee .mentee-home-view .next-step-hero__glow,
+.platform-shell--mentee .mentee-home-view .next-step-hero__wave,
+.platform-shell--mentee .mentee-home-view .next-step-hero__orbit,
+.platform-shell--mentee .mentee-home-view .next-step-hero__sprout {
+  display: none !important;
+  background: none !important;
+}
+
+.platform-shell--mentee .mentee-home-view .next-step-hero::after {
+  background: linear-gradient(90deg, rgba(4, 30, 25, 0.42), rgba(4, 30, 25, 0.06) 58%, transparent)
+    !important;
+}
+
+.platform-shell--mentee .mentee-home-view .next-step-hero h1,
+.platform-shell--mentee .mentee-home-view .next-step-hero h1 span,
+.platform-shell--mentee .mentee-home-view .next-step-hero h1 strong,
+.platform-shell--mentee .mentee-home-view .next-step-hero__title-fallback span {
+  color: #ffffff;
+}
+
+.platform-shell--mentee[data-theme="light"] .mentee-home-view .next-step-hero::after {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0.18) 62%, transparent)
+    !important;
+}
+
+.platform-shell--mentee[data-theme="light"] .mentee-home-view .next-step-hero h1,
+.platform-shell--mentee[data-theme="light"] .mentee-home-view .next-step-hero h1 span,
+.platform-shell--mentee[data-theme="light"] .mentee-home-view .next-step-hero__title-fallback span {
+  color: var(--rise-graphite);
+}
+
+.platform-shell--mentee[data-theme="light"] .mentee-home-view .next-step-hero h1 strong {
+  color: var(--rise-terracotta);
+}
+
+.platform-shell--mentee[data-theme="light"] .mentee-home-view .next-step-hero__copy > p,
+.platform-shell--mentee[data-theme="light"] .mentee-home-view .next-step-hero__meta span,
+.platform-shell--mentee[data-theme="light"] .mentee-home-view .next-step-hero__meta svg {
+  color: var(--rise-graphite);
+}
+
+.platform-shell--mentee[data-theme="light"] .mentee-home-view .next-step-hero__meta span + span {
+  border-left-color: rgba(184, 117, 93, 0.52);
+}
+
+.platform-shell--mentee[data-theme="light"] .mentee-home-view .next-step-hero__button {
+  border-color: var(--rise-graphite);
+  background: var(--rise-graphite);
+  color: #ffffff;
+  box-shadow: 0 10px 28px rgba(38, 49, 47, 0.18);
+}
+
+.platform-shell--mentee[data-theme="light"] .mentee-home-view .next-step-hero__button:hover {
+  background: #31413e;
+  box-shadow: 0 14px 32px rgba(38, 49, 47, 0.22);
+}
+
+.platform-shell--mentee[data-theme="light"] .mentee-home-view .next-step-hero__waiting {
+  border-left-color: var(--rise-terracotta);
+  background: rgba(255, 255, 255, 0.84);
+  color: var(--rise-graphite);
+}
+
+/* A capa de carregamento acompanha o tema e nunca revela a paleta legada. */
+.platform-shell .journey-content-cover {
+  border-color: var(--platform-line-strong);
+  background: linear-gradient(135deg, #244a45, #26312f 54%, #315d57);
+}
+
+.platform-shell .journey-content-cover > div {
+  background:
+    radial-gradient(circle at 18% 30%, rgba(215, 176, 122, 0.2), transparent 23%),
+    linear-gradient(125deg, transparent 20%, rgba(215, 176, 122, 0.12), transparent 65%);
+}
+
+.platform-shell[data-theme="light"] .journey-content-cover {
+  border-color: #d9b9ac;
+  background: linear-gradient(135deg, #ffffff, #f7efea 56%, #ead8d0);
+  box-shadow: 0 14px 32px rgba(38, 49, 47, 0.1);
+}
+
+.platform-shell[data-theme="light"] .journey-content-cover > div {
+  background:
+    radial-gradient(circle at 18% 30%, rgba(184, 117, 93, 0.12), transparent 24%),
+    linear-gradient(125deg, transparent 20%, rgba(184, 117, 93, 0.08), transparent 65%);
+}
+
+.platform-shell[data-theme="light"] .journey-content-cover > svg {
+  color: var(--rise-terracotta);
+  filter: none;
+}
+
+.platform-shell[data-theme="light"] .journey-content-cover > span {
+  border-color: #d9b9ac;
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--rise-graphite);
+}
+
+/* Tema claro: reforço semântico de contraste em todas as visões autenticadas. */
+.platform-shell[data-theme="light"] {
+  color: var(--rise-graphite);
+}
+
+.platform-shell[data-theme="light"]
+  :where(
+    .inner-page,
+    .dashboard-body,
+    .content-section,
+    .ops-section,
+    .assessment-report,
+    .content-modal__body,
+    .journey-editor-page,
+    .content-admin-page,
+    .mentor-directory-page,
+    .recorded-background
+  ) {
+  color: var(--rise-graphite);
+}
+
+.platform-shell[data-theme="light"]
+  :where(
+    .page-intro p,
+    .section-heading p,
+    .ops-muted,
+    .ops-empty,
+    .journey-content-loading,
+    .journey-content-state p,
+    .content-admin-empty p,
+    .mentor-directory__state p,
+    .recorded-section > header p,
+    .recorded-card p,
+    .assessment-report__hero p,
+    .assessment-section > header p,
+    .assessment-section__actions p,
+    .assessment-overview-grid small,
+    .assessment-callout p,
+    .assessment-two-cols p,
+    .assessment-comparison-list p,
+    .assessment-comparison-list small,
+    .assessment-leadership-grid p,
+    .assessment-leadership-grid small,
+    .assessment-competency-grid p,
+    .assessment-competency-grid small,
+    .assessment-development-list p,
+    .assessment-limitations p,
+    .assessment-history-item span,
+    .assessment-plans p,
+    .assessment-plans small,
+    .assessment-reading-grid p,
+    .assessment-reading-sources a,
+    .assessment-empty p,
+    .assessment-release-action small,
+    .assessment-ai-card p,
+    .assessment-ai-card li,
+    .assessment-ai-panel__hint,
+    .assessment-ai-panel details small
+  ) {
+  color: var(--platform-muted) !important;
+}
+
+.platform-shell[data-theme="light"]
+  :where(
+    .assessment-report h1,
+    .assessment-report h2,
+    .assessment-report h3,
+    .assessment-report h4,
+    .assessment-report strong,
+    .assessment-callout,
+    .assessment-ai-panel h3,
+    .assessment-ai-panel p,
+    .assessment-ai-panel li,
+    .assessment-ai-panel__essence,
+    .assessment-ai-panel__summary p,
+    .assessment-ai-panel details p,
+    .assessment-reading-grid h3,
+    .assessment-form-grid label,
+    .assessment-form-grid label span,
+    .assessment-checkbox,
+    .assessment-release-preview p,
+    .assessment-release-preview li
+  ) {
+  color: var(--rise-graphite) !important;
+}
+
+.platform-shell[data-theme="light"]
+  :where(
+    .assessment-section,
+    .assessment-question,
+    .assessment-overview-grid article,
+    .assessment-two-cols article,
+    .assessment-leadership-grid article,
+    .assessment-competency-grid article,
+    .assessment-development-list article,
+    .assessment-history-item,
+    .assessment-plans article,
+    .assessment-reading-grid > article,
+    .assessment-ai-card,
+    .assessment-ai-panel,
+    .assessment-ai-panel__summary,
+    .assessment-ai-panel__grid article,
+    .assessment-limitations,
+    .assessment-plan-form,
+    .assessment-empty,
+    .assessment-release-action
+  ) {
+  border-color: var(--platform-line-strong) !important;
+  background: rgba(255, 255, 255, 0.86) !important;
+  color: var(--rise-graphite) !important;
+  box-shadow: 0 12px 28px rgba(38, 49, 47, 0.08);
+}
+
+.platform-shell[data-theme="light"]
+  :where(
+    .assessment-ai-panel span,
+    .assessment-ai-panel__summary > strong,
+    .assessment-ai-panel summary,
+    .assessment-section__eyebrow,
+    .assessment-reading-grid span,
+    .assessment-reading-grid svg,
+    .assessment-ai-card svg,
+    .assessment-ai-card li::before
+  ) {
+  color: var(--rise-terracotta) !important;
+}
+
+.platform-shell[data-theme="light"]
+  :where(
+    .assessment-ai-panel button,
+    .assessment-section__actions button,
+    .assessment-plan-form > button,
+    .assessment-reading-empty > button,
+    .assessment-release-action button,
+    .assessment-release-preview button:not(.assessment-close)
+  ) {
+  border-color: var(--rise-graphite) !important;
+  background: var(--rise-graphite) !important;
+  color: #ffffff !important;
+}
+
+.platform-shell[data-theme="light"]
+  :where(.modal-close, .assessment-close, .journey-preview__close, .journey-publish-card__close) {
+  border-color: var(--platform-line-strong) !important;
+  background: #ffffff !important;
+  color: var(--rise-graphite) !important;
+}
+
+.platform-shell[data-theme="light"] .assessment-profile-modal > .content-modal,
+.platform-shell[data-theme="light"] .assessment-profile-modal .assessment-page {
+  background-color: var(--platform-surface-strong) !important;
+  background-image: none !important;
+}
+
+.platform-shell[data-theme="light"] .assessment-tabs {
+  border-color: var(--platform-line-strong);
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.platform-shell[data-theme="light"] .assessment-tabs button {
+  color: var(--rise-graphite);
+}
+
+.platform-shell[data-theme="light"] .assessment-tabs button.is-active {
+  border-color: var(--rise-graphite);
+  background: var(--rise-graphite);
+  color: #ffffff;
+}
+
+@media (max-width: 900px) {
+  .platform-shell--mentee .mentee-home-view,
+  .platform-shell--mentee[data-theme="light"] .mentee-home-view {
+    background-position: top center !important;
+    background-size: auto 100% !important;
+  }
+
+  .platform-shell--mentee .mentee-home-view .next-step-hero::after {
+    background: linear-gradient(180deg, rgba(4, 30, 25, 0.12), rgba(4, 30, 25, 0.62)) !important;
+  }
+
+  .platform-shell--mentee[data-theme="light"] .mentee-home-view .next-step-hero::after {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.88))
+      !important;
   }
 }
 

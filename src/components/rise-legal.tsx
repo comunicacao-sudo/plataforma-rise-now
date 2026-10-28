@@ -39,7 +39,7 @@ function PublicPageShell({
           />
           <img
             className="rise-public-brand__light"
-            src="/brand/rise-logo-marsala-app.webp"
+            src="/brand/rise-logo-light-app.webp"
             width="92"
             height="72"
             alt=""
