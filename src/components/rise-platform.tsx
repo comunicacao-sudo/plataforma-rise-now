@@ -78,6 +78,13 @@ import {
 import { resolveAppRole, type AppRole } from "@/lib/access";
 import { liveJourneyQueryOptions, resolveJourneyThemeCovers } from "@/lib/journey-sync";
 import { SectionHero } from "@/components/section-hero";
+import {
+  applyRiseTheme,
+  normalizeRiseTheme,
+  readLocalRiseTheme,
+  RISE_THEME_EVENT,
+  type RiseTheme,
+} from "@/lib/theme";
 import { LegalFooterLinks } from "@/components/rise-legal";
 
 type Role = AppRole;
@@ -1205,6 +1212,16 @@ export function RisePlatform() {
   const [assessmentPreview, setAssessmentPreview] = useState<"report" | "questionnaire" | null>(
     null,
   );
+  const [theme, setTheme] = useState<RiseTheme>(() => readLocalRiseTheme());
+
+  useEffect(() => {
+    const handleThemeChange = (event: Event) => {
+      setTheme(normalizeRiseTheme((event as CustomEvent<RiseTheme>).detail));
+    };
+    window.addEventListener(RISE_THEME_EVENT, handleThemeChange);
+    applyRiseTheme(readLocalRiseTheme(), false);
+    return () => window.removeEventListener(RISE_THEME_EVENT, handleThemeChange);
+  }, []);
 
   useEffect(() => {
     const preview = new URLSearchParams(window.location.search).get("assessment-preview");
@@ -1348,11 +1365,12 @@ export function RisePlatform() {
   }, [authMode, role]);
 
   const { data: currentProfile } = useMyProfile(authMode === "authenticated");
-  // O tema claro da experiência da mentorada ainda está em validação.
-  // Mesmo que exista uma preferência antiga salva, a mentorada permanece no tema escuro
-  // até a liberação explícita desta opção.
-  const theme =
-    role === "mentee" ? "dark" : currentProfile?.theme_preference === "light" ? "light" : "dark";
+  useEffect(() => {
+    if (authMode !== "authenticated" || !currentProfile) return;
+    const savedTheme = normalizeRiseTheme(currentProfile.theme_preference);
+    setTheme(savedTheme);
+    applyRiseTheme(savedTheme);
+  }, [authMode, currentProfile]);
   const shellClass = useMemo(() => `platform-shell platform-shell--${role}`, [role]);
 
   async function exit() {
@@ -1364,7 +1382,7 @@ export function RisePlatform() {
 
   if (assessmentPreview)
     return (
-      <div className="platform-shell platform-shell--admin" data-theme="dark">
+      <div className="platform-shell platform-shell--admin" data-theme={theme}>
         <Header
           activeView="painel"
           onView={() => undefined}

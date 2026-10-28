@@ -228,7 +228,11 @@ test("integração de IA usa Responses API no backend e mantém idempotência no
   assert.match(backend, /Deno\.env\.get\("OPENAI_MODEL"\)/);
   assert.match(backend, /type:\s*"json_schema"/);
   assert.match(backend, /strict:\s*true/);
+  assert.match(backend, /background:\s*true/);
   assert.match(backend, /store:\s*false/);
+  assert.match(backend, /retrieveAssessmentInterpretation/);
+  assert.match(backend, /_pending_response_id/);
+  assert.doesNotMatch(backend, /AbortSignal\.timeout\(120_000\)/);
   assert.match(backend, /type:\s*"web_search"/);
   assert.match(backend, /tool_choice:\s*"required"/);
   assert.match(backend, /queueAssessmentAISafely/);
@@ -285,6 +289,24 @@ test("relatório distribui a interpretação gerada e não exibe placeholders de
   assert.match(report, /tab === "Competências" \|\| \(hideTabs && tab === "Mapeamento"\)/);
   assert.match(report, /tab === "Pontos a desenvolver" \|\| \(hideTabs && tab === "Mapeamento"\)/);
   assert.doesNotMatch(report, /Integração preparada/);
+});
+
+test("falha da versão atual preserva a última interpretação válida e permite nova tentativa", () => {
+  const backend = readFileSync(
+    new URL("../../supabase/functions/rise-backend/index.ts", import.meta.url),
+    "utf8",
+  );
+  const report = readFileSync(
+    new URL("../components/rise-assessment.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(backend, /legacy\?\.status === "generated"/);
+  assert.match(backend, /fallbackPromptVersion = legacy\.prompt_version/);
+  assert.match(report, /analysis\.status === "failed" && !output\?\.summary_for_mentee/);
+  assert.match(report, /A interpretação anterior/);
+  assert.match(report, /A versão mais completa continua pendente/);
+  assert.match(report, /analysis\.fallbackPromptVersion \?\? analysis\.promptVersion/);
 });
 
 test("perfil da mentorada direciona cada aba para a seção funcional correspondente", () => {

@@ -216,14 +216,19 @@ function AIInterpretationPanel({
         </div>
       </section>
     );
-  if (analysis.status === "failed")
+  if (analysis.status === "failed" && !output?.summary_for_mentee)
     return (
       <section className="assessment-ai-panel assessment-ai-panel--failed">
         <Sparkles size={24} />
         <div>
           <span>Interpretação RISE</span>
           <h3>A análise detalhada continua pendente</h3>
-          <p>O resultado matemático foi salvo normalmente. Nenhum texto substituto foi criado.</p>
+          <p>
+            O resultado matemático foi salvo normalmente.
+            {analysis.fallbackPromptVersion
+              ? ` A interpretação anterior (${analysis.fallbackPromptVersion}) permanece visível abaixo enquanto a versão completa é gerada.`
+              : " Nenhum texto substituto foi criado."}
+          </p>
         </div>
         {analysis.canRetry ? (
           <button type="button" disabled={busy} onClick={() => onGenerate(false)}>
@@ -235,40 +240,72 @@ function AIInterpretationPanel({
   if (!output?.summary_for_mentee) return null;
 
   return (
-    <section className="assessment-ai-panel assessment-ai-panel--generated">
-      <header>
-        <div>
+    <>
+      {analysis.status === "failed" ? (
+        <section className="assessment-ai-panel assessment-ai-panel--failed">
           <Sparkles size={24} />
-          <span>Interpretação RISE · {analysis.promptVersion}</span>
-        </div>
-        {mentor && analysis.canRetry ? (
-          <button type="button" disabled={busy} onClick={() => onGenerate(true)}>
-            {busy ? "Regenerando…" : "Regenerar interpretação"}
-          </button>
-        ) : null}
-      </header>
-      <h3>{output.profile_essence ? "Leitura integrada do perfil" : "Leitura personalizada"}</h3>
-      {output.profile_essence ? (
-        <p className="assessment-ai-panel__essence">{output.profile_essence}</p>
-      ) : null}
-      <div className="assessment-ai-panel__summary">
-        <strong>Resumo para compartilhamento</strong>
-        <p>{output.summary_for_mentee}</p>
-      </div>
-      <small className="assessment-ai-panel__hint">
-        A análise detalhada está organizada nas abas abaixo para facilitar a leitura.
-      </small>
-      {mentor && output.evidence_notes?.length ? (
-        <details>
-          <summary>Evidências para revisão da equipe</summary>
-          {output.evidence_notes.map((item) => (
-            <p key={`${item.note}-${item.evidence_ids.join("-")}`}>
-              {item.note} <small>{item.evidence_ids.join(", ")}</small>
+          <div>
+            <span>Interpretação RISE</span>
+            <h3>A versão mais completa continua pendente</h3>
+            <p>
+              A interpretação anterior ({analysis.fallbackPromptVersion}) permanece disponível e
+              nenhuma pontuação foi alterada.
             </p>
-          ))}
-        </details>
+          </div>
+          {analysis.canRetry ? (
+            <button type="button" disabled={busy} onClick={() => onGenerate(false)}>
+              {busy ? "Tentando…" : "Tentar novamente"}
+            </button>
+          ) : null}
+        </section>
       ) : null}
-    </section>
+      <section className="assessment-ai-panel assessment-ai-panel--generated">
+        <header>
+          <div>
+            <Sparkles size={24} />
+            <span>
+              Interpretação RISE · {analysis.fallbackPromptVersion ?? analysis.promptVersion}
+            </span>
+          </div>
+          {mentor && analysis.canRetry ? (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => onGenerate(analysis.status === "generated")}
+            >
+              {busy
+                ? analysis.status === "generated"
+                  ? "Regenerando…"
+                  : "Tentando…"
+                : analysis.status === "generated"
+                  ? "Regenerar interpretação"
+                  : "Tentar novamente"}
+            </button>
+          ) : null}
+        </header>
+        <h3>{output.profile_essence ? "Leitura integrada do perfil" : "Leitura personalizada"}</h3>
+        {output.profile_essence ? (
+          <p className="assessment-ai-panel__essence">{output.profile_essence}</p>
+        ) : null}
+        <div className="assessment-ai-panel__summary">
+          <strong>Resumo para compartilhamento</strong>
+          <p>{output.summary_for_mentee}</p>
+        </div>
+        <small className="assessment-ai-panel__hint">
+          A análise detalhada está organizada nas abas abaixo para facilitar a leitura.
+        </small>
+        {mentor && output.evidence_notes?.length ? (
+          <details>
+            <summary>Evidências para revisão da equipe</summary>
+            {output.evidence_notes.map((item) => (
+              <p key={`${item.note}-${item.evidence_ids.join("-")}`}>
+                {item.note} <small>{item.evidence_ids.join(", ")}</small>
+              </p>
+            ))}
+          </details>
+        ) : null}
+      </section>
+    </>
   );
 }
 
@@ -412,8 +449,14 @@ function AssessmentReport({
     setAiBusy(true);
     setActionMessage("");
     try {
-      await generateAI({ data: { attemptId: attempt.id, force } });
-      setActionMessage("A interpretação personalizada foi atualizada.");
+      const analysis = await generateAI({ data: { attemptId: attempt.id, force } });
+      setActionMessage(
+        analysis?.status === "pending"
+          ? "A interpretação foi iniciada. Esta tela será atualizada automaticamente."
+          : analysis?.status === "generated"
+            ? "A interpretação personalizada foi atualizada."
+            : "A nova interpretação ainda não foi concluída. A versão anterior permanece disponível sem alteração dos scores.",
+      );
       onChanged?.();
     } catch {
       setActionMessage(
@@ -1294,6 +1337,8 @@ function AssessmentProfilePage({
     queryKey: ["rise-assessment-profile"],
     queryFn: () => load(),
     retry: false,
+    refetchInterval: (current) =>
+      current.state.data?.aiAnalysis?.status === "pending" ? 5_000 : false,
   });
   if (query.isLoading)
     return (
@@ -1386,6 +1431,8 @@ export function AssessmentMentorContent({
     queryKey: ["mentor-assessment", enrollmentId],
     queryFn: () => load({ data: { enrollmentId } }),
     retry: false,
+    refetchInterval: (current) =>
+      current.state.data?.aiAnalysis?.status === "pending" ? 5_000 : false,
   });
   return (
     <div className="mentee-profile-assessment">
