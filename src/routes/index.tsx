@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { RisePlatform } from "@/components/rise-platform";
+import { RiseEntry } from "@/components/rise-entry";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -17,5 +17,5 @@ export const Route = createFileRoute("/")({
 });
 
 function Index() {
-  return <RisePlatform />;
+  return <RiseEntry />;
 }

@@ -65,6 +65,8 @@ import {
   useJourneyContentLibrary,
 } from "@/components/journey-content";
 import type { JourneyContentItem } from "@/lib/content.functions";
+import { installDialogAccessibility } from "@/lib/dialog-accessibility";
+import { findJourneyContentForLesson, hasOpenableJourneyContent } from "@/lib/journey-navigation";
 import {
   AssessmentProfileModal,
   AssessmentVisualPreview,
@@ -168,7 +170,7 @@ function RiseMark({ compact = false, onActivate }: { compact?: boolean; onActiva
       {content}
     </button>
   ) : (
-    <div className={className} aria-label="RISE NOW">
+    <div className={className} role="img" aria-label="RISE NOW">
       {content}
     </div>
   );
@@ -1089,6 +1091,7 @@ function DeliverablesView({ trail }: { trail: Trail }) {
 
 function MenteeArea({ view, onView }: { view: View; onView: (v: View) => void }) {
   const { data: trail, isLoading } = useTrail();
+  const journeyLibrary = useJourneyContentLibrary(true);
   const [lesson, setLesson] = useState<TrailLesson | null>(null);
   const [contentStepKey, setContentStepKey] = useState<string | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
@@ -1097,6 +1100,16 @@ function MenteeArea({ view, onView }: { view: View; onView: (v: View) => void })
     setLibraryOpen(false);
     setContentStepKey(stepKey);
     if (view !== "jornada") onView("jornada");
+  }
+  function openTrailLesson(lessonToOpen: TrailLesson) {
+    const content = findJourneyContentForLesson(lessonToOpen, journeyLibrary.data?.items ?? []);
+    if (hasOpenableJourneyContent(content)) {
+      openJourneyContent(content!.stepKey);
+      return;
+    }
+    setContentStepKey(null);
+    setLibraryOpen(false);
+    setLesson(lessonToOpen);
   }
   useEffect(() => {
     if (view !== "jornada") {
@@ -1154,13 +1167,17 @@ function MenteeArea({ view, onView }: { view: View; onView: (v: View) => void })
         <HomeView
           trail={trail}
           onView={onView}
-          onOpen={setLesson}
+          onOpen={openTrailLesson}
           onOpenContent={openJourneyContent}
         />
       ) : view === "jornada" ? (
-        <JourneyView trail={trail} onOpen={setLesson} onOpenLibrary={() => setLibraryOpen(true)} />
+        <JourneyView
+          trail={trail}
+          onOpen={openTrailLesson}
+          onOpenLibrary={() => setLibraryOpen(true)}
+        />
       ) : view === "agenda" ? (
-        <AgendaView trail={trail} onOpen={setLesson} />
+        <AgendaView trail={trail} onOpen={openTrailLesson} />
       ) : view === "entregas" ? (
         <DeliverablesView trail={trail} />
       ) : trail.enrollmentId ? (
@@ -1204,6 +1221,7 @@ function LoadingScreen() {
 }
 
 export function RisePlatform() {
+  useEffect(() => installDialogAccessibility(), []);
   const [authMode, setAuthMode] = useState<AuthMode>("checking");
   const [role, setRole] = useState<Role>("mentee");
   const [name, setName] = useState("Participante RISE");
