@@ -44,9 +44,13 @@ for (const forbidden of [
 }
 
 if (bundleMode) {
-  const assetsDirectory = absolute(".output/public/assets/");
-  if (!existsSync(assetsDirectory)) {
-    errors.push("O bundle de produção não foi encontrado em .output/public/assets.");
+  const assetsDirectory = [".output/public/assets/", "dist/client/assets/", "dist/assets/"]
+    .map(absolute)
+    .find(existsSync);
+  if (!assetsDirectory) {
+    errors.push(
+      "O bundle de produção não foi encontrado em .output/public/assets, dist/client/assets ou dist/assets.",
+    );
   } else {
     const assetsPath = fileURLToPath(assetsDirectory);
     const files = readdirSync(assetsPath).filter((name) => [".js", ".css"].includes(extname(name)));
