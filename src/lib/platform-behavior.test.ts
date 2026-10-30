@@ -12,6 +12,32 @@ test("onboarding content opens before progress registration can fail", () => {
   assert.match(source, /catch \(error\) \{\s+console\.error\("Não foi possível registrar/);
 });
 
+test("public login loads the authenticated application only after a valid session", () => {
+  const route = readFileSync("src/routes/index.tsx", "utf8");
+  const entry = readFileSync("src/components/rise-entry.tsx", "utf8");
+  assert.match(route, /RiseEntry/);
+  assert.doesNotMatch(route, /RisePlatform/);
+  assert.match(entry, /lazy\(\(\) =>\s*import\("@\/components\/rise-platform"\)/);
+  assert.match(entry, /data\.session \? "authenticated" : "public"/);
+});
+
+test("RISE brand uses valid image semantics", () => {
+  const platform = readFileSync("src/components/rise-platform.tsx", "utf8");
+  const entry = readFileSync("src/components/rise-entry.tsx", "utf8");
+  assert.match(platform, /role="img" aria-label="RISE NOW"/);
+  assert.match(entry, /role="img" aria-label="RISE NOW"/);
+});
+
+test("custom dialogs share keyboard focus, Escape and focus restoration", () => {
+  const accessibility = readFileSync("src/lib/dialog-accessibility.ts", "utf8");
+  const platform = readFileSync("src/components/rise-platform.tsx", "utf8");
+  assert.match(platform, /installDialogAccessibility/);
+  assert.match(accessibility, /event\.key === "Escape"/);
+  assert.match(accessibility, /event\.key !== "Tab"/);
+  assert.match(accessibility, /trigger\.focus/);
+  assert.match(accessibility, /aria-labelledby/);
+});
+
 test("mentor directory exposes only the four professional mentor profiles", () => {
   const backend = readFileSync("supabase/functions/rise-backend/index.ts", "utf8");
   const frontend = readFileSync("src/components/rise-platform.tsx", "utf8");
@@ -37,6 +63,15 @@ test("mentor profile owns the public summary shown in the directory", () => {
   assert.match(profile, /O que abordamos/);
   assert.match(profile, /role === "mentee"[\s\S]*currentProfile\.mentor_summary/);
   assert.match(profile, /maxLength=\{600\}/);
+});
+
+test("profile photo upload uses the authenticated Storage path and supported formats", () => {
+  const profile = readFileSync("src/components/rise-extras.tsx", "utf8");
+  assert.match(profile, /new Set\(\["image\/jpeg", "image\/png", "image\/webp"\]\)/);
+  assert.match(profile, /supabase\.auth\.getUser\(\)/);
+  assert.match(profile, /`\$\{authData\.user\.id\}\/\$\{crypto\.randomUUID\(\)\}\.webp`/);
+  assert.match(profile, /cacheControl: "31536000"/);
+  assert.match(profile, /Foto atualizada e sincronizada na plataforma/);
 });
 
 test("Google Calendar OAuth uses the official production callback", () => {
@@ -66,4 +101,13 @@ test("agenda unifies Google events, collective meetings and named 1:1 booking", 
   assert.match(migration, /booking_reservations_mentee_no_overlap/);
   assert.doesNotMatch(operations, /Materiais da trilha/);
   assert.doesNotMatch(platform, /MenteeAgendaMaterials/);
+});
+
+test("staff can archive a 1:1 offering without deleting reservation history", () => {
+  const calendar = readFileSync("src/components/rise-calendar.tsx", "utf8");
+  const backend = readFileSync("supabase/functions/rise-backend/index.ts", "utf8");
+  assert.match(calendar, /status: "archived"/);
+  assert.match(calendar, /Encontros já realizados continuarão no histórico/);
+  assert.match(backend, /\.neq\("status", "archived"\)/);
+  assert.match(backend, /\["active", "paused", "archived"\]/);
 });
