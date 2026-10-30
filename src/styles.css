@@ -4,7 +4,7 @@
 
 @font-face {
   font-family: "Montserrat";
-  src: url("/fonts/Montserrat-VariableFont_wght.ttf") format("truetype");
+  src: url("/fonts/Montserrat-VariableFont_wght.woff2") format("woff2");
   font-style: normal;
   font-weight: 100 900;
   font-display: swap;
@@ -12,7 +12,7 @@
 
 @font-face {
   font-family: "Montserrat";
-  src: url("/fonts/Montserrat-Italic-VariableFont_wght.ttf") format("truetype");
+  src: url("/fonts/Montserrat-Italic-VariableFont_wght.woff2") format("woff2");
   font-style: italic;
   font-weight: 100 900;
   font-display: swap;
@@ -523,7 +523,7 @@ hr,
 .login-form__hint {
   margin: -0.12rem 0 0;
   color: rgba(242, 240, 239, 0.62);
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   line-height: 1.35;
 }
 .form-error {
@@ -598,11 +598,12 @@ hr,
   gap: 0.4rem;
   margin-top: 0;
   border: 0;
-  padding: 0;
+  min-height: 2.75rem;
+  padding: 0.6rem 0;
   background: none;
   color: #d0ac5c;
   cursor: pointer;
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   font-weight: 650;
   text-decoration: none;
 }
@@ -618,14 +619,14 @@ hr,
 }
 .login-form__links > span {
   color: rgba(242, 240, 239, 0.76);
-  font-size: 0.68rem;
+  font-size: 0.75rem;
 }
 .login-form__secondary {
   padding-top: 0.05rem;
 }
 .login-form__secondary .demo-link {
   color: rgba(242, 240, 239, 0.56);
-  font-size: 0.62rem;
+  font-size: 0.75rem;
 }
 .login-form__secondary .demo-link:hover {
   color: #d0ac5c;
@@ -2650,6 +2651,31 @@ hr,
   border-radius: 999px;
   color: var(--platform-text);
   font-size: 0.72rem;
+}
+.booking-offering__actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.55rem;
+}
+.booking-offering__delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid color-mix(in srgb, #d96b6b 60%, var(--platform-line));
+  border-radius: 10px;
+  color: #f3a7a7;
+  background: color-mix(in srgb, #5d1717 24%, transparent);
+  cursor: pointer;
+}
+.booking-offering__delete:hover:not(:disabled) {
+  color: #fff;
+  background: #8d2f2f;
+}
+.booking-offering__delete:disabled {
+  cursor: wait;
+  opacity: 0.55;
 }
 .booking-slots {
   display: grid;
@@ -5806,7 +5832,12 @@ hr,
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  background: linear-gradient(180deg, rgba(8, 42, 36, 0.08), rgba(8, 42, 36, 0.44) 58%, #082a24 100%);
+  background: linear-gradient(
+    180deg,
+    rgba(8, 42, 36, 0.08),
+    rgba(8, 42, 36, 0.44) 58%,
+    #082a24 100%
+  );
 }
 .recorded-back {
   display: inline-flex;
@@ -9691,7 +9722,10 @@ hr,
 html[data-theme="dark"] .login-shell,
 html[data-theme="dark"] .loading-screen {
   background-color: #082a24;
-  background-image: url("/brand/rise-platform-fixed-background.png");
+  background-image: image-set(
+    url("/brand/rise-platform-fixed-background.avif") type("image/avif"),
+    url("/brand/rise-platform-fixed-background.webp") type("image/webp")
+  );
   background-repeat: no-repeat;
   background-position: center center;
   background-size: cover;
@@ -9750,7 +9784,15 @@ html[data-theme="light"] .loading-screen {
   display: flex;
   flex-direction: column;
   color: #d7b07a;
-  background: #082a24 url("/brand/rise-platform-fixed-background.png") center/cover fixed;
+  background-color: #082a24;
+  background-image: image-set(
+    url("/brand/rise-platform-fixed-background.avif") type("image/avif"),
+    url("/brand/rise-platform-fixed-background.webp") type("image/webp")
+  );
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: cover;
+  background-attachment: fixed;
   font-family: "Montserrat", sans-serif;
 }
 
@@ -9902,9 +9944,12 @@ html[data-theme="light"] .rise-public-review {
   justify-content: center;
   flex-wrap: wrap;
   gap: 0.55rem;
-  font-size: 0.7rem;
+  font-size: 0.75rem;
 }
 .rise-legal-links a {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
   color: inherit;
   text-decoration: underline;
   text-decoration-color: rgba(215, 176, 122, 0.3);
@@ -9961,7 +10006,7 @@ html[data-theme="light"] .rise-public-review {
   opacity: 0.85;
 }
 .login-panel__legal .rise-legal-links {
-  font-size: 0.65rem;
+  font-size: 0.75rem;
 }
 
 /* Global light theme — semantic bridge for authentication, modals, forms and reports. */
@@ -10103,7 +10148,10 @@ html[data-theme="light"] .login-shell__mantra {
 .platform-shell--mentee .mentee-home-view {
   min-height: 100vh;
   background-color: #082a24 !important;
-  background-image: url("/brand/mentee-home-continuous-dark.png") !important;
+  background-image: image-set(
+    url("/brand/mentee-home-continuous-dark.avif") type("image/avif"),
+    url("/brand/mentee-home-continuous-dark.webp") type("image/webp")
+  ) !important;
   background-repeat: no-repeat !important;
   background-position: top center !important;
   background-size: 100% auto !important;
@@ -10111,7 +10159,37 @@ html[data-theme="light"] .login-shell__mantra {
 
 .platform-shell--mentee[data-theme="light"] .mentee-home-view {
   background-color: #ffffff !important;
-  background-image: url("/brand/mentee-home-continuous-light.png") !important;
+  background-image: image-set(
+    url("/brand/mentee-home-continuous-light.avif") type("image/avif"),
+    url("/brand/mentee-home-continuous-light.webp") type("image/webp")
+  ) !important;
+}
+
+@media (max-width: 820px) {
+  .platform-shell,
+  .platform-shell[data-theme="dark"],
+  html[data-theme="dark"] .login-shell,
+  html[data-theme="dark"] .loading-screen,
+  .rise-public-shell {
+    background-image: image-set(
+      url("/brand/rise-platform-fixed-background-mobile.avif") type("image/avif"),
+      url("/brand/rise-platform-fixed-background-mobile.webp") type("image/webp")
+    );
+  }
+
+  .platform-shell--mentee .mentee-home-view {
+    background-image: image-set(
+      url("/brand/mentee-home-continuous-dark-mobile.avif") type("image/avif"),
+      url("/brand/mentee-home-continuous-dark-mobile.webp") type("image/webp")
+    ) !important;
+  }
+
+  .platform-shell--mentee[data-theme="light"] .mentee-home-view {
+    background-image: image-set(
+      url("/brand/mentee-home-continuous-light-mobile.avif") type("image/avif"),
+      url("/brand/mentee-home-continuous-light-mobile.webp") type("image/webp")
+    ) !important;
+  }
 }
 
 .platform-shell--mentee .mentee-home-view :where(.next-step-hero, .dashboard-body) {
@@ -10128,8 +10206,12 @@ html[data-theme="light"] .login-shell__mantra {
 }
 
 .platform-shell--mentee .mentee-home-view .next-step-hero::after {
-  background: linear-gradient(90deg, rgba(4, 30, 25, 0.42), rgba(4, 30, 25, 0.06) 58%, transparent)
-    !important;
+  background: linear-gradient(
+    90deg,
+    rgba(4, 30, 25, 0.42),
+    rgba(4, 30, 25, 0.06) 58%,
+    transparent
+  ) !important;
 }
 
 .platform-shell--mentee .mentee-home-view .next-step-hero h1,
@@ -10140,8 +10222,12 @@ html[data-theme="light"] .login-shell__mantra {
 }
 
 .platform-shell--mentee[data-theme="light"] .mentee-home-view .next-step-hero::after {
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0.18) 62%, transparent)
-    !important;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.8),
+    rgba(255, 255, 255, 0.18) 62%,
+    transparent
+  ) !important;
 }
 
 .platform-shell--mentee[data-theme="light"] .mentee-home-view .next-step-hero h1,
@@ -10398,8 +10484,10 @@ html[data-theme="light"] .login-shell__mantra {
   }
 
   .platform-shell--mentee[data-theme="light"] .mentee-home-view .next-step-hero::after {
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.88))
-      !important;
+    background: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.42),
+      rgba(255, 255, 255, 0.88)
+    ) !important;
   }
 }
-

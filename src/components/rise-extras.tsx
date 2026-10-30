@@ -1064,6 +1064,7 @@ export function Avatar({
 
 type CropPosition = { x: number; y: number };
 type CropDimensions = { width: number; height: number };
+const supportedAvatarTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 function AvatarCropEditor({
   file,
@@ -1203,8 +1204,12 @@ function AvatarCropEditor({
       );
       if (!blob) throw new Error("Não foi possível gerar a imagem");
       await onSave(new File([blob], "avatar.webp", { type: "image/webp" }));
-    } catch {
-      setCropError("Não foi possível recortar esta foto. Tente novamente.");
+    } catch (error) {
+      setCropError(
+        error instanceof Error && error.message
+          ? error.message
+          : "Não foi possível recortar esta foto. Tente novamente.",
+      );
     } finally {
       setSaving(false);
     }
@@ -1247,6 +1252,12 @@ function AvatarCropEditor({
                   height: event.currentTarget.naturalHeight,
                 })
               }
+              onError={() => {
+                setImageSize(null);
+                setCropError(
+                  "Este formato não pode ser aberto. Escolha uma foto JPG, PNG ou WebP.",
+                );
+              }}
               style={{
                 width: baseWidth * zoom,
                 height: baseHeight * zoom,
@@ -1346,6 +1357,7 @@ export function ProfileModal({
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
     if (p)
       setForm({
@@ -1377,39 +1389,70 @@ export function ProfileModal({
       setForm({ ...form, [k]: e.target.value });
 
   function preparePhoto(file: File) {
-    if (!file.type.startsWith("image/")) return setMsg("Escolha uma imagem (JPG ou PNG).");
+    if (!supportedAvatarTypes.has(file.type.toLowerCase()))
+      return setMsg(
+        "Escolha uma foto JPG, PNG ou WebP. Fotos HEIC precisam ser convertidas antes.",
+      );
     if (file.size > 5 * 1024 * 1024) return setMsg("A foto precisa ter até 5 MB.");
     setMsg("");
     setPhotoFile(file);
   }
   async function uploadPhoto(file: File) {
     setBusy(true);
-    const path = `${currentProfile.id}/${Date.now()}.webp`;
-    const { error } = await supabase.storage.from("avatars").upload(path, file, { upsert: true });
-    if (error) {
+    let uploadedPath = "";
+    try {
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+      if (authError || !authData.user)
+        throw new Error("Sua sessão expirou. Entre novamente para atualizar a foto.");
+
+      uploadedPath = `${authData.user.id}/${crypto.randomUUID()}.webp`;
+      const { error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(uploadedPath, file, {
+          cacheControl: "31536000",
+          contentType: "image/webp",
+          upsert: false,
+        });
+      if (uploadError) {
+        console.error("Falha ao enviar avatar", uploadError);
+        throw new Error(
+          /row-level security|unauthorized|jwt/i.test(uploadError.message)
+            ? "Sua sessão não permite atualizar a foto. Entre novamente e tente de novo."
+            : "Não foi possível enviar a foto agora. Tente novamente.",
+        );
+      }
+
+      const url = supabase.storage.from("avatars").getPublicUrl(uploadedPath).data.publicUrl;
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .update({ avatar_url: url })
+        .eq("id", authData.user.id);
+      if (profileError) {
+        console.error("Falha ao vincular avatar ao perfil", profileError);
+        await supabase.storage.from("avatars").remove([uploadedPath]);
+        uploadedPath = "";
+        throw new Error("A foto foi processada, mas o perfil não pôde ser atualizado.");
+      }
+
+      qc.setQueryData<MyProfile | null>(["my-profile"], (current) =>
+        current ? { ...current, avatar_url: url } : current,
+      );
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["my-profile"] }),
+        qc.invalidateQueries({ queryKey: ["directory"] }),
+        qc.invalidateQueries({ queryKey: ["mentor-directory"] }),
+        qc.invalidateQueries({ queryKey: ["mentee-public-profile"] }),
+      ]);
+      setPhotoFile(null);
+      setMsg("Foto atualizada e sincronizada na plataforma.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Não foi possível enviar a foto.";
+      setMsg(message);
+      throw new Error(message);
+    } finally {
       setBusy(false);
-      return setMsg("Não foi possível enviar a foto.");
+      if (photoInputRef.current) photoInputRef.current.value = "";
     }
-    const url = supabase.storage.from("avatars").getPublicUrl(path).data.publicUrl;
-    const { error: profileError } = await supabase
-      .from("profiles")
-      .update({ avatar_url: url })
-      .eq("id", currentProfile.id);
-    if (profileError) {
-      setBusy(false);
-      return setMsg("A foto foi enviada, mas o perfil não pôde ser atualizado.");
-    }
-    qc.setQueryData<MyProfile | null>(["my-profile"], (current) =>
-      current ? { ...current, avatar_url: url } : current,
-    );
-    await Promise.all([
-      qc.invalidateQueries({ queryKey: ["directory"] }),
-      qc.invalidateQueries({ queryKey: ["mentor-directory"] }),
-      qc.invalidateQueries({ queryKey: ["mentee-public-profile"] }),
-    ]);
-    setBusy(false);
-    setPhotoFile(null);
-    setMsg("Foto atualizada.");
   }
   async function selectTheme(theme: ThemePreference) {
     setForm((current) => ({ ...current, theme_preference: theme }));
@@ -1513,10 +1556,15 @@ export function ProfileModal({
             <label className="button button--glass">
               {busy ? "Enviando..." : p.avatar_url ? "Trocar foto" : "Enviar foto"}
               <input
+                ref={photoInputRef}
                 type="file"
-                accept="image/*"
+                accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
                 hidden
-                onChange={(e) => e.target.files?.[0] && preparePhoto(e.target.files[0])}
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) preparePhoto(file);
+                  event.currentTarget.value = "";
+                }}
               />
             </label>
           </div>

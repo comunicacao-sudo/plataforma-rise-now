@@ -8,6 +8,7 @@ import {
   Pause,
   Play,
   Plus,
+  Trash2,
   UsersRound,
   X,
 } from "lucide-react";
@@ -446,9 +447,41 @@ export function StaffBookingOfferings({ directory }: { directory: RiseDirectory 
   const update = useServerFn(updateBookingOffering);
   const query = useQuery({ queryKey: ["booking-offerings"], queryFn: () => load() });
   const [open, setOpen] = useState(false);
+  const [busyId, setBusyId] = useState("");
+  const [message, setMessage] = useState("");
   async function toggle(item: BookingOffering) {
-    await update({ data: { id: item.id, status: item.status === "active" ? "paused" : "active" } });
-    await qc.invalidateQueries({ queryKey: ["booking-offerings"] });
+    setBusyId(item.id);
+    setMessage("");
+    try {
+      await update({
+        data: { id: item.id, status: item.status === "active" ? "paused" : "active" },
+      });
+      await qc.invalidateQueries({ queryKey: ["booking-offerings"] });
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Não foi possível atualizar o encontro.");
+    } finally {
+      setBusyId("");
+    }
+  }
+  async function archive(item: BookingOffering) {
+    const confirmed = window.confirm(
+      `Excluir a disponibilidade “${item.title}”? Ela deixará de aparecer para a equipe e para as mentoradas. Encontros já realizados continuarão no histórico.`,
+    );
+    if (!confirmed) return;
+    setBusyId(item.id);
+    setMessage("");
+    try {
+      await update({ data: { id: item.id, status: "archived" } });
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["booking-offerings"] }),
+        qc.invalidateQueries({ queryKey: ["booking-slots", item.id] }),
+      ]);
+      setMessage("Disponibilidade excluída.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Não foi possível excluir o encontro.");
+    } finally {
+      setBusyId("");
+    }
   }
   return (
     <section className="booking-offerings">
@@ -489,27 +522,43 @@ export function StaffBookingOfferings({ directory }: { directory: RiseDirectory 
                 </span>
               ))}
             </div>
-            <button
-              className="button button--glass"
-              type="button"
-              onClick={() => void toggle(item)}
-            >
-              {item.status === "active" ? (
-                <>
-                  <Pause size={15} /> Pausar
-                </>
-              ) : (
-                <>
-                  <Play size={15} /> Reativar
-                </>
-              )}
-            </button>
+            <div className="booking-offering__actions">
+              <button
+                className="button button--glass"
+                type="button"
+                disabled={busyId === item.id}
+                onClick={() => void toggle(item)}
+              >
+                {item.status === "active" ? (
+                  <>
+                    <Pause size={15} /> Pausar
+                  </>
+                ) : (
+                  <>
+                    <Play size={15} /> Reativar
+                  </>
+                )}
+              </button>
+              <button
+                className="button booking-offering__delete"
+                type="button"
+                disabled={busyId === item.id}
+                onClick={() => void archive(item)}
+              >
+                <Trash2 size={15} /> Excluir
+              </button>
+            </div>
           </article>
         ))}
         {!query.isLoading && !query.data?.offerings.length ? (
           <p className="ops-empty">Nenhuma disponibilidade 1:1 criada.</p>
         ) : null}
       </div>
+      {message ? (
+        <p className="form-message" role="status">
+          {message}
+        </p>
+      ) : null}
       {open ? (
         <OfferingModal
           directory={directory}
