@@ -81,17 +81,21 @@ test("abre somente conteúdo realmente disponível", () => {
 
 test("combina a versão publicada com aulas legadas sem duplicar e preserva a ordem", () => {
   const onboarding = { ...lesson, id: "onboarding", title: "Onboarding RISE" };
-  const timeline = buildJourneyTimelineItems(1, [onboarding, lesson], [
-    content({ stepKey: "onboarding-step", title: "Onboarding RISE", position: 0 }),
-    content({ stepKey: "map-step", position: 1 }),
-    content({
-      stepKey: "assessment-step",
-      title: "Questionário do perfil comportamental",
-      position: 2,
-      format: "questionnaire",
-      resourceType: "rise_assessment",
-    }),
-  ]);
+  const timeline = buildJourneyTimelineItems(
+    1,
+    [onboarding, lesson],
+    [
+      content({ stepKey: "onboarding-step", title: "Onboarding RISE", position: 0 }),
+      content({ stepKey: "map-step", position: 1 }),
+      content({
+        stepKey: "assessment-step",
+        title: "Questionário do perfil comportamental",
+        position: 2,
+        format: "questionnaire",
+        resourceType: "rise_assessment",
+      }),
+    ],
+  );
 
   assert.deepEqual(
     timeline.map((item) => item.title),
@@ -130,9 +134,11 @@ test("identifica o mapeamento comportamental como Questionário e respeita dispo
   });
   assert.equal(isJourneyTimelineItemDisabled(availableItem, 1), false);
 
-  const unavailableItem = buildJourneyTimelineItems(1, [], [
-    { ...assessment, availability: "coming_soon" },
-  ])[0];
+  const unavailableItem = buildJourneyTimelineItems(
+    1,
+    [],
+    [{ ...assessment, availability: "coming_soon" }],
+  )[0];
   assert.ok(unavailableItem);
   assert.equal(isJourneyTimelineItemDisabled(unavailableItem, 1), true);
   assert.equal(resolveJourneyTimelineTarget(unavailableItem), null);

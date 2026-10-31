@@ -21,8 +21,7 @@ export type JourneyTimelineItem = {
 };
 
 export type JourneyTimelineTarget =
-  | { type: "content"; stepKey: string }
-  | { type: "lesson"; lesson: TrailLesson };
+  { type: "content"; stepKey: string } | { type: "lesson"; lesson: TrailLesson };
 
 export function journeyTimelineLabel(item: JourneyContentItem) {
   if (
@@ -98,15 +97,10 @@ export function buildJourneyTimelineItems(
   return [...publishedItems, ...unmatchedLegacyItems];
 }
 
-export function isJourneyTimelineItemDisabled(
-  item: JourneyTimelineItem,
-  currentMonth: number,
-) {
+export function isJourneyTimelineItemDisabled(item: JourneyTimelineItem, currentMonth: number) {
   if (item.availability !== null) return item.availability !== "available";
   return Boolean(
-    item.lesson?.kind === "aula" &&
-      item.lesson.month > currentMonth &&
-      !item.completed,
+    item.lesson?.kind === "aula" && item.lesson.month > currentMonth && !item.completed,
   );
 }
 

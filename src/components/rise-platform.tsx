@@ -1003,11 +1003,7 @@ function JourneyView({
       <section className="journey-timeline page-width">
         {trail.phases.map((item, index) => {
           const status = phaseStatus(trail, item.month);
-          const timelineItems = buildJourneyTimelineItems(
-            item.month,
-            item.lessons,
-            journeyItems,
-          );
+          const timelineItems = buildJourneyTimelineItems(item.month, item.lessons, journeyItems);
           return (
             <article className={`timeline-item timeline-item--${status}`} key={item.month}>
               <div className="timeline-item__axis">
