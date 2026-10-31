@@ -66,7 +66,13 @@ import {
 } from "@/components/journey-content";
 import type { JourneyContentItem } from "@/lib/content.functions";
 import { installDialogAccessibility } from "@/lib/dialog-accessibility";
-import { findJourneyContentForLesson, hasOpenableJourneyContent } from "@/lib/journey-navigation";
+import {
+  buildJourneyTimelineItems,
+  findJourneyContentForLesson,
+  hasOpenableJourneyContent,
+  isJourneyTimelineItemDisabled,
+  resolveJourneyTimelineTarget,
+} from "@/lib/journey-navigation";
 import {
   AssessmentProfileModal,
   AssessmentVisualPreview,
@@ -966,11 +972,15 @@ function PageIntro({ eyebrow, title, copy }: { eyebrow: string; title: string; c
 function JourneyView({
   trail,
   onOpen,
+  onOpenContent,
   onOpenLibrary,
+  journeyItems,
 }: {
   trail: Trail;
   onOpen: (l: TrailLesson) => void;
+  onOpenContent: (stepKey: string) => void;
   onOpenLibrary: () => void;
+  journeyItems: JourneyContentItem[];
 }) {
   return (
     <main className="inner-page inner-page--section-hero">
@@ -993,6 +1003,11 @@ function JourneyView({
       <section className="journey-timeline page-width">
         {trail.phases.map((item, index) => {
           const status = phaseStatus(trail, item.month);
+          const timelineItems = buildJourneyTimelineItems(
+            item.month,
+            item.lessons,
+            journeyItems,
+          );
           return (
             <article className={`timeline-item timeline-item--${status}`} key={item.month}>
               <div className="timeline-item__axis">
@@ -1007,26 +1022,37 @@ function JourneyView({
                   <h2>{item.title}</h2>
                   <p>{item.question}</p>
                   <ul className="timeline-lessons">
-                    {item.lessons.map((l) => (
-                      <li key={l.id}>
-                        <button
-                          type="button"
-                          disabled={
-                            l.kind === "aula" && item.month > trail.currentMonth && !l.completed
-                          }
-                          onClick={() => onOpen(l)}
-                          title={
-                            l.kind === "aula" && item.month > trail.currentMonth && !l.completed
-                              ? "Esta aula ainda não foi liberada"
-                              : undefined
-                          }
-                        >
-                          {l.completed ? <CheckCircle2 size={14} /> : <Play size={13} />}
-                          {l.title}
-                          <small>{l.kind === "aula" ? "Aula" : l.format}</small>
-                        </button>
-                      </li>
-                    ))}
+                    {timelineItems.map((timelineItem) => {
+                      const disabled = isJourneyTimelineItemDisabled(
+                        timelineItem,
+                        trail.currentMonth,
+                      );
+                      return (
+                        <li key={timelineItem.key}>
+                          <button
+                            type="button"
+                            disabled={disabled}
+                            onClick={() => {
+                              const target = resolveJourneyTimelineTarget(timelineItem);
+                              if (target?.type === "content") {
+                                onOpenContent(target.stepKey);
+                              } else if (target?.type === "lesson") {
+                                onOpen(target.lesson);
+                              }
+                            }}
+                            title={disabled ? "Esta etapa ainda não foi liberada" : undefined}
+                          >
+                            {timelineItem.completed ? (
+                              <CheckCircle2 size={14} />
+                            ) : (
+                              <Play size={13} />
+                            )}
+                            {timelineItem.title}
+                            <small>{timelineItem.label}</small>
+                          </button>
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
                 <div className="timeline-item__delivery">
@@ -1174,7 +1200,9 @@ function MenteeArea({ view, onView }: { view: View; onView: (v: View) => void })
         <JourneyView
           trail={trail}
           onOpen={openTrailLesson}
+          onOpenContent={openJourneyContent}
           onOpenLibrary={() => setLibraryOpen(true)}
+          journeyItems={journeyLibrary.data?.items ?? []}
         />
       ) : view === "agenda" ? (
         <AgendaView trail={trail} onOpen={openTrailLesson} />
