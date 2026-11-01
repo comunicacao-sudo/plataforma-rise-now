@@ -69,10 +69,13 @@ if (bundleMode) {
     } else {
       const publicEntryGzip = gzipSync(readFileSync(join(assetsPath, publicEntry))).length;
       const maximumPublicEntryGzip = 120_000;
+      const isDevelopmentBuild = process.env.npm_lifecycle_event?.includes(":dev") ?? false;
       if (publicEntryGzip > maximumPublicEntryGzip) {
-        errors.push(
-          `A entrada pública tem ${publicEntryGzip} bytes gzip; limite: ${maximumPublicEntryGzip}.`,
-        );
+        const message = `A entrada pública tem ${publicEntryGzip} bytes gzip; limite: ${maximumPublicEntryGzip}.`;
+        // Development bundles are not minified/optimized, so the production budget
+        // does not apply there; keep it as a warning and enforce it on real builds.
+        if (isDevelopmentBuild) console.warn(`Warning (development build only): ${message}`);
+        else errors.push(message);
       } else {
         console.log(
           `Entrada pública: ${publicEntryGzip} bytes gzip (limite ${maximumPublicEntryGzip}).`,
