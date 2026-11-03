@@ -24,6 +24,7 @@ export type RiseDirectory = {
     role: "admin" | "mentor" | "mentee";
     status: "aguardando" | "ativo" | "revogado";
     createdAt: string;
+    archivedAt: string | null;
   }>;
   specialties: Array<{ id: string; name: string; category: string }>;
   cohorts: Array<{
@@ -61,4 +62,18 @@ export const createMember: any = createEdgeFunction("createMember");
 export const createMentorSpecialty: any = createEdgeFunction("createMentorSpecialty");
 export const updateEnrollment: any = createEdgeFunction("updateEnrollment");
 export const updateAccess: any = createEdgeFunction("updateAccess");
+export const setAccessArchived: any = createEdgeFunction("setAccessArchived");
 export const resetMemberPassword: any = createEdgeFunction("resetMemberPassword");
+
+export type AccessListView = "active" | "archived";
+
+export function filterDirectoryAccess(access: RiseDirectory["access"], view: AccessListView) {
+  return access.filter((entry) =>
+    view === "archived" ? Boolean(entry.archivedAt) : !entry.archivedAt,
+  );
+}
+
+export function matchesAccessArchiveConfirmation(value: string) {
+  return value.trim().toLocaleUpperCase("pt-BR") === "EXCLUIR";
+}
+
