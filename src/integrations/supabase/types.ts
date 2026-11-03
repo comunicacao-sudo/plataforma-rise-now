@@ -16,6 +16,9 @@ export type Database = {
     Tables: {
       allowed_emails: {
         Row: {
+          archive_snapshot: Json
+          archived_at: string | null
+          archived_by: string | null
           created_at: string
           email: string
           full_name: string | null
@@ -25,6 +28,9 @@ export type Database = {
           status: Database["public"]["Enums"]["invite_status"]
         }
         Insert: {
+          archive_snapshot?: Json
+          archived_at?: string | null
+          archived_by?: string | null
           created_at?: string
           email: string
           full_name?: string | null
@@ -34,6 +40,9 @@ export type Database = {
           status?: Database["public"]["Enums"]["invite_status"]
         }
         Update: {
+          archive_snapshot?: Json
+          archived_at?: string | null
+          archived_by?: string | null
           created_at?: string
           email?: string
           full_name?: string | null
@@ -43,6 +52,13 @@ export type Database = {
           status?: Database["public"]["Enums"]["invite_status"]
         }
         Relationships: [
+          {
+            foreignKeyName: "allowed_emails_archived_by_fkey"
+            columns: ["archived_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "allowed_emails_invited_by_fkey"
             columns: ["invited_by"]
@@ -2175,3 +2191,4 @@ export const Constants = {
     },
   },
 } as const
+
