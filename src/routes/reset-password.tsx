@@ -85,7 +85,9 @@ function ResetPassword() {
         redirectTo: `${window.location.origin}/reset-password`,
       });
       if (resetError) {
-        setError("Não foi possível enviar o novo link agora. Tente novamente ou fale com a equipe RISE.");
+        setError(
+          "Não foi possível enviar o novo link agora. Tente novamente ou fale com a equipe RISE.",
+        );
         return;
       }
       setStatus("sent");
@@ -138,14 +140,16 @@ function ResetPassword() {
             ) : status === "sent" ? (
               <>
                 <h1>Confira seu email.</h1>
-                <p>Se o endereço estiver cadastrado, você receberá um novo link para criar sua senha.</p>
+                <p>
+                  Se o endereço estiver cadastrado, você receberá um novo link para criar sua senha.
+                </p>
               </>
             ) : (
               <>
                 <h1>Este link não está mais válido.</h1>
                 <p>
-                  Ele pode ter expirado ou já ter sido utilizado. Solicite um novo link
-                  com o email cadastrado na RISE NOW para continuar com segurança.
+                  Ele pode ter expirado ou já ter sido utilizado. Solicite um novo link com o email
+                  cadastrado na RISE NOW para continuar com segurança.
                 </p>
               </>
             )}
@@ -178,7 +182,11 @@ function ResetPassword() {
                   />
                 </div>
               </div>
-              {error ? <p className="form-error" role="alert">{error}</p> : null}
+              {error ? (
+                <p className="form-error" role="alert">
+                  {error}
+                </p>
+              ) : null}
               <button className="button button--primary button--wide" type="submit" disabled={busy}>
                 {busy ? "Enviando…" : "Receber novo link"}
                 {!busy ? <ArrowRight size={18} aria-hidden="true" /> : null}
@@ -188,7 +196,11 @@ function ResetPassword() {
 
           {status !== "checking" ? (
             <div className="login-form__links">
-              <button className="demo-link" type="button" onClick={() => void navigate({ to: "/" })}>
+              <button
+                className="demo-link"
+                type="button"
+                onClick={() => void navigate({ to: "/" })}
+              >
                 Voltar para entrar
               </button>
             </div>
