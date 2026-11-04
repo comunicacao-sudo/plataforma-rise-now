@@ -12,6 +12,10 @@ additional_redirect_urls = [
 subject = "Seu acesso à RISE Now está pronto"
 content_path = "./supabase/templates/invite.html"
 
+[auth.email.template.recovery]
+subject = "Redefina sua senha de acesso à RISE Now"
+content_path = "./supabase/templates/recovery.html"
+
 [functions.rise-backend]
 verify_jwt = true
 
