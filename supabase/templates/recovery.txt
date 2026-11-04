@@ -1,0 +1,18 @@
+Redefinição de senha | RISE Now
+
+{{ if .Data.full_name }}Olá, {{ .Data.full_name }}.
+
+{{ end }}Vamos redefinir sua senha?
+
+Recebemos uma solicitação para criar uma nova senha de acesso à plataforma RISE Now.
+
+Para continuar acessando sua jornada com segurança, abra o link abaixo e escolha uma nova senha:
+
+{{ .ConfirmationURL }}
+
+Este link é individual e temporário. Se não funcionar, solicite outro link de redefinição de senha na plataforma.
+
+Se você não solicitou a troca de senha, ignore esta mensagem. Sua senha atual não será alterada por este e-mail.
+
+Equipe RISE Now
+Reflexão, Identidade, Segurança e Evolução.
