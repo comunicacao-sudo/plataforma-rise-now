@@ -6,11 +6,14 @@ import {
   getWhatsAppAdminState,
   getWhatsAppQrCode,
   saveWhatsAppSettings,
+  saveWhatsAppTemplates,
   sendWhatsAppTest,
   startWhatsAppSession,
   type WhatsAppAdminState,
   type WhatsAppSettings,
 } from "@/lib/whatsapp.functions";
+
+import { WhatsAppTemplatesEditor } from "./whatsapp-templates-editor";
 
 const defaultSettings: WhatsAppSettings = {
   accountCreated: false,
@@ -391,6 +394,24 @@ export function WhatsAppAdmin() {
                 </div>
               </article>
             </div>
+
+            <WhatsAppTemplatesEditor
+              templates={data.templates}
+              available={data.templatesAvailable}
+              disabled={!configured || busy !== null}
+              saving={busy === "templates"}
+              onSave={(templates) =>
+                void runAction(
+                  "templates",
+                  () => saveWhatsAppTemplates({ data: { templates } }),
+                  "Textos das mensagens salvos.",
+                )
+              }
+              onUseInTest={(message) => {
+                setTestMessage(message);
+                setFeedback("Prévia copiada para a mensagem de teste.");
+              }}
+            />
 
             {feedback ? (
               <p className="form-message" role="status">

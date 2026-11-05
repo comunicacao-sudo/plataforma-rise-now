@@ -1,3 +1,5 @@
+import type { WhatsAppTemplateKey } from "../../supabase/functions/_shared/whatsapp-templates.ts";
+
 import { createEdgeFunction } from "./edge-function-client";
 
 /** Gateway de WhatsApp Pamaris: credenciais ficam só nos secrets das Edge Functions. */
@@ -31,6 +33,10 @@ export type WhatsAppAdminState = {
   };
   qrCode: string | null;
   settings: WhatsAppSettings;
+  /** false enquanto a migration 0042 não for aplicada no banco. */
+  templatesAvailable: boolean;
+  templates: Record<WhatsAppTemplateKey, string>;
+  customizedTemplates: WhatsAppTemplateKey[];
   history: Array<{
     id: string;
     eventType: string;
@@ -50,6 +56,10 @@ export const getWhatsAppAdminState = createEdgeFunction<undefined, WhatsAppAdmin
 export const saveWhatsAppSettings = createEdgeFunction<WhatsAppSettings, ActionResult>(
   "saveWhatsAppSettings",
 );
+export const saveWhatsAppTemplates = createEdgeFunction<
+  { templates: Partial<Record<WhatsAppTemplateKey, string>> },
+  ActionResult
+>("saveWhatsAppTemplates");
 export const startWhatsAppSession = createEdgeFunction<undefined, ActionResult>(
   "startWhatsAppSession",
 );

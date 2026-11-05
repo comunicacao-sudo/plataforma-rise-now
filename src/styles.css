@@ -8593,6 +8593,93 @@ hr,
   border-color: #d9534f;
   color: #d9534f;
 }
+.whatsapp-template-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.whatsapp-template-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.85rem;
+  border: 1px solid var(--platform-line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--platform-text);
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+.whatsapp-template-tabs button.is-active {
+  border-color: var(--gold);
+  background: color-mix(in srgb, var(--gold) 18%, transparent);
+  font-weight: 600;
+}
+.whatsapp-template-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: var(--gold);
+}
+.whatsapp-template-body {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+.whatsapp-template-body textarea {
+  width: 100%;
+  font-family: inherit;
+  line-height: 1.5;
+}
+.whatsapp-variables {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.whatsapp-variables button {
+  display: grid;
+  gap: 0.1rem;
+  padding: 0.35rem 0.6rem;
+  border: 1px dashed var(--platform-line-strong);
+  border-radius: 0.45rem;
+  background: transparent;
+  color: var(--platform-text);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.whatsapp-variables button small {
+  color: var(--platform-muted);
+  font-weight: 400;
+  font-size: 0.72rem;
+}
+.whatsapp-variables button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.whatsapp-preview {
+  margin: 0;
+  padding: 1rem;
+  border-radius: 0.8rem;
+  background: #dcf8c6;
+  color: #1f2c26;
+}
+.whatsapp-preview figcaption {
+  margin-bottom: 0.5rem;
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+.whatsapp-preview p {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
 @media (max-width: 760px) {
   .mentee-profile-header {
     align-items: flex-start;

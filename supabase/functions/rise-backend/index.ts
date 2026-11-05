@@ -32,6 +32,13 @@ import {
   whatsappSettings,
   type NotificationInput,
 } from "../_shared/whatsapp-gateway.ts";
+import {
+  WHATSAPP_TEMPLATE_DEFINITIONS,
+  WHATSAPP_TEMPLATE_KEYS,
+  renderTemplate,
+  sanitizeTemplates,
+  templateFor,
+} from "../_shared/whatsapp-templates.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -358,7 +365,11 @@ async function createMember(c: Context, d: any) {
             referenceId: created.user.id,
             idempotencyKey: `account_created:${created.user.id}`,
             targetUrl: link,
-            message: `Olá${name ? `, ${name}` : ""}! ✨\n\nSeu acesso à plataforma RISE NOW foi criado.\n\nEnviamos para o seu e-mail (${email}) o link seguro para ativar a conta e definir sua senha. Depois, é só entrar por aqui:\n${link}`,
+            message: renderTemplate("account_created", settings.message_templates, {
+              nome: name,
+              email,
+              link,
+            }),
           },
         ]);
       }
@@ -524,7 +535,11 @@ async function notifyStageCompleted(enrollmentId: string, menteeId: string, step
         referenceId: stepKey,
         idempotencyKey: `stage_completed_mentee:${enrollmentId}:${stepKey}`,
         targetUrl: menteeLink,
-        message: `Olá${mentee.name ? `, ${mentee.name}` : ""}! 🌟\n\nParabéns pela conclusão da etapa *${title}*.\n\nAcompanhe seu progresso na plataforma:\n${menteeLink}`,
+        message: renderTemplate("stage_completed_mentee", settings?.message_templates, {
+          nome: mentee.name,
+          etapa: title,
+          link: menteeLink,
+        }),
       });
 
     if (toMentors) {
@@ -552,7 +567,12 @@ async function notifyStageCompleted(enrollmentId: string, menteeId: string, step
           referenceId: stepKey,
           idempotencyKey: `stage_completed_mentor:${enrollmentId}:${stepKey}:${mentor.id}`,
           targetUrl: mentorLink,
-          message: `Olá${mentor.name ? `, ${mentor.name}` : ""}! ✅\n\n${mentee?.fullName ?? "Uma mentorada"} concluiu a etapa *${title}*.\n\nAcompanhe o progresso da mentorada:\n${mentorLink}`,
+          message: renderTemplate("stage_completed_mentor", settings?.message_templates, {
+            nome: mentor.name,
+            mentorada: mentee?.fullName ?? "Uma mentorada",
+            etapa: title,
+            link: mentorLink,
+          }),
         });
       }
     }
@@ -3285,6 +3305,27 @@ async function whatsappAction(c: Context, action: string, d: any) {
     await audit(c, "whatsapp_settings_updated", "primary");
     return { ok: true, providerConfigured: configured };
   }
+  if (action === "saveWhatsAppTemplates") {
+    let templates;
+    try {
+      templates = sanitizeTemplates(d.templates);
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : "Texto inválido." };
+    }
+    const { error } = await c.admin
+      .from("whatsapp_settings")
+      .update({ message_templates: templates, updated_by: c.userId })
+      .eq("id", "primary");
+    if (error)
+      return {
+        ok: false,
+        error: /message_templates/.test(error.message)
+          ? "Falta aplicar a atualização do banco 0042_whatsapp_message_templates."
+          : error.message,
+      };
+    await audit(c, "whatsapp_templates_updated", "primary", { keys: Object.keys(templates) });
+    return { ok: true };
+  }
   if (!configured && action !== "getWhatsAppAdminState")
     return { ok: false, error: "Gateway de WhatsApp ainda não configurado no servidor." };
   if (action === "startWhatsAppSession") {
@@ -3345,6 +3386,14 @@ async function whatsappAction(c: Context, action: string, d: any) {
         stageCompletedMentor: !!s?.enabled_stage_completed_mentor,
         meetingReminderHours: s?.meeting_reminder_hours ?? 24,
       },
+      templatesAvailable: !!s && "message_templates" in s,
+      templates: Object.fromEntries(
+        WHATSAPP_TEMPLATE_KEYS.map((key) => [key, templateFor(key, s?.message_templates)]),
+      ),
+      customizedTemplates: WHATSAPP_TEMPLATE_KEYS.filter(
+        (key) =>
+          templateFor(key, s?.message_templates) !== WHATSAPP_TEMPLATE_DEFINITIONS[key].defaultText,
+      ),
       history: (history ?? []).map((row: any) => ({
         id: row.id,
         eventType: row.event_type,
@@ -3422,6 +3471,7 @@ const groups = {
   whatsapp: new Set([
     "getWhatsAppAdminState",
     "saveWhatsAppSettings",
+    "saveWhatsAppTemplates",
     "startWhatsAppSession",
     "getWhatsAppQrCode",
     "sendWhatsAppTest",

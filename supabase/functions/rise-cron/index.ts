@@ -12,6 +12,7 @@ import {
   sleep,
   whatsappSettings,
 } from "../_shared/whatsapp-gateway.ts";
+import { renderTemplate } from "../_shared/whatsapp-templates.ts";
 
 const env = (name: string) => Deno.env.get(name)?.trim() || null;
 const keyFromJson = (name: string) => {
@@ -36,14 +37,13 @@ const firstName = (user: any) =>
   String(user?.display_name || user?.full_name || "")
     .trim()
     .split(/\s+/)[0] || "";
-const hello = (user: any) => (firstName(user) ? `Olá, ${firstName(user)}!` : "Olá!");
 const link = (params: Record<string, string>) => {
   const target = new URL("/", gatewayConfig().appBase);
   for (const [key, value] of Object.entries(params)) target.searchParams.set(key, value);
   return target.toString();
 };
 
-async function queueStageReleases(now: Date) {
+async function queueStageReleases(settings: any, now: Date) {
   const { data: enrollments, error: enrollmentError } = await admin
     .from("enrollments")
     .select("id, mentee_id, program_id, cohort_id, current_month")
@@ -126,7 +126,11 @@ async function queueStageReleases(now: Date) {
         referenceId: step.stable_key,
         idempotencyKey: `stage_released:${enrollment.id}:${step.stable_key}`,
         targetUrl: url,
-        message: `${hello(user)} ✨\n\nUma nova etapa foi liberada para você: *${step.title}*.\n\nAcesse sua jornada:\n${url}`,
+        message: renderTemplate("stage_released", settings.message_templates, {
+          nome: firstName(user),
+          etapa: step.title,
+          link: url,
+        }),
       });
       queued += Number(!!row);
     }
@@ -194,7 +198,12 @@ async function queueMeetingReminders(settings: any, now: Date) {
         referenceId: meeting.id,
         idempotencyKey: `meeting_reminder:${meeting.id}:${meeting.scheduled_at}:${user.id}`,
         targetUrl: url,
-        message: `${hello(user)} ⏰\n\nLembrete: o encontro *${meeting.title}* está marcado para ${when(meeting.scheduled_at)}.\n\nVeja os detalhes na plataforma:\n${url}`,
+        message: renderTemplate("meeting_reminder", settings.message_templates, {
+          nome: firstName(user),
+          encontro: meeting.title,
+          data: when(meeting.scheduled_at),
+          link: url,
+        }),
       });
       queued += Number(!!created);
     }
@@ -243,7 +252,7 @@ Deno.serve(async (request: Request) => {
     if (!settings) return Response.json({ ok: true, queued: 0, sent: 0 });
     const now = new Date();
     let queued = 0;
-    if (settings.enabled_stage_released) queued += await queueStageReleases(now);
+    if (settings.enabled_stage_released) queued += await queueStageReleases(settings, now);
     if (settings.enabled_meeting_reminder) queued += await queueMeetingReminders(settings, now);
 
     // Confere a conexão antes de enviar: se o número caiu, as mensagens ficam pendentes.
