@@ -183,7 +183,7 @@ async function getDirectory(c: Context) {
         .order("created_at"),
       c.admin
         .from("allowed_emails")
-        .select("id, email, full_name, role, status, created_at")
+        .select("id, email, full_name, role, status, created_at, archived_at")
         .order("created_at"),
       c.admin.auth.admin.listUsers({ page: 1, perPage: 1000 }),
     ]);
@@ -237,6 +237,7 @@ async function getDirectory(c: Context) {
               ? "ativo"
               : "aguardando",
         createdAt: entry.created_at,
+        archivedAt: entry.archived_at ?? null,
       };
     }),
     specialties: specialties.data ?? [],
@@ -425,9 +426,15 @@ async function updateAccess(c: Context, d: any) {
     .from("allowed_emails")
     .update({ status: enabled ? "approved" : "revoked" })
     .eq("id", d.accessId)
+    .is("archived_at", null)
     .select("email")
     .single();
-  if (error) throw new Error(error.message);
+  if (error)
+    throw new Error(
+      error.code === "PGRST116"
+        ? "Este acesso está excluído. Restaure-o antes de alterar o status."
+        : error.message,
+    );
   const { data: users, error: usersError } = await c.admin.auth.admin.listUsers({
     page: 1,
     perPage: 1000,
@@ -444,6 +451,139 @@ async function updateAccess(c: Context, d: any) {
     if (authError) throw new Error(authError.message);
   }
   await audit(c, enabled ? "access_activated" : "access_revoked", d.accessId);
+  return { ok: true };
+}
+
+type ArchivedEnrollmentState = { id: string; status: string };
+
+function archivedEnrollmentStates(snapshot: unknown): ArchivedEnrollmentState[] {
+  if (!snapshot || typeof snapshot !== "object") return [];
+  const enrollments = (snapshot as { enrollments?: unknown }).enrollments;
+  if (!Array.isArray(enrollments)) return [];
+  return enrollments.flatMap((entry) => {
+    if (!entry || typeof entry !== "object") return [];
+    const id = String((entry as { id?: unknown }).id ?? "");
+    const status = String((entry as { status?: unknown }).status ?? "");
+    return id && ["ativa", "pausada", "desativada"].includes(status) ? [{ id, status }] : [];
+  });
+}
+
+async function setAccessArchived(c: Context, d: any) {
+  await requireStaff(c);
+  const accessId = String(d.accessId ?? "").trim();
+  const archived = d.archived === true;
+  if (!accessId) throw new Error("Acesso inválido.");
+
+  const { data: access, error: accessError } = await c.admin
+    .from("allowed_emails")
+    .select("id, email, role, status, archived_at, archive_snapshot")
+    .eq("id", accessId)
+    .single();
+  if (accessError || !access) throw new Error(accessError?.message ?? "Acesso não encontrado.");
+
+  if (archived === Boolean(access.archived_at)) return { ok: true };
+
+  const { data: users, error: usersError } = await c.admin.auth.admin.listUsers({
+    page: 1,
+    perPage: 1000,
+  });
+  if (usersError) throw new Error(usersError.message);
+  const user = users.users.find(
+    (candidate: any) =>
+      String(candidate.email).toLowerCase() === String(access.email).toLowerCase(),
+  );
+
+  if (archived) {
+    if (
+      user?.id === c.userId ||
+      String(access.email).toLowerCase() === String(c.user?.email ?? "").toLowerCase()
+    ) {
+      throw new Error("Você não pode excluir o próprio acesso.");
+    }
+
+    if (access.role === "admin" || access.role === "mentor") {
+      const { count, error: countError } = await c.admin
+        .from("allowed_emails")
+        .select("id", { count: "exact", head: true })
+        .in("role", ["admin", "mentor"])
+        .eq("status", "approved")
+        .is("archived_at", null);
+      if (countError) throw new Error(countError.message);
+      if ((count ?? 0) <= 1)
+        throw new Error("O último acesso administrativo não pode ser excluído.");
+    }
+
+    const { data: enrollmentRows, error: enrollmentError } = user
+      ? await c.admin.from("enrollments").select("id, status").eq("mentee_id", user.id)
+      : { data: [], error: null };
+    if (enrollmentError) throw new Error(enrollmentError.message);
+
+    const snapshot = {
+      accessStatus: access.status,
+      enrollments: (enrollmentRows ?? []).map((entry: any) => ({
+        id: entry.id,
+        status: entry.status,
+      })),
+    };
+    const { error: archiveError } = await c.admin
+      .from("allowed_emails")
+      .update({
+        status: "revoked",
+        archived_at: new Date().toISOString(),
+        archived_by: c.userId,
+        archive_snapshot: snapshot,
+      })
+      .eq("id", accessId)
+      .is("archived_at", null);
+    if (archiveError) throw new Error(archiveError.message);
+
+    if (user) {
+      const { error: authError } = await c.admin.auth.admin.updateUserById(user.id, {
+        ban_duration: "876000h",
+      });
+      if (authError) throw new Error(authError.message);
+      const { error: disableError } = await c.admin
+        .from("enrollments")
+        .update({ status: "desativada" })
+        .eq("mentee_id", user.id);
+      if (disableError) throw new Error(disableError.message);
+    }
+
+    await audit(c, "access_archived", accessId, {
+      role: access.role,
+      enrollmentCount: (enrollmentRows ?? []).length,
+    });
+    return { ok: true };
+  }
+
+  if (user) {
+    const { error: authError } = await c.admin.auth.admin.updateUserById(user.id, {
+      ban_duration: "none",
+    });
+    if (authError) throw new Error(authError.message);
+  }
+
+  const enrollmentStates = archivedEnrollmentStates(access.archive_snapshot);
+  for (const enrollment of enrollmentStates) {
+    const { error: restoreEnrollmentError } = await c.admin
+      .from("enrollments")
+      .update({ status: enrollment.status })
+      .eq("id", enrollment.id);
+    if (restoreEnrollmentError) throw new Error(restoreEnrollmentError.message);
+  }
+
+  const { error: restoreError } = await c.admin
+    .from("allowed_emails")
+    .update({
+      status: "approved",
+      archived_at: null,
+      archived_by: null,
+      archive_snapshot: {},
+    })
+    .eq("id", accessId)
+    .not("archived_at", "is", null);
+  if (restoreError) throw new Error(restoreError.message);
+  await audit(c, "access_restored", accessId, { enrollmentCount: enrollmentStates.length });
   return { ok: true };
 }
 
@@ -3415,6 +3555,7 @@ const groups = {
     "createMentorSpecialty",
     "updateEnrollment",
     "updateAccess",
+    "setAccessArchived",
     "resetMemberPassword",
   ]),
   journey: new Set([
@@ -3501,7 +3642,9 @@ Deno.serve(async (request: Request) => {
                 ? await updateEnrollment(c, d)
                 : action === "updateAccess"
                   ? await updateAccess(c, d)
-                  : await resetMemberPassword(c, d);
+                  : action === "setAccessArchived"
+                    ? await setAccessArchived(c, d)
+                    : await resetMemberPassword(c, d);
     else if (groups.journey.has(action)) result = await journeyAction(c, action, d);
     else if (groups.content.has(action)) result = await contentAction(c, action, d);
     else if (groups.assessment.has(action)) result = await assessmentAction(c, action, d);

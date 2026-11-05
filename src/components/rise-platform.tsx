@@ -1294,13 +1294,23 @@ export function RisePlatform() {
           return;
         }
         const userId = data.session.user.id;
-        const [profileResult, rolesResult] = await Promise.all([
+        const email = String(data.session.user.email ?? "")
+          .trim()
+          .toLowerCase();
+        const [profileResult, rolesResult, accessResult] = await Promise.all([
           supabase
             .from("profiles")
             .select("display_name, full_name")
             .eq("id", userId)
             .maybeSingle(),
           supabase.from("user_roles").select("role").eq("user_id", userId),
+          email
+            ? supabase
+                .from("allowed_emails")
+                .select("status, archived_at")
+                .eq("email", email)
+                .maybeSingle()
+            : Promise.resolve({ data: null, error: new Error("Email de acesso ausente.") }),
         ]);
         if (!mounted) return;
 
@@ -1308,7 +1318,11 @@ export function RisePlatform() {
         if (
           profileResult.error ||
           rolesResult.error ||
+          accessResult.error ||
           !profileResult.data ||
+          !accessResult.data ||
+          accessResult.data.status !== "approved" ||
+          Boolean(accessResult.data.archived_at) ||
           !storedRole ||
           !(["mentee", "mentor", "admin"] as const).includes(storedRole)
         ) {
@@ -1349,7 +1363,12 @@ export function RisePlatform() {
 
     void resolveSession();
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "TOKEN_REFRESHED" || event === "INITIAL_SESSION") return;
+      if (event === "INITIAL_SESSION") return;
+
+      if (event === "TOKEN_REFRESHED") {
+        void resolveSession();
+        return;
+      }
 
       if (event === "SIGNED_OUT" || !session) {
         resolvedUserId.current = null;
@@ -1366,9 +1385,16 @@ export function RisePlatform() {
         void resolveSession();
       }
     });
+    const refreshAccessWhenVisible = () => {
+      if (document.visibilityState === "visible") void resolveSession();
+    };
+    window.addEventListener("focus", refreshAccessWhenVisible);
+    document.addEventListener("visibilitychange", refreshAccessWhenVisible);
     return () => {
       mounted = false;
       listener.subscription.unsubscribe();
+      window.removeEventListener("focus", refreshAccessWhenVisible);
+      document.removeEventListener("visibilitychange", refreshAccessWhenVisible);
     };
   }, []);
 

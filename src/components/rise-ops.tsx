@@ -31,7 +31,11 @@ import {
 import {
   createMentorSpecialty,
   createMember,
+  filterDirectoryAccess,
   getDirectory,
+  matchesAccessArchiveConfirmation,
+  setAccessArchived,
+  type AccessListView,
   type RiseDirectory,
   updateAccess,
   updateEnrollment,
@@ -1686,16 +1690,93 @@ function MenteeProfilePage({
   );
 }
 
+function AccessArchiveDialog({
+  entry,
+  busy,
+  error,
+  onClose,
+  onConfirm,
+}: {
+  entry: RiseDirectory["access"][number];
+  busy: boolean;
+  error: string;
+  onClose: () => void;
+  onConfirm: () => Promise<void>;
+}) {
+  const [confirmation, setConfirmation] = useState("");
+  const valid = matchesAccessArchiveConfirmation(confirmation);
+  return (
+    <div className="modal-backdrop" role="presentation">
+      <section
+        className="content-modal ops-modal access-archive-modal"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="access-archive-title"
+        aria-describedby="access-archive-description"
+      >
+        <button className="modal-close" type="button" onClick={onClose} aria-label="Fechar">
+          <X size={20} />
+        </button>
+        <form
+          className="content-modal__body ops-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (valid && !busy) void onConfirm();
+          }}
+        >
+          <span className="eyebrow eyebrow--gold">Exclusão segura</span>
+          <h2 id="access-archive-title">Excluir o acesso de {entry.name}?</h2>
+          <div id="access-archive-description" className="access-archive-summary">
+            <strong>{entry.email}</strong>
+            <p>
+              O login será bloqueado e a pessoa deixará a lista ativa. Perfil, progresso, entregas,
+              avaliações e histórico permanecerão preservados e o acesso poderá ser restaurado
+              depois.
+            </p>
+          </div>
+          <Field label="Digite EXCLUIR para confirmar">
+            <input
+              value={confirmation}
+              onChange={(event) => setConfirmation(event.target.value)}
+              autoComplete="off"
+              autoFocus
+              placeholder="EXCLUIR"
+            />
+          </Field>
+          {error ? (
+            <p className="form-error" role="alert">
+              {error}
+            </p>
+          ) : null}
+          <div className="content-modal__actions">
+            <button type="button" onClick={onClose} disabled={busy}>
+              Cancelar
+            </button>
+            <button className="ops-danger-action" type="submit" disabled={!valid || busy}>
+              <Trash2 size={16} /> {busy ? "Excluindo…" : "Excluir acesso"}
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
+  );
+}
+
 function MembersPanel({ mode }: { mode: "students" | "access" }) {
   const qc = useQueryClient();
   const { data: dir } = useDirectory();
   const updateFn = useServerFn(updateEnrollment);
   const updateAccessFn = useServerFn(updateAccess);
+  const setAccessArchivedFn = useServerFn(setAccessArchived);
   const { data: subs = [] } = useSubmissions();
   const [cohortOpen, setCohortOpen] = useState(false);
   const [editingCohort, setEditingCohort] = useState<RiseDirectory["cohorts"][number] | null>(null);
   const [specialtyOpen, setSpecialtyOpen] = useState(false);
   const [memberOpen, setMemberOpen] = useState(false);
+  const [accessView, setAccessView] = useState<AccessListView>("active");
+  const [archiveTarget, setArchiveTarget] = useState<RiseDirectory["access"][number] | null>(null);
+  const [archiveBusy, setArchiveBusy] = useState(false);
+  const [archiveError, setArchiveError] = useState("");
   const [adminSection, setAdminSection] = useState<"perfis" | "acessos" | "turmas">(
     mode === "students" ? "perfis" : "acessos",
   );
@@ -1780,6 +1861,33 @@ function MembersPanel({ mode }: { mode: "students" | "access" }) {
       />
     );
 
+  const allAccess = dir?.access ?? [];
+  const visibleAccess = filterDirectoryAccess(allAccess, accessView);
+  const activeAccessCount = filterDirectoryAccess(allAccess, "active").length;
+  const archivedAccessCount = filterDirectoryAccess(allAccess, "archived").length;
+
+  async function changeArchivedAccess(entry: RiseDirectory["access"][number], archived: boolean) {
+    setArchiveBusy(true);
+    setArchiveError("");
+    try {
+      await setAccessArchivedFn({ data: { accessId: entry.id, archived } });
+      await qc.invalidateQueries({ queryKey: ["directory"] });
+      if (archived) {
+        setArchiveTarget(null);
+        setAccessView("active");
+      } else {
+        setAccessView("active");
+      }
+    } catch (caught) {
+      const message =
+        caught instanceof Error ? caught.message : "Não foi possível alterar o acesso.";
+      setArchiveError(message);
+      if (!archived) window.alert(message);
+    } finally {
+      setArchiveBusy(false);
+    }
+  }
+
   return (
     <main className="inner-page">
       <Intro
@@ -1822,6 +1930,26 @@ function MembersPanel({ mode }: { mode: "students" | "access" }) {
                 <Plus size={16} /> Cadastrar pessoa
               </button>
             </div>
+            <div className="ops-access-tabs" role="tablist" aria-label="Status dos acessos">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={accessView === "active"}
+                className={accessView === "active" ? "is-active" : ""}
+                onClick={() => setAccessView("active")}
+              >
+                Ativos e pendentes <span>{activeAccessCount}</span>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={accessView === "archived"}
+                className={accessView === "archived" ? "is-active" : ""}
+                onClick={() => setAccessView("archived")}
+              >
+                Acessos excluídos <span>{archivedAccessCount}</span>
+              </button>
+            </div>
             <table className="ops-table">
               <thead>
                 <tr>
@@ -1832,10 +1960,10 @@ function MembersPanel({ mode }: { mode: "students" | "access" }) {
                 </tr>
               </thead>
               <tbody>
-                {dir?.access.map((entry) => {
+                {visibleAccess.map((entry) => {
                   const enrollment =
                     entry.role === "mentee"
-                      ? dir.enrollments.find(
+                      ? dir?.enrollments.find(
                           (item) =>
                             item.menteeId === entry.userId ||
                             item.email.toLowerCase() === entry.email.toLowerCase(),
@@ -1849,13 +1977,22 @@ function MembersPanel({ mode }: { mode: "students" | "access" }) {
                       </td>
                       <td>{entry.role === "mentee" ? "Mentorada" : "Mentora · Administradora"}</td>
                       <td>
-                        <span className={`ops-tag ops-tag--${entry.status}`}>
-                          {entry.status === "ativo"
-                            ? "Ativo"
-                            : entry.status === "revogado"
-                              ? "Revogado"
-                              : "Convite pendente"}
+                        <span
+                          className={`ops-tag ops-tag--${entry.archivedAt ? "excluido" : entry.status}`}
+                        >
+                          {entry.archivedAt
+                            ? "Excluído"
+                            : entry.status === "ativo"
+                              ? "Ativo"
+                              : entry.status === "revogado"
+                                ? "Revogado"
+                                : "Convite pendente"}
                         </span>
+                        {entry.archivedAt ? (
+                          <small className="ops-access-enrollment">
+                            Excluído em {new Date(entry.archivedAt).toLocaleDateString("pt-BR")}
+                          </small>
+                        ) : null}
                         {enrollment ? (
                           <small className="ops-access-enrollment">
                             Matrícula: {enrollmentLabels[enrollment.status] ?? enrollment.status}
@@ -1864,67 +2001,123 @@ function MembersPanel({ mode }: { mode: "students" | "access" }) {
                       </td>
                       <td className="ops-actions-cell">
                         <div className="ops-actions">
-                          {entry.email ? (
+                          {entry.archivedAt ? (
                             <button
                               type="button"
-                              onClick={() => void reset(entry.email, entry.name)}
+                              disabled={archiveBusy}
+                              onClick={() => {
+                                if (
+                                  window.confirm(
+                                    `Restaurar o acesso de ${entry.name}? O login e a matrícula anterior serão reativados.`,
+                                  )
+                                ) {
+                                  void changeArchivedAccess(entry, false);
+                                }
+                              }}
                             >
-                              Enviar nova senha
+                              <RefreshCw size={14} /> Restaurar acesso
                             </button>
-                          ) : null}
-                          {enrollment ? (
+                          ) : (
                             <>
-                              {enrollment.status === "ativa" ? (
+                              {entry.email ? (
                                 <button
                                   type="button"
-                                  onClick={() => void update(enrollment.id, { status: "pausada" })}
+                                  onClick={() => void reset(entry.email, entry.name)}
                                 >
-                                  Pausar
-                                </button>
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => void update(enrollment.id, { status: "ativa" })}
-                                >
-                                  Reativar
-                                </button>
-                              )}
-                              {enrollment.status !== "desativada" ? (
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    window.confirm(`Desativar o acesso de ${entry.name}?`) &&
-                                    void update(enrollment.id, { status: "desativada" })
-                                  }
-                                >
-                                  Desativar
+                                  Enviar nova senha
                                 </button>
                               ) : null}
+                              {enrollment ? (
+                                <>
+                                  {enrollment.status === "ativa" ? (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        void update(enrollment.id, { status: "pausada" })
+                                      }
+                                    >
+                                      Pausar
+                                    </button>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        void update(enrollment.id, { status: "ativa" })
+                                      }
+                                    >
+                                      Reativar
+                                    </button>
+                                  )}
+                                  {enrollment.status !== "desativada" ? (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        window.confirm(`Desativar o acesso de ${entry.name}?`) &&
+                                        void update(enrollment.id, { status: "desativada" })
+                                      }
+                                    >
+                                      Desativar
+                                    </button>
+                                  ) : null}
+                                </>
+                              ) : null}
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  const enabled = entry.status === "revogado";
+                                  if (
+                                    !window.confirm(
+                                      `${enabled ? "Ativar" : "Revogar"} o acesso de ${entry.name}?`,
+                                    )
+                                  )
+                                    return;
+                                  await updateAccessFn({ data: { accessId: entry.id, enabled } });
+                                  await qc.invalidateQueries({ queryKey: ["directory"] });
+                                }}
+                              >
+                                {entry.status === "revogado" ? "Ativar acesso" : "Revogar acesso"}
+                              </button>
+                              <button
+                                className="ops-danger-button"
+                                type="button"
+                                onClick={() => {
+                                  setArchiveError("");
+                                  setArchiveTarget(entry);
+                                }}
+                              >
+                                <Trash2 size={14} /> Excluir acesso
+                              </button>
                             </>
-                          ) : null}
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              const enabled = entry.status === "revogado";
-                              if (
-                                !window.confirm(
-                                  `${enabled ? "Ativar" : "Revogar"} o acesso de ${entry.name}?`,
-                                )
-                              )
-                                return;
-                              await updateAccessFn({ data: { accessId: entry.id, enabled } });
-                              await qc.invalidateQueries({ queryKey: ["directory"] });
-                            }}
-                          >
-                            {entry.status === "revogado" ? "Ativar acesso" : "Revogar acesso"}
-                          </button>
+                          )}
                         </div>
                       </td>
                     </tr>
                   );
                 })}
+                {visibleAccess.length === 0 ? (
+                  <tr>
+                    <td className="ops-empty-row" colSpan={4}>
+                      {accessView === "archived"
+                        ? "Nenhum acesso foi excluído."
+                        : "Nenhum acesso ativo ou pendente foi encontrado."}
+                    </td>
+                  </tr>
+                ) : null}
               </tbody>
             </table>
+            {archiveTarget ? (
+              <AccessArchiveDialog
+                entry={archiveTarget}
+                busy={archiveBusy}
+                error={archiveError}
+                onClose={() => {
+                  if (archiveBusy) return;
+                  setArchiveTarget(null);
+                  setArchiveError("");
+                }}
+                onConfirm={() => changeArchivedAccess(archiveTarget, true)}
+              />
+            ) : null}
           </div>
         ) : null}
 
