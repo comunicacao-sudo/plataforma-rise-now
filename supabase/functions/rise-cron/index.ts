@@ -1,13 +1,234 @@
 // @ts-nocheck
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "npm:@supabase/supabase-js@2.117.2";
+import {
+  WHATSAPP_PENDING_MAX_AGE_MS,
+  WHATSAPP_SEND_INTERVAL_MS,
+  deliverNotification,
+  enqueueNotification,
+  gatewayConfig,
+  gatewayConfigured,
+  getGatewaySession,
+  sleep,
+  whatsappSettings,
+} from "../_shared/whatsapp-gateway.ts";
 
 const env = (name: string) => Deno.env.get(name)?.trim() || null;
+const keyFromJson = (name: string) => {
+  try {
+    return JSON.parse(env(name) ?? "{}").default ?? null;
+  } catch {
+    return null;
+  }
+};
+const admin = createClient(
+  env("SUPABASE_URL")!,
+  keyFromJson("SUPABASE_SECRET_KEYS") ?? env("SUPABASE_SERVICE_ROLE_KEY")!,
+  { auth: { persistSession: false, autoRefreshToken: false } },
+);
 
-/**
- * Provider-neutral scheduler endpoint. Event preferences, templates, idempotency
- * fields and history tables remain intact; delivery stays disabled until the
- * official provider contract is implemented.
- */
+/** Máximo de mensagens por execução (com 3,5 s de pausa ≈ 70 s de envio). */
+const MAX_SENDS_PER_RUN = 20;
+/** Etapas liberadas por data só geram aviso se a liberação aconteceu nesta janela. */
+const STAGE_RELEASE_WINDOW_MS = 24 * 3_600_000;
+
+const firstName = (user: any) =>
+  String(user?.display_name || user?.full_name || "")
+    .trim()
+    .split(/\s+/)[0] || "";
+const hello = (user: any) => (firstName(user) ? `Olá, ${firstName(user)}!` : "Olá!");
+const link = (params: Record<string, string>) => {
+  const target = new URL("/", gatewayConfig().appBase);
+  for (const [key, value] of Object.entries(params)) target.searchParams.set(key, value);
+  return target.toString();
+};
+
+async function queueStageReleases(now: Date) {
+  const { data: enrollments, error: enrollmentError } = await admin
+    .from("enrollments")
+    .select("id, mentee_id, program_id, cohort_id, current_month")
+    .eq("status", "ativa");
+  if (enrollmentError) throw new Error(enrollmentError.message);
+  if (!enrollments?.length) return 0;
+  const enrollmentIds = enrollments.map((row: any) => row.id);
+  const programIds = [...new Set(enrollments.map((row: any) => row.program_id))];
+  const [{ data: assignments }, { data: pillars, error: pillarError }] = await Promise.all([
+    admin
+      .from("enrollment_journey_versions")
+      .select("enrollment_id, pillar_id, version_id")
+      .in("enrollment_id", enrollmentIds),
+    admin
+      .from("journey_pillars")
+      .select("id, program_id, current_published_version_id")
+      .in("program_id", programIds),
+  ]);
+  if (pillarError) throw new Error(pillarError.message);
+  const assigned = new Map(
+    (assignments ?? []).map((row: any) => [
+      `${row.enrollment_id}:${row.pillar_id}`,
+      row.version_id,
+    ]),
+  );
+  const versionsByEnrollment = new Map<string, Set<string>>();
+  const allVersionIds = new Set<string>();
+  for (const enrollment of enrollments) {
+    const versions = new Set<string>();
+    for (const pillar of pillars ?? []) {
+      if (pillar.program_id !== enrollment.program_id) continue;
+      const versionId =
+        assigned.get(`${enrollment.id}:${pillar.id}`) ?? pillar.current_published_version_id;
+      if (versionId) {
+        versions.add(String(versionId));
+        allVersionIds.add(String(versionId));
+      }
+    }
+    versionsByEnrollment.set(enrollment.id, versions);
+  }
+  if (!allVersionIds.size) return 0;
+
+  // Só etapas com data de liberação recente: evita disparar em massa o histórico
+  // de etapas antigas na primeira vez que o aviso for ligado.
+  const windowStart = new Date(now.getTime() - STAGE_RELEASE_WINDOW_MS).toISOString();
+  const { data: steps, error: stepError } = await admin
+    .from("journey_steps")
+    .select(
+      "version_id, stable_key, title, month_number, release_at, access_scope, cohort_id, mentee_id",
+    )
+    .in("version_id", [...allVersionIds])
+    .is("archived_at", null)
+    .gt("release_at", windowStart)
+    .lte("release_at", now.toISOString());
+  if (stepError) throw new Error(stepError.message);
+  if (!steps?.length) return 0;
+
+  const userIds = [...new Set(enrollments.map((row: any) => row.mentee_id))];
+  const { data: users } = await admin
+    .from("profiles")
+    .select("id, display_name, full_name, phone")
+    .in("id", userIds);
+  const userById = new Map((users ?? []).map((user: any) => [user.id, user]));
+  let queued = 0;
+  for (const enrollment of enrollments) {
+    const user = userById.get(enrollment.mentee_id);
+    if (!user?.phone) continue;
+    const versions = versionsByEnrollment.get(enrollment.id) ?? new Set<string>();
+    for (const step of steps) {
+      if (!versions.has(step.version_id) || step.month_number > enrollment.current_month) continue;
+      if (step.access_scope === "cohort" && step.cohort_id !== enrollment.cohort_id) continue;
+      if (step.access_scope === "mentee" && step.mentee_id !== enrollment.mentee_id) continue;
+      const url = link({ view: "jornada", step: step.stable_key });
+      const row = await enqueueNotification(admin, {
+        eventType: "stage_released",
+        recipientId: user.id,
+        recipientRole: "mentee",
+        phone: user.phone,
+        referenceType: "journey_step",
+        referenceId: step.stable_key,
+        idempotencyKey: `stage_released:${enrollment.id}:${step.stable_key}`,
+        targetUrl: url,
+        message: `${hello(user)} ✨\n\nUma nova etapa foi liberada para você: *${step.title}*.\n\nAcesse sua jornada:\n${url}`,
+      });
+      queued += Number(!!row);
+    }
+  }
+  return queued;
+}
+
+async function meetingEnrollmentIds(meeting: any) {
+  if (meeting.enrollment_id) return [meeting.enrollment_id];
+  if (meeting.audience === "selected") {
+    const { data } = await admin
+      .from("meeting_attendees")
+      .select("enrollment_id")
+      .eq("meeting_id", meeting.id);
+    return (data ?? []).map((row: any) => row.enrollment_id);
+  }
+  let query = admin.from("enrollments").select("id").eq("status", "ativa");
+  if (meeting.audience === "cohort" && meeting.cohort_id)
+    query = query.eq("cohort_id", meeting.cohort_id);
+  const { data } = await query;
+  return (data ?? []).map((row: any) => row.id);
+}
+
+async function queueMeetingReminders(settings: any, now: Date) {
+  const cutoff = new Date(
+    now.getTime() + Number(settings.meeting_reminder_hours ?? 24) * 3_600_000,
+  );
+  const { data: meetings, error } = await admin
+    .from("meetings")
+    .select("id, title, scheduled_at, audience, cohort_id, enrollment_id")
+    .gt("scheduled_at", now.toISOString())
+    .lte("scheduled_at", cutoff.toISOString());
+  if (error) throw new Error(error.message);
+  const when = (iso: string) =>
+    new Intl.DateTimeFormat("pt-BR", {
+      timeZone: "America/Sao_Paulo",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    })
+      .format(new Date(iso))
+      .replace(",", " às");
+  let queued = 0;
+  for (const meeting of meetings ?? []) {
+    const ids = await meetingEnrollmentIds(meeting);
+    if (!ids.length) continue;
+    const { data: rows } = await admin
+      .from("enrollments")
+      .select("id, mentee:profiles!enrollments_mentee_id_fkey(id, display_name, full_name, phone)")
+      .in("id", ids)
+      .eq("status", "ativa");
+    for (const row of rows ?? []) {
+      const user = row.mentee;
+      if (!user?.phone) continue;
+      const url = link({ view: "agenda", meeting: meeting.id });
+      const created = await enqueueNotification(admin, {
+        eventType: "meeting_reminder",
+        recipientId: user.id,
+        recipientRole: "mentee",
+        phone: user.phone,
+        referenceType: "meeting",
+        referenceId: meeting.id,
+        idempotencyKey: `meeting_reminder:${meeting.id}:${meeting.scheduled_at}:${user.id}`,
+        targetUrl: url,
+        message: `${hello(user)} ⏰\n\nLembrete: o encontro *${meeting.title}* está marcado para ${when(meeting.scheduled_at)}.\n\nVeja os detalhes na plataforma:\n${url}`,
+      });
+      queued += Number(!!created);
+    }
+  }
+  return queued;
+}
+
+/** Envia as pendentes em fila, uma por vez, com pausa entre elas. */
+async function deliverPending(now: Date) {
+  const oldest = new Date(now.getTime() - WHATSAPP_PENDING_MAX_AGE_MS).toISOString();
+  // Pendentes antigas demais (ex.: lembrete de encontro que já passou) expiram.
+  await admin
+    .from("whatsapp_notifications")
+    .update({ status: "failed", error_message: "Expirou sem conexão com o WhatsApp." })
+    .eq("status", "pending")
+    .lt("created_at", oldest);
+  const { data: pending, error } = await admin
+    .from("whatsapp_notifications")
+    .select("id, phone, message, updated_at")
+    .eq("status", "pending")
+    .gte("created_at", oldest)
+    .order("created_at", { ascending: true })
+    .limit(MAX_SENDS_PER_RUN);
+  if (error) throw new Error(error.message);
+  const result = { sent: 0, failed: 0 };
+  for (const [index, row] of (pending ?? []).entries()) {
+    if (index > 0) await sleep(WHATSAPP_SEND_INTERVAL_MS);
+    const outcome = await deliverNotification(admin, row);
+    if (outcome === "sent") result.sent += 1;
+    if (outcome === "failed") result.failed += 1;
+  }
+  return result;
+}
+
 Deno.serve(async (request: Request) => {
   if (request.method !== "POST") return new Response("Method not allowed", { status: 405 });
   const expected = env("CRON_SECRET");
@@ -15,10 +236,30 @@ Deno.serve(async (request: Request) => {
     request.headers.get("x-cron-secret") ??
     request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
   if (!expected || provided !== expected) return new Response("Unauthorized", { status: 401 });
-  return Response.json({
-    ok: true,
-    providerConfigured: false,
-    attempted: 0,
-    message: "WhatsApp ainda não configurado.",
-  });
+  if (!gatewayConfigured())
+    return Response.json({ ok: true, providerConfigured: false, queued: 0, sent: 0 });
+  try {
+    const settings = await whatsappSettings(admin);
+    if (!settings) return Response.json({ ok: true, queued: 0, sent: 0 });
+    const now = new Date();
+    let queued = 0;
+    if (settings.enabled_stage_released) queued += await queueStageReleases(now);
+    if (settings.enabled_meeting_reminder) queued += await queueMeetingReminders(settings, now);
+
+    // Confere a conexão antes de enviar: se o número caiu, as mensagens ficam pendentes.
+    const session = await getGatewaySession().catch(() => null);
+    if (session?.status !== "ready")
+      return Response.json({
+        ok: true,
+        queued,
+        sent: 0,
+        sessionStatus: session?.status ?? "unreachable",
+        message: "WhatsApp desconectado; mensagens mantidas na fila.",
+      });
+    const { sent, failed } = await deliverPending(now);
+    return Response.json({ ok: true, queued, sent, failed, sessionStatus: session.status });
+  } catch (error) {
+    console.error(error);
+    return Response.json({ ok: false, error: "Falha ao processar notificações." }, { status: 500 });
+  }
 });

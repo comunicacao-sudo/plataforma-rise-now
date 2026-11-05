@@ -15,6 +15,23 @@ import {
   parseAIAssessmentInterpretation,
   projectAIAssessmentSections,
 } from "./assessment.ts";
+import {
+  WHATSAPP_ENGINE,
+  WHATSAPP_SEND_INTERVAL_MS,
+  deliverNotification,
+  enqueueNotification,
+  gatewayConfig,
+  gatewayConfigured,
+  getGatewayQrCode,
+  getGatewaySession,
+  isGatewayReady,
+  sendGatewayText,
+  sleep,
+  startGatewaySession,
+  toChatId,
+  whatsappSettings,
+  type NotificationInput,
+} from "../_shared/whatsapp-gateway.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -325,6 +342,30 @@ async function createMember(c: Context, d: any) {
     memberType: d.memberType,
     specialtyId: d.specialtyId ?? null,
   });
+  if (d.phone) {
+    try {
+      const settings = await whatsappSettings(c.admin);
+      if (settings?.enabled_account_created) {
+        const name = String(d.fullName).trim().split(/\s+/)[0] || "";
+        const link = new URL("/", appBase).toString();
+        await notifyNow([
+          {
+            eventType: "account_created",
+            recipientId: created.user.id,
+            recipientRole: d.memberType === "mentee" ? "mentee" : "mentor",
+            phone: d.phone,
+            referenceType: "profile",
+            referenceId: created.user.id,
+            idempotencyKey: `account_created:${created.user.id}`,
+            targetUrl: link,
+            message: `Olá${name ? `, ${name}` : ""}! ✨\n\nSeu acesso à plataforma RISE NOW foi criado.\n\nEnviamos para o seu e-mail (${email}) o link seguro para ativar a conta e definir sua senha. Depois, é só entrar por aqui:\n${link}`,
+          },
+        ]);
+      }
+    } catch (notificationError) {
+      console.error("[WhatsApp] Account notification failed", notificationError);
+    }
+  }
   return { ok: true };
 }
 
@@ -408,9 +449,123 @@ async function resetMemberPassword(c: Context, d: any) {
   return { ok: true };
 }
 
-async function notifyStageCompleted(_enrollmentId: string, _menteeId: string, _stepKey: string) {
-  // Provider intentionally unavailable. Events remain represented by the existing
-  // templates/tables, but no message or pending log is created without a real provider.
+/**
+ * Registra as notificações e tenta enviá-las já, em fila, com pausa entre mensagens.
+ * Se o número estiver desconectado, elas ficam pendentes e o rise-cron reenvia depois.
+ */
+async function notifyNow(inputs: NotificationInput[]) {
+  if (!gatewayConfigured() || !inputs.length) return;
+  const rows = [];
+  for (const input of inputs) {
+    const row = await enqueueNotification(admin, input);
+    if (row) rows.push(row);
+  }
+  if (!rows.length) return;
+  const delivery = (async () => {
+    if (!(await isGatewayReady())) return;
+    for (const [index, row] of rows.entries()) {
+      if (index > 0) await sleep(WHATSAPP_SEND_INTERVAL_MS);
+      await deliverNotification(admin, row);
+    }
+  })().catch((error) => console.error("[WhatsApp] Delivery failed", error));
+  // Entrega em segundo plano: a resposta para a usuária não espera a fila de envio.
+  const runtime = (globalThis as any).EdgeRuntime;
+  if (runtime?.waitUntil) runtime.waitUntil(delivery);
+  else await delivery;
+}
+
+async function whatsappProfile(userId: string) {
+  const { data } = await admin
+    .from("profiles")
+    .select("id, full_name, display_name, phone")
+    .eq("id", userId)
+    .maybeSingle();
+  return data
+    ? {
+        id: data.id,
+        name: (data.display_name || data.full_name || "").trim().split(/\s+/)[0] || "",
+        fullName: data.display_name || data.full_name || "Uma mentorada",
+        phone: data.phone,
+      }
+    : null;
+}
+
+async function notifyStageCompleted(enrollmentId: string, menteeId: string, stepKey: string) {
+  try {
+    if (!gatewayConfigured()) return;
+    const settings = await whatsappSettings(admin);
+    const toMentee = !!settings?.enabled_stage_completed_mentee;
+    const toMentors = !!settings?.enabled_stage_completed_mentor;
+    if (!toMentee && !toMentors) return;
+
+    const [{ data: step }, mentee] = await Promise.all([
+      admin
+        .from("journey_steps")
+        .select("title")
+        .eq("stable_key", stepKey)
+        .is("archived_at", null)
+        .limit(1)
+        .maybeSingle(),
+      whatsappProfile(menteeId),
+    ]);
+    const title = step?.title ?? "Etapa da jornada";
+    const base = gatewayConfig().appBase;
+    const menteeLink = buildLink(base, { view: "jornada", step: stepKey });
+    const mentorLink = buildLink(base, { view: "gestao-jornada", step: stepKey });
+    const inputs: NotificationInput[] = [];
+
+    if (toMentee && mentee)
+      inputs.push({
+        eventType: "stage_completed_mentee",
+        recipientId: mentee.id,
+        recipientRole: "mentee",
+        phone: mentee.phone,
+        referenceType: "journey_step",
+        referenceId: stepKey,
+        idempotencyKey: `stage_completed_mentee:${enrollmentId}:${stepKey}`,
+        targetUrl: menteeLink,
+        message: `Olá${mentee.name ? `, ${mentee.name}` : ""}! 🌟\n\nParabéns pela conclusão da etapa *${title}*.\n\nAcompanhe seu progresso na plataforma:\n${menteeLink}`,
+      });
+
+    if (toMentors) {
+      const mentorIds = new Set<string>();
+      const [{ data: enrollment }, { data: steps }] = await Promise.all([
+        admin.from("enrollments").select("mentor_id").eq("id", enrollmentId).maybeSingle(),
+        admin
+          .from("journey_steps")
+          .select("version:journey_versions!inner(pillar:journey_pillars!inner(mentor_id))")
+          .eq("stable_key", stepKey)
+          .limit(20),
+      ]);
+      if (enrollment?.mentor_id) mentorIds.add(enrollment.mentor_id);
+      for (const row of steps ?? [])
+        if (row.version?.pillar?.mentor_id) mentorIds.add(row.version.pillar.mentor_id);
+      for (const mentorId of mentorIds) {
+        const mentor = await whatsappProfile(mentorId);
+        if (!mentor) continue;
+        inputs.push({
+          eventType: "stage_completed_mentor",
+          recipientId: mentor.id,
+          recipientRole: "mentor",
+          phone: mentor.phone,
+          referenceType: "journey_step",
+          referenceId: stepKey,
+          idempotencyKey: `stage_completed_mentor:${enrollmentId}:${stepKey}:${mentor.id}`,
+          targetUrl: mentorLink,
+          message: `Olá${mentor.name ? `, ${mentor.name}` : ""}! ✅\n\n${mentee?.fullName ?? "Uma mentorada"} concluiu a etapa *${title}*.\n\nAcompanhe o progresso da mentorada:\n${mentorLink}`,
+        });
+      }
+    }
+    await notifyNow(inputs);
+  } catch (error) {
+    console.error("[WhatsApp] Stage completion notification failed", error);
+  }
+}
+
+function buildLink(base: string, params: Record<string, string>) {
+  const target = new URL("/", base);
+  for (const [key, value] of Object.entries(params)) target.searchParams.set(key, value);
+  return target.toString();
 }
 
 async function journeyAction(c: Context, action: string, d: any) {
@@ -3109,39 +3264,96 @@ async function googleAction(c: Context, action: string, d: any) {
 
 async function whatsappAction(c: Context, action: string, d: any) {
   await requireStaff(c);
+  const configured = gatewayConfigured();
   if (action === "saveWhatsAppSettings") {
+    const on = (value: unknown) => configured && value === true;
+    const hours = Math.round(Number(d.meetingReminderHours));
     const { error } = await c.admin
       .from("whatsapp_settings")
       .update({
-        enabled_account_created: false,
-        enabled_meeting_reminder: false,
-        enabled_stage_released: false,
-        enabled_stage_completed_mentee: false,
-        enabled_stage_completed_mentor: false,
-        meeting_reminder_hours: Math.max(1, Math.min(168, Number(d.meetingReminderHours))),
+        engine: configured ? WHATSAPP_ENGINE : "unconfigured",
+        enabled_account_created: on(d.accountCreated),
+        enabled_meeting_reminder: on(d.meetingReminder),
+        enabled_stage_released: on(d.stageReleased),
+        enabled_stage_completed_mentee: on(d.stageCompletedMentee),
+        enabled_stage_completed_mentor: on(d.stageCompletedMentor),
+        meeting_reminder_hours: Number.isFinite(hours) ? Math.max(1, Math.min(168, hours)) : 24,
         updated_by: c.userId,
       })
       .eq("id", "primary");
     if (error) throw new Error(error.message);
-    return { ok: true, providerConfigured: false };
+    await audit(c, "whatsapp_settings_updated", "primary");
+    return { ok: true, providerConfigured: configured };
+  }
+  if (!configured && action !== "getWhatsAppAdminState")
+    return { ok: false, error: "Gateway de WhatsApp ainda não configurado no servidor." };
+  if (action === "startWhatsAppSession") {
+    await startGatewaySession();
+    return { ok: true };
+  }
+  if (action === "getWhatsAppQrCode") {
+    const qrCode = await getGatewayQrCode();
+    return qrCode
+      ? { ok: true, qrCode }
+      : { ok: false, error: "O QR Code ainda não está disponível. Tente em alguns segundos." };
+  }
+  if (action === "sendWhatsAppTest") {
+    const target = toChatId(d.phone);
+    const message = String(d.message ?? "").trim();
+    if (!target) return { ok: false, error: "Telefone inválido. Use DDD + número." };
+    if (!message || message.length > 2000)
+      return { ok: false, error: "Escreva uma mensagem de até 2.000 caracteres." };
+    if ((await getGatewaySession()).status !== "ready")
+      return { ok: false, error: "O número institucional não está conectado." };
+    await sendGatewayText(target.chatId, message);
+    await audit(c, "whatsapp_test_sent", target.digits);
+    return { ok: true };
   }
   if (action === "getWhatsAppAdminState") {
-    const { data: s } = await c.admin
-      .from("whatsapp_settings")
-      .select("*")
-      .eq("id", "primary")
-      .maybeSingle();
+    const [s, { data: history }] = await Promise.all([
+      whatsappSettings(c.admin),
+      c.admin
+        .from("whatsapp_notifications")
+        .select("id, event_type, recipient_role, phone, status, error_message, sent_at, created_at")
+        .order("created_at", { ascending: false })
+        .limit(15),
+    ]);
+    let session = { status: "unconfigured", phone: null, name: null, lastError: null };
+    let qrCode = null;
+    if (configured) {
+      try {
+        session = await getGatewaySession();
+        if (session.status === "qr_ready") qrCode = await getGatewayQrCode().catch(() => null);
+      } catch (error) {
+        session = {
+          status: "unreachable",
+          phone: null,
+          name: null,
+          lastError: error instanceof Error ? error.message : "Gateway indisponível.",
+        };
+      }
+    }
     return {
-      configured: false,
-      provider: null,
+      configured,
+      session,
+      qrCode,
       settings: {
-        accountCreated: false,
-        meetingReminder: false,
-        stageReleased: false,
-        stageCompletedMentee: false,
-        stageCompletedMentor: false,
+        accountCreated: !!s?.enabled_account_created,
+        meetingReminder: !!s?.enabled_meeting_reminder,
+        stageReleased: !!s?.enabled_stage_released,
+        stageCompletedMentee: !!s?.enabled_stage_completed_mentee,
+        stageCompletedMentor: !!s?.enabled_stage_completed_mentor,
         meetingReminderHours: s?.meeting_reminder_hours ?? 24,
       },
+      history: (history ?? []).map((row: any) => ({
+        id: row.id,
+        eventType: row.event_type,
+        recipientRole: row.recipient_role,
+        phone: row.phone ? `•••${String(row.phone).slice(-4)}` : null,
+        status: row.status,
+        error: row.status === "sent" ? null : row.error_message,
+        at: row.sent_at ?? row.created_at,
+      })),
     };
   }
   throw new Error("Ação WhatsApp inválida.");
@@ -3207,7 +3419,13 @@ const groups = {
     "cancelOneToOne",
     "listMyBookings",
   ]),
-  whatsapp: new Set(["getWhatsAppAdminState", "saveWhatsAppSettings"]),
+  whatsapp: new Set([
+    "getWhatsAppAdminState",
+    "saveWhatsAppSettings",
+    "startWhatsAppSession",
+    "getWhatsAppQrCode",
+    "sendWhatsAppTest",
+  ]),
   profile: new Set(["getMentorDirectory"]),
 };
 
@@ -3250,4 +3468,3 @@ Deno.serve(async (request: Request) => {
     );
   }
 });
-
