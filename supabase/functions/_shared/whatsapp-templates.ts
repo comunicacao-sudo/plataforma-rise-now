@@ -6,6 +6,7 @@
 export const WHATSAPP_TEMPLATE_KEYS = [
   "account_created",
   "meeting_reminder",
+  "meeting_reminder_mentor",
   "stage_released",
   "stage_completed_mentee",
   "stage_completed_mentor",
@@ -23,6 +24,7 @@ export const WHATSAPP_VARIABLE_HELP: Record<string, string> = {
   encontro: "título do encontro",
   data: "data e hora do encontro",
   etapa: "nome da etapa",
+  participantes: "quantas mentoradas participam",
   mentorada: "nome da mentorada",
   link: "link da plataforma",
 };
@@ -51,6 +53,19 @@ export const WHATSAPP_TEMPLATE_DEFINITIONS: Record<
       nome: "Mariana",
       encontro: "Forward Reflection",
       data: "12/11/2026 às 19:00",
+      link: "https://board.mentoriarisenow.com.br/?view=agenda",
+    },
+  },
+  meeting_reminder_mentor: {
+    label: "Lembrete de encontro (mentora)",
+    variables: ["nome", "encontro", "data", "participantes", "link"],
+    defaultText:
+      "Olá, {nome}! ⏰\n\nLembrete da *RISE NOW*: você conduz o encontro *{encontro}* em {data}, com {participantes}.\n\nVeja os detalhes na plataforma:\n{link}",
+    sample: {
+      nome: "Camila",
+      encontro: "Forward Reflection",
+      data: "12/11/2026 às 19:00",
+      participantes: "6 mentoradas",
       link: "https://board.mentoriarisenow.com.br/?view=agenda",
     },
   },

@@ -18,47 +18,71 @@ import { WhatsAppTemplatesEditor } from "./whatsapp-templates-editor";
 const defaultSettings: WhatsAppSettings = {
   accountCreated: false,
   meetingReminder: false,
+  meetingReminderMentor: false,
   stageReleased: false,
   stageCompletedMentee: false,
   stageCompletedMentor: false,
   meetingReminderHours: 24,
 };
 
-const notificationOptions: Array<{
+type NotificationOption = {
   key: Exclude<keyof WhatsAppSettings, "meetingReminderHours">;
   title: string;
   description: string;
-}> = [
+};
+
+const notificationGroups: Array<{ title: string; options: NotificationOption[] }> = [
   {
-    key: "accountCreated",
-    title: "Conta criada",
-    description: "Avisa por WhatsApp que o acesso foi criado e que o link chegou no e-mail.",
+    title: "Para mentoradas",
+    options: [
+      {
+        key: "meetingReminder",
+        title: "Lembrete de encontro",
+        description: "Lembra cada mentorada antes de um encontro em que ela participa.",
+      },
+      {
+        key: "stageReleased",
+        title: "Nova etapa liberada",
+        description: "Avisa quando uma etapa com data de liberação fica disponível.",
+      },
+      {
+        key: "stageCompletedMentee",
+        title: "Etapa concluída",
+        description: "Parabeniza e oferece o link para continuar a jornada.",
+      },
+    ],
   },
   {
-    key: "meetingReminder",
-    title: "Lembrete de encontro",
-    description: "Lembra as mentoradas antes de um encontro agendado.",
+    title: "Para mentoras",
+    options: [
+      {
+        key: "meetingReminderMentor",
+        title: "Lembrete de encontro",
+        description: "Lembra a mentora responsável antes de cada encontro que ela conduz.",
+      },
+      {
+        key: "stageCompletedMentor",
+        title: "Mentorada concluiu uma etapa",
+        description: "Avisa as mentoras responsáveis quando uma mentorada avança.",
+      },
+    ],
   },
   {
-    key: "stageReleased",
-    title: "Nova etapa liberada",
-    description: "Avisa a mentorada quando uma etapa com data de liberação fica disponível.",
-  },
-  {
-    key: "stageCompletedMentee",
-    title: "Etapa concluída (mentorada)",
-    description: "Parabeniza a mentorada e oferece o link para continuar a jornada.",
-  },
-  {
-    key: "stageCompletedMentor",
-    title: "Etapa concluída (mentora)",
-    description: "Notifica as mentoras responsáveis pela evolução da mentorada.",
+    title: "Para todas",
+    options: [
+      {
+        key: "accountCreated",
+        title: "Conta criada",
+        description: "Avisa que o acesso foi criado e que o link de ativação chegou no e-mail.",
+      },
+    ],
   },
 ];
 
 const eventLabels: Record<string, string> = {
   account_created: "Conta criada",
   meeting_reminder: "Lembrete de encontro",
+  meeting_reminder_mentor: "Lembrete à mentora",
   stage_released: "Etapa liberada",
   stage_completed_mentee: "Etapa concluída",
   stage_completed_mentor: "Aviso à mentora",
@@ -297,28 +321,33 @@ export function WhatsAppAdmin() {
                     <p className="whatsapp-muted">Escolha quais eventos enviam mensagens.</p>
                   </div>
                 </div>
-                {notificationOptions.map((option) => (
-                  <label key={option.key} className="whatsapp-toggle">
-                    <span>
-                      <strong>{option.title}</strong>
-                      <small className="whatsapp-muted">{option.description}</small>
-                    </span>
-                    <input
-                      type="checkbox"
-                      role="switch"
-                      checked={settings[option.key]}
-                      disabled={!configured}
-                      onChange={(event) =>
-                        setSettings((current) => ({
-                          ...current,
-                          [option.key]: event.target.checked,
-                        }))
-                      }
-                    />
-                  </label>
+                {notificationGroups.map((group) => (
+                  <fieldset key={group.title} className="whatsapp-group">
+                    <legend>{group.title}</legend>
+                    {group.options.map((option) => (
+                      <label key={option.key} className="whatsapp-toggle">
+                        <span>
+                          <strong>{option.title}</strong>
+                          <small className="whatsapp-muted">{option.description}</small>
+                        </span>
+                        <input
+                          type="checkbox"
+                          role="switch"
+                          checked={settings[option.key]}
+                          disabled={!configured}
+                          onChange={(event) =>
+                            setSettings((current) => ({
+                              ...current,
+                              [option.key]: event.target.checked,
+                            }))
+                          }
+                        />
+                      </label>
+                    ))}
+                  </fieldset>
                 ))}
                 <label className="ops-field">
-                  <span>Antecedência do lembrete de encontro (horas)</span>
+                  <span>Antecedência dos lembretes de encontro (horas)</span>
                   <input
                     type="number"
                     min={1}

@@ -7,6 +7,7 @@ import { createEdgeFunction } from "./edge-function-client";
 export type WhatsAppSettings = {
   accountCreated: boolean;
   meetingReminder: boolean;
+  meetingReminderMentor: boolean;
   stageReleased: boolean;
   stageCompletedMentee: boolean;
   stageCompletedMentor: boolean;

@@ -3434,6 +3434,7 @@ async function whatsappAction(c: Context, action: string, d: any) {
         engine: configured ? WHATSAPP_ENGINE : "unconfigured",
         enabled_account_created: on(d.accountCreated),
         enabled_meeting_reminder: on(d.meetingReminder),
+        enabled_meeting_reminder_mentor: on(d.meetingReminderMentor),
         enabled_stage_released: on(d.stageReleased),
         enabled_stage_completed_mentee: on(d.stageCompletedMentee),
         enabled_stage_completed_mentor: on(d.stageCompletedMentor),
@@ -3521,6 +3522,7 @@ async function whatsappAction(c: Context, action: string, d: any) {
       settings: {
         accountCreated: !!s?.enabled_account_created,
         meetingReminder: !!s?.enabled_meeting_reminder,
+        meetingReminderMentor: !!s?.enabled_meeting_reminder_mentor,
         stageReleased: !!s?.enabled_stage_released,
         stageCompletedMentee: !!s?.enabled_stage_completed_mentee,
         stageCompletedMentor: !!s?.enabled_stage_completed_mentor,

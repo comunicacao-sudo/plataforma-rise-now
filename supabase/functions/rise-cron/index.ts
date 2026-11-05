@@ -160,7 +160,7 @@ async function queueMeetingReminders(settings: any, now: Date) {
   );
   const { data: meetings, error } = await admin
     .from("meetings")
-    .select("id, title, scheduled_at, audience, cohort_id, enrollment_id")
+    .select("id, title, scheduled_at, audience, cohort_id, enrollment_id, mentor_id, created_by")
     .gt("scheduled_at", now.toISOString())
     .lte("scheduled_at", cutoff.toISOString());
   if (error) throw new Error(error.message);
@@ -176,15 +176,54 @@ async function queueMeetingReminders(settings: any, now: Date) {
     })
       .format(new Date(iso))
       .replace(",", " às");
+  const toMentees = !!settings.enabled_meeting_reminder;
+  const toMentors = !!settings.enabled_meeting_reminder_mentor;
   let queued = 0;
   for (const meeting of meetings ?? []) {
     const ids = await meetingEnrollmentIds(meeting);
-    if (!ids.length) continue;
-    const { data: rows } = await admin
-      .from("enrollments")
-      .select("id, mentee:profiles!enrollments_mentee_id_fkey(id, display_name, full_name, phone)")
-      .in("id", ids)
-      .eq("status", "ativa");
+    const { data: rows } = ids.length
+      ? await admin
+          .from("enrollments")
+          .select(
+            "id, mentee:profiles!enrollments_mentee_id_fkey(id, display_name, full_name, phone)",
+          )
+          .in("id", ids)
+          .eq("status", "ativa")
+      : { data: [] };
+
+    // Lembrete para a mentora responsável (ou quem criou o encontro).
+    const mentorId = meeting.mentor_id ?? meeting.created_by;
+    if (toMentors && mentorId) {
+      const { data: mentor } = await admin
+        .from("profiles")
+        .select("id, display_name, full_name, phone")
+        .eq("id", mentorId)
+        .maybeSingle();
+      if (mentor?.phone) {
+        const url = link({ view: "agenda", meeting: meeting.id });
+        const total = (rows ?? []).length;
+        const created = await enqueueNotification(admin, {
+          eventType: "meeting_reminder_mentor",
+          recipientId: mentor.id,
+          recipientRole: "mentor",
+          phone: mentor.phone,
+          referenceType: "meeting",
+          referenceId: meeting.id,
+          idempotencyKey: `meeting_reminder_mentor:${meeting.id}:${meeting.scheduled_at}:${mentor.id}`,
+          targetUrl: url,
+          message: renderTemplate("meeting_reminder_mentor", settings.message_templates, {
+            nome: firstName(mentor),
+            encontro: meeting.title,
+            data: when(meeting.scheduled_at),
+            participantes: total === 1 ? "1 mentorada" : `${total} mentoradas`,
+            link: url,
+          }),
+        });
+        queued += Number(!!created);
+      }
+    }
+
+    if (!toMentees) continue;
     for (const row of rows ?? []) {
       const user = row.mentee;
       if (!user?.phone) continue;
@@ -281,7 +320,8 @@ Deno.serve(async (request: Request) => {
     const now = new Date();
     let queued = 0;
     if (settings.enabled_stage_released) queued += await queueStageReleases(settings, now);
-    if (settings.enabled_meeting_reminder) queued += await queueMeetingReminders(settings, now);
+    if (settings.enabled_meeting_reminder || settings.enabled_meeting_reminder_mentor)
+      queued += await queueMeetingReminders(settings, now);
 
     // Confere a conexão antes de enviar: se o número caiu, as mensagens ficam pendentes.
     const session = await getGatewaySession().catch(() => null);
