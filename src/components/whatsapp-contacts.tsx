@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { ChevronDown } from "lucide-react";
 import { useState } from "react";
 import {
   listWhatsAppContacts,
@@ -30,13 +31,24 @@ function ContactRow({ contact }: { contact: WhatsAppContact }) {
     }
   }
   return (
-    <article className="admin-card whatsapp-card">
-      <h3>{contact.name}</h3>
-      <p className="whatsapp-muted">
-        {contact.email} · {contact.audience}
-      </p>
-      <strong>{contact.authorized ? "Envio autorizado" : "Sem autorização de envio"}</strong>
-      <div className="ops-form">
+    <details className="whatsapp-contact">
+      <summary className="whatsapp-contact__summary">
+        <span className="whatsapp-contact__identity">
+          <strong>{contact.name}</strong>
+          <span className="whatsapp-muted">
+            {contact.email} · {contact.audience}
+          </span>
+        </span>
+        <span className={`whatsapp-contact__status ${contact.authorized ? "is-authorized" : ""}`}>
+          {contact.authorized ? "Autorizado" : "Sem autorização"}
+        </span>
+        <span className="whatsapp-contact__action">
+          <span className="when-closed">Editar</span>
+          <span className="when-open">Recolher</span>
+          <ChevronDown size={18} aria-hidden="true" />
+        </span>
+      </summary>
+      <div className="ops-form whatsapp-contact__body">
         <label className="ops-field">
           <span>Telefone de WhatsApp com DDD</span>
           <input
@@ -84,7 +96,7 @@ function ContactRow({ contact }: { contact: WhatsAppContact }) {
           </p>
         ) : null}
       </div>
-    </article>
+    </details>
   );
 }
 
@@ -99,44 +111,64 @@ export function WhatsAppContacts() {
       .toLocaleLowerCase("pt-BR")
       .includes(search.toLocaleLowerCase("pt-BR")),
   );
+  const total = query.data?.contacts.length ?? 0;
+  const authorizedCount = query.data?.contacts.filter((person) => person.authorized).length ?? 0;
   return (
-    <section className="whatsapp-card" aria-labelledby="whatsapp-contacts-title">
-      <h2 id="whatsapp-contacts-title">Contatos e autorização de WhatsApp</h2>
-      <p>
-        Cadastre o telefone e marque a autorização somente depois de confirmá-la com a pessoa.
-        Mensagens privadas automáticas exigem autorização para o número cadastrado. Ao trocar o
-        telefone, confirme a autorização novamente.
-      </p>
-      <p className="whatsapp-muted">
-        A autorização individual vale para envios privados. Os avisos no grupo seguem a configuração
-        do grupo.
-      </p>
-      <label className="ops-field">
-        <span>Buscar pessoa por nome ou e-mail</span>
-        <input value={search} onChange={(event) => setSearch(event.target.value)} />
-      </label>
-      {query.isLoading ? <p role="status">Carregando contatos…</p> : null}
-      {query.isError ? (
-        <div role="alert">
-          <p>Não foi possível carregar os contatos.</p>
-          <button
-            type="button"
-            className="button button--glass"
-            onClick={() => void query.refetch()}
-          >
-            Tentar novamente
-          </button>
+    <details className="whatsapp-contacts-panel">
+      <summary className="whatsapp-contacts-panel__summary">
+        <span>
+          <h2>Contatos e autorização de WhatsApp</h2>
+          <span className="whatsapp-muted">
+            {query.isLoading
+              ? "Carregando contatos…"
+              : query.isError
+                ? "Não foi possível carregar os contatos"
+                : `${total} pessoas · ${authorizedCount} com envio autorizado`}
+          </span>
+        </span>
+        <span className="whatsapp-contact__action">
+          <span className="when-closed">Ver contatos</span>
+          <span className="when-open">Recolher</span>
+          <ChevronDown size={20} aria-hidden="true" />
+        </span>
+      </summary>
+      <div className="whatsapp-contacts-panel__body">
+        <p>
+          Cadastre o telefone e marque a autorização somente depois de confirmá-la com a pessoa.
+          Mensagens privadas automáticas exigem autorização para o número cadastrado. Ao trocar o
+          telefone, confirme a autorização novamente.
+        </p>
+        <p className="whatsapp-muted">
+          A autorização individual vale para envios privados. Os avisos no grupo seguem a
+          configuração do grupo.
+        </p>
+        <label className="ops-field">
+          <span>Buscar pessoa por nome ou e-mail</span>
+          <input value={search} onChange={(event) => setSearch(event.target.value)} />
+        </label>
+        {query.isLoading ? <p role="status">Carregando contatos…</p> : null}
+        {query.isError ? (
+          <div role="alert">
+            <p>Não foi possível carregar os contatos.</p>
+            <button
+              type="button"
+              className="button button--glass"
+              onClick={() => void query.refetch()}
+            >
+              Tentar novamente
+            </button>
+          </div>
+        ) : null}
+        <div className="whatsapp-contacts-list">
+          {contacts.map((contact) => (
+            <ContactRow
+              key={`${contact.id}:${contact.phone}:${contact.authorized}:${contact.recordedAt}`}
+              contact={contact}
+            />
+          ))}
         </div>
-      ) : null}
-      <div className="whatsapp-grid">
-        {contacts.map((contact) => (
-          <ContactRow
-            key={`${contact.id}:${contact.phone}:${contact.authorized}:${contact.recordedAt}`}
-            contact={contact}
-          />
-        ))}
+        {query.isSuccess && !contacts.length ? <p>Nenhuma pessoa encontrada.</p> : null}
       </div>
-      {query.isSuccess && !contacts.length ? <p>Nenhuma pessoa encontrada.</p> : null}
-    </section>
+    </details>
   );
 }

@@ -8513,6 +8513,105 @@ hr,
   font-size: 0.86rem;
   line-height: 1.55;
 }
+.whatsapp-contacts-panel,
+.whatsapp-contact {
+  border: 1px solid var(--platform-line);
+  border-radius: 12px;
+  background: var(--platform-surface-strong);
+  color: var(--platform-text);
+}
+.whatsapp-contacts-panel__summary,
+.whatsapp-contact__summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.1rem 1.25rem;
+  cursor: pointer;
+  list-style: none;
+}
+.whatsapp-contacts-panel__summary::-webkit-details-marker,
+.whatsapp-contact__summary::-webkit-details-marker {
+  display: none;
+}
+.whatsapp-contacts-panel__summary:focus-visible,
+.whatsapp-contact__summary:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 3px;
+  border-radius: 12px;
+}
+.whatsapp-contacts-panel__summary h2 {
+  margin: 0 0 0.3rem;
+  font-size: 1.15rem;
+}
+.whatsapp-contact__identity {
+  display: grid;
+  gap: 0.25rem;
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.whatsapp-contact__identity .whatsapp-muted {
+  font-size: 0.8rem;
+}
+.whatsapp-contact__action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--gold);
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+.whatsapp-contacts-panel > summary .when-open,
+.whatsapp-contact > summary .when-open,
+.whatsapp-contacts-panel[open] > summary .when-closed,
+.whatsapp-contact[open] > summary .when-closed {
+  display: none;
+}
+.whatsapp-contacts-panel[open] > summary .when-open,
+.whatsapp-contact[open] > summary .when-open {
+  display: inline;
+}
+.whatsapp-contacts-panel[open] > summary > .whatsapp-contact__action svg,
+.whatsapp-contact[open] > summary > .whatsapp-contact__action svg {
+  transform: rotate(180deg);
+}
+.whatsapp-contacts-panel__body,
+.whatsapp-contact__body {
+  padding: 0 1.25rem 1.25rem;
+}
+.whatsapp-contacts-list {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 1rem;
+}
+.whatsapp-contact__status {
+  border: 1px solid var(--platform-line);
+  border-radius: 999px;
+  padding: 0.3rem 0.65rem;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+.whatsapp-contact__status.is-authorized {
+  color: var(--gold);
+  border-color: var(--gold);
+}
+@media (max-width: 640px) {
+  .whatsapp-contact__summary {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.6rem;
+  }
+  .whatsapp-contact__identity {
+    grid-column: 1 / -1;
+  }
+  .whatsapp-contact__status {
+    justify-self: start;
+  }
+  .whatsapp-contacts-panel__summary > .whatsapp-contact__action {
+    font-size: 0.75rem;
+  }
+}
 .whatsapp-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
