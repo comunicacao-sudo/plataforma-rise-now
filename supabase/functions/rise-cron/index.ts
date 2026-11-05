@@ -313,6 +313,9 @@ Deno.serve(async (request: Request) => {
     request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
   if (!expected || !provided || !sameSecret(provided, expected))
     return new Response("Unauthorized", { status: 401 });
+  // Avança o mês da jornada de cada mentorada pela data de início (migration 0046).
+  const months = await admin.rpc("refresh_journey_months");
+  if (months.error) console.error("[rise-cron] mês da jornada", months.error.message);
   if (!gatewayConfigured())
     return Response.json({ ok: true, providerConfigured: false, queued: 0, sent: 0 });
   try {

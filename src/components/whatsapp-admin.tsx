@@ -11,6 +11,7 @@ import {
 } from "@/lib/whatsapp.functions";
 
 import { WhatsAppAutomations } from "./whatsapp-automations";
+import { WhatsAppContacts } from "./whatsapp-contacts";
 
 const eventLabels: Record<string, string> = {
   account_created: "Conta criada",
@@ -251,6 +252,7 @@ export function WhatsAppAdmin() {
               </p>
             ) : null}
 
+            <WhatsAppContacts />
             <WhatsAppAutomations connected={connected} onFeedback={setFeedback} />
 
             <article className="admin-card whatsapp-card">

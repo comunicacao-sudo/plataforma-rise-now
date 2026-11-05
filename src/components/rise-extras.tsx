@@ -464,7 +464,9 @@ function GoalEditor({
   const [metric, setMetric] = useState(goal?.metric ?? "");
   const [deadline, setDeadline] = useState(goal?.deadline ?? "");
   const [msg, setMsg] = useState("");
+  const [saving, setSaving] = useState(false);
   async function save() {
+    if (saving) return;
     if (title.trim().length < 2) return setMsg("Dê um título à meta.");
     const row = {
       title: title.trim(),
@@ -472,20 +474,35 @@ function GoalEditor({
       metric: metric.trim() || null,
       deadline: deadline || null,
     };
-    const { error } = goal
-      ? await supabase.from("rise90_goals").update(row).eq("id", goal.id)
-      : await supabase
-          .from("rise90_goals")
-          .insert({ ...row, enrollment_id: enrollmentId, position });
-    if (error) return setMsg("Não foi possível salvar.");
-    await qc.invalidateQueries({ queryKey: ["rise90", enrollmentId] });
-    onDone();
+    setSaving(true);
+    try {
+      const { error } = goal
+        ? await supabase.from("rise90_goals").update(row).eq("id", goal.id)
+        : await supabase
+            .from("rise90_goals")
+            .insert({ ...row, enrollment_id: enrollmentId, position });
+      if (error) return setMsg("Não foi possível salvar. Confira sua internet e tente de novo.");
+      await qc.invalidateQueries({ queryKey: ["rise90", enrollmentId] });
+      onDone();
+    } catch {
+      setMsg("Não foi possível salvar. Seu texto foi mantido; tente novamente.");
+    } finally {
+      setSaving(false);
+    }
   }
   async function remove() {
-    if (!goal || !window.confirm("Excluir esta meta?")) return;
-    await supabase.from("rise90_goals").delete().eq("id", goal.id);
-    await qc.invalidateQueries({ queryKey: ["rise90", enrollmentId] });
-    onDone();
+    if (!goal || saving || !window.confirm("Excluir esta meta?")) return;
+    setSaving(true);
+    try {
+      const { error } = await supabase.from("rise90_goals").delete().eq("id", goal.id);
+      if (error) return setMsg("Não foi possível excluir a meta. Tente de novo.");
+      await qc.invalidateQueries({ queryKey: ["rise90", enrollmentId] });
+      onDone();
+    } catch {
+      setMsg("Não foi possível excluir. Tente novamente.");
+    } finally {
+      setSaving(false);
+    }
   }
   return (
     <div
@@ -540,13 +557,27 @@ function GoalEditor({
             <span>Prazo final</span>
             <input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
           </label>
-          {msg ? <p className="form-message">{msg}</p> : null}
+          {msg ? (
+            <p className="form-message" role="alert">
+              {msg}
+            </p>
+          ) : null}
           <div className="x-row">
-            <button className="button button--primary" type="button" onClick={() => void save()}>
-              Salvar meta
+            <button
+              className="button button--primary"
+              type="button"
+              disabled={saving}
+              onClick={() => void save()}
+            >
+              {saving ? "Salvando…" : "Salvar meta"}
             </button>
             {goal ? (
-              <button className="button button--glass" type="button" onClick={() => void remove()}>
+              <button
+                className="button button--glass"
+                type="button"
+                disabled={saving}
+                onClick={() => void remove()}
+              >
                 Excluir
               </button>
             ) : null}
@@ -571,33 +602,70 @@ function GoalCard({
   const qc = useQueryClient();
   const [pct, setPct] = useState(goal.progress_pct);
   const [newMs, setNewMs] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState("");
   const timer = useRef<number | undefined>(undefined);
   useEffect(() => setPct(goal.progress_pct), [goal.progress_pct]);
   const refresh = () => qc.invalidateQueries({ queryKey: ["rise90", enrollmentId] });
+
+  /** Executa a gravação e avisa se falhar, sem perder o que foi digitado. */
+  async function attempt(action: () => PromiseLike<{ error: unknown }>, failure: string) {
+    setProblem("");
+    try {
+      const { error } = await action();
+      if (error) {
+        setProblem(failure);
+        return false;
+      }
+      void refresh();
+      return true;
+    } catch {
+      setProblem(failure);
+      return false;
+    }
+  }
 
   function changePct(v: number) {
     setPct(v);
     window.clearTimeout(timer.current);
     timer.current = window.setTimeout(async () => {
-      await supabase.from("rise90_goals").update({ progress_pct: v }).eq("id", goal.id);
-      void refresh();
+      const ok = await attempt(
+        () => supabase.from("rise90_goals").update({ progress_pct: v }).eq("id", goal.id),
+        "Não foi possível salvar a evolução. Tente de novo.",
+      );
+      if (!ok) setPct(goal.progress_pct);
     }, 500);
   }
   async function addMs() {
-    if (!newMs.trim()) return;
-    await supabase
-      .from("rise90_milestones")
-      .insert({ goal_id: goal.id, title: newMs.trim(), position: goal.milestones.length });
-    setNewMs("");
-    void refresh();
+    if (!newMs.trim() || busy) return;
+    setBusy(true);
+    const ok = await attempt(
+      () =>
+        supabase
+          .from("rise90_milestones")
+          .insert({ goal_id: goal.id, title: newMs.trim(), position: goal.milestones.length }),
+      "Não foi possível adicionar o marco. Seu texto continua no campo; tente de novo.",
+    );
+    if (ok) setNewMs("");
+    setBusy(false);
   }
   async function toggle(id: string, done: boolean) {
-    await supabase.from("rise90_milestones").update({ done }).eq("id", id);
-    void refresh();
+    if (busy) return;
+    setBusy(true);
+    await attempt(
+      () => supabase.from("rise90_milestones").update({ done }).eq("id", id),
+      "Não foi possível atualizar o marco. Tente de novo.",
+    );
+    setBusy(false);
   }
   async function removeMs(id: string) {
-    await supabase.from("rise90_milestones").delete().eq("id", id);
-    void refresh();
+    if (busy) return;
+    setBusy(true);
+    await attempt(
+      () => supabase.from("rise90_milestones").delete().eq("id", id),
+      "Não foi possível remover o marco. Tente de novo.",
+    );
+    setBusy(false);
   }
 
   return (
@@ -642,9 +710,11 @@ function GoalCard({
           <div key={m.id} className={`x-ms__item ${m.done ? "is-done" : ""}`}>
             <button
               type="button"
-              disabled={!editable}
+              disabled={!editable || busy}
               onClick={() => void toggle(m.id, !m.done)}
-              aria-label="Concluir marco"
+              role="checkbox"
+              aria-checked={m.done}
+              aria-label={`Marco concluído: ${m.title}`}
             >
               {m.done ? <Check size={13} /> : null}
             </button>
@@ -671,11 +741,22 @@ function GoalCard({
               onChange={(e) => setNewMs(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && void addMs()}
               placeholder="Novo marco..."
+              aria-label="Novo marco"
             />
-            <button type="button" onClick={() => void addMs()} aria-label="Adicionar marco">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void addMs()}
+              aria-label="Adicionar marco"
+            >
               <Plus size={15} />
             </button>
           </div>
+        ) : null}
+        {problem ? (
+          <p className="form-message" role="alert">
+            {problem}
+          </p>
         ) : null}
       </div>
     </article>
@@ -708,18 +789,32 @@ function GuidanceNotes({ enrollmentId }: { enrollmentId: string }) {
       return (data ?? []) as unknown as GuidanceNote[];
     },
   });
+  const [saving, setSaving] = useState(false);
+  const [problem, setProblem] = useState("");
   async function add() {
-    if (!text.trim()) return;
-    const { data: u } = await supabase.auth.getUser();
-    if (!u.user) return;
-    await supabase.from("notes").insert({
-      enrollment_id: enrollmentId,
-      author_id: u.user.id,
-      content: text.trim(),
-      visibility: shared ? "shared" : "mentor_private",
-    });
-    setText("");
-    await qc.invalidateQueries({ queryKey: ["rise90-notes", enrollmentId] });
+    if (!text.trim() || saving) return;
+    setSaving(true);
+    setProblem("");
+    try {
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) return setProblem("Sua sessão expirou. Entre de novo para salvar a nota.");
+      const { error } = await supabase.from("notes").insert({
+        enrollment_id: enrollmentId,
+        author_id: u.user.id,
+        content: text.trim(),
+        visibility: shared ? "shared" : "mentor_private",
+      });
+      if (error)
+        return setProblem(
+          "Não foi possível salvar a nota. Seu texto continua no campo; tente de novo.",
+        );
+      setText("");
+      await qc.invalidateQueries({ queryKey: ["rise90-notes", enrollmentId] });
+    } catch {
+      setProblem("Não foi possível salvar a nota. Seu texto continua no campo; tente de novo.");
+    } finally {
+      setSaving(false);
+    }
   }
   return (
     <section className="x-notes">
@@ -735,10 +830,20 @@ function GuidanceNotes({ enrollmentId }: { enrollmentId: string }) {
           <input type="checkbox" checked={shared} onChange={(e) => setShared(e.target.checked)} />{" "}
           Mostrar para a aluna
         </label>
-        <button className="button button--primary" type="button" onClick={() => void add()}>
-          Salvar nota
+        <button
+          className="button button--primary"
+          type="button"
+          disabled={saving}
+          onClick={() => void add()}
+        >
+          {saving ? "Salvando…" : "Salvar nota"}
         </button>
       </div>
+      {problem ? (
+        <p className="form-message" role="alert">
+          {problem}
+        </p>
+      ) : null}
       {data.map((n) => (
         <article key={n.id} className="x-note">
           <small>

@@ -275,85 +275,143 @@ function Player({ url, onEnded }: { url: string; onEnded: () => void }) {
   );
 }
 
-function Notebook({ lesson, trail }: { lesson: TrailLesson; trail: Trail }) {
+function Notebook(props: { lesson: TrailLesson; trail: Trail }) {
+  return <NotebookEditor key={props.lesson.id + ":" + props.trail.enrollmentId} {...props} />;
+}
+
+function NotebookEditor({ lesson, trail }: { lesson: TrailLesson; trail: Trail }) {
   const [text, setText] = useState("");
-  const [state, setState] = useState<"idle" | "saving" | "saved">("idle");
+  const [state, setState] = useState<"loading" | "idle" | "saving" | "saved" | "error">("loading");
+  const [ready, setReady] = useState(false);
+  const [retry, setRetry] = useState(0);
   const noteId = useRef<string | null>(null);
-  const loaded = useRef(false);
+  const lastSaved = useRef("");
+  const queue = useRef<Promise<void>>(Promise.resolve());
 
   useEffect(() => {
-    loaded.current = false;
-    noteId.current = null;
-    setText("");
-    setState("idle");
-    if (!trail.enrollmentId) {
-      loaded.current = true;
-      return;
-    }
+    if (ready) return;
+    let active = true;
     void (async () => {
-      const { data: auth } = await supabase.auth.getUser();
-      const { data } = await supabase
-        .from("notes")
-        .select("id, content")
-        .eq("lesson_id", lesson.id)
-        .eq("author_id", auth.user?.id ?? "")
-        .eq("visibility", "mentee_private")
-        .limit(1)
-        .maybeSingle();
-      if (data) {
-        noteId.current = data.id;
-        setText(data.content);
+      try {
+        const { data: auth, error: authError } = await supabase.auth.getUser();
+        if (authError || !auth.user) throw new Error("Sessão expirada.");
+        const { data, error } = await supabase
+          .from("notes")
+          .select("id, content")
+          .eq("lesson_id", lesson.id)
+          .eq("author_id", auth.user.id)
+          .eq("visibility", "mentee_private")
+          .limit(1)
+          .maybeSingle();
+        if (error) throw error;
+        if (!active) return;
+        noteId.current = data?.id ?? null;
+        lastSaved.current = data?.content ?? "";
+        setText(lastSaved.current);
+        setReady(true);
+        setState("idle");
+      } catch {
+        if (active) setState("error");
       }
-      loaded.current = true;
     })();
-  }, [lesson.id, trail.enrollmentId]);
+    return () => {
+      active = false;
+    };
+  }, [lesson.id, retry, ready]);
 
   useEffect(() => {
-    if (!loaded.current || !trail.enrollmentId) return;
-    const enrollmentId = trail.enrollmentId;
+    if (!ready || !trail.enrollmentId || text === lastSaved.current) return;
+    let active = true;
     setState("saving");
-    const t = window.setTimeout(async () => {
-      if (noteId.current) {
-        await supabase.from("notes").update({ content: text }).eq("id", noteId.current);
-      } else if (text.trim()) {
-        const { data: auth } = await supabase.auth.getUser();
-        const { data } = await supabase
-          .from("notes")
-          .insert({
-            enrollment_id: enrollmentId,
-            lesson_id: lesson.id,
-            author_id: auth.user!.id,
-            visibility: "mentee_private",
-            content: text,
-          })
-          .select("id")
-          .single();
-        noteId.current = data?.id ?? null;
-      }
-      setState("saved");
+    const enrollmentId = trail.enrollmentId;
+    const timer = window.setTimeout(() => {
+      // Serializa gravações: evita criar duas notas enquanto a primeira ainda está salvando.
+      queue.current = queue.current
+        .catch(() => {})
+        .then(async () => {
+          try {
+            if (noteId.current) {
+              const { error } = await supabase
+                .from("notes")
+                .update({ content: text })
+                .eq("id", noteId.current)
+                .select("id")
+                .single();
+              if (error) throw error;
+            } else if (text.trim()) {
+              const { data: auth } = await supabase.auth.getUser();
+              if (!auth.user) throw new Error("Sessão expirada.");
+              const { data, error } = await supabase
+                .from("notes")
+                .insert({
+                  enrollment_id: enrollmentId,
+                  lesson_id: lesson.id,
+                  author_id: auth.user.id,
+                  visibility: "mentee_private",
+                  content: text,
+                })
+                .select("id")
+                .single();
+              if (error) throw error;
+              noteId.current = data.id;
+            }
+            lastSaved.current = text;
+            if (active) setState("saved");
+          } catch {
+            if (active) setState("error");
+          }
+        });
     }, 1000);
-    return () => window.clearTimeout(t);
-  }, [text, lesson.id, trail.enrollmentId]);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [ready, text, lesson.id, trail.enrollmentId, retry]);
+
+  useEffect(() => {
+    const warn = (event: BeforeUnloadEvent) => {
+      if (ready && text !== lastSaved.current) {
+        event.preventDefault();
+        event.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [ready, text]);
 
   return (
     <section className="lesson-block">
       <div className="lesson-block__head">
         <h3>Caderno de anotações</h3>
-        <small>
-          {state === "saving"
-            ? "Salvando…"
-            : state === "saved"
-              ? "Salvo"
-              : "Salva sozinho enquanto você escreve"}
+        <small role="status" aria-live="polite">
+          {state === "loading"
+            ? "Carregando…"
+            : state === "saving"
+              ? "Salvando…"
+              : state === "saved"
+                ? "Salvo"
+                : state === "error"
+                  ? "Não foi possível salvar ou carregar. Seu texto foi mantido."
+                  : "Salva sozinho enquanto você escreve"}
         </small>
       </div>
       <textarea
         className="notebook"
+        aria-label="Caderno de anotações"
         value={text}
-        onChange={(e) => setText(e.target.value)}
+        onChange={(event) => setText(event.target.value)}
         placeholder="Seus insights, perguntas e decisões sobre este encontro…"
-        disabled={!trail.enrollmentId}
+        disabled={!ready || !trail.enrollmentId}
       />
+      {state === "error" ? (
+        <button
+          type="button"
+          className="button button--glass"
+          onClick={() => setRetry((value) => value + 1)}
+        >
+          Tentar novamente
+        </button>
+      ) : null}
       <div className="private-note">
         <LockKeyhole size={15} />
         <span>Somente você vê estas anotações. Nem as mentoras têm acesso.</span>

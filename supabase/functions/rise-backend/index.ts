@@ -104,7 +104,7 @@ async function audit(c: Context, action: string, target: string, payload: unknow
 }
 const officialMentors = new Set([
   "camilaum@pamarisdigital.com",
-  "gabriela@pamarisdigital.com",
+  "comunicacao@pamarisdigital.com",
   "ana@pamarisdigital.com",
   "camila@pamarisdigital.com",
 ]);
@@ -116,7 +116,7 @@ const officialMentorDirectory = [
     summary: "Escuta ativa para transformar dilemas em escolhas mais claras.",
   },
   {
-    email: "gabriela@pamarisdigital.com",
+    email: "comunicacao@pamarisdigital.com",
     pillar: "Identidade",
     summary: "Posicionamento e marca pessoal para tornar valor visível.",
   },
@@ -272,6 +272,7 @@ async function getDirectory(c: Context) {
 
 async function createMember(c: Context, d: any) {
   await requireStaff(c);
+  if (!["mentee", "mentor"].includes(d.memberType)) throw new Error("Tipo de acesso inválido.");
   const email = String(d.email ?? "")
     .trim()
     .toLowerCase();
@@ -1650,7 +1651,13 @@ async function contentAction(c: Context, action: string, d: any) {
     );
     if (error) throw new Error(error.message);
 
-    await c.admin.from("journey_content_progress").upsert(
+    const { data: previous } = await c.admin
+      .from("journey_content_progress")
+      .select("completed, completed_at")
+      .eq("enrollment_id", visible.enrollment.id)
+      .eq("step_key", row.step_key)
+      .maybeSingle();
+    const { error: progressError } = await c.admin.from("journey_content_progress").upsert(
       {
         enrollment_id: visible.enrollment.id,
         step_key: row.step_key,
@@ -1658,11 +1665,14 @@ async function contentAction(c: Context, action: string, d: any) {
         current_seconds: 0,
         duration_seconds: null,
         completed: true,
-        completed_at: new Date().toISOString(),
+        completed_at: previous?.completed_at ?? new Date().toISOString(),
         updated_at: new Date().toISOString(),
       },
       { onConflict: "enrollment_id,step_key" },
     );
+    if (progressError) throw new Error(progressError.message);
+    if (await completeAutomaticStep(visible.enrollment.id, row.step_key, "final_submission"))
+      await notifyStageCompleted(visible.enrollment.id, c.userId, row.step_key);
 
     return { ok: true, submitted: true };
   }
@@ -1760,15 +1770,21 @@ async function contentAction(c: Context, action: string, d: any) {
     return data;
   }
   if (action === "saveJourneyContentProgress") {
+    if (
+      !Number.isFinite(d.currentSeconds) ||
+      d.currentSeconds < 0 ||
+      (d.durationSeconds != null && (!Number.isFinite(d.durationSeconds) || d.durationSeconds <= 0))
+    )
+      throw new Error("Progresso de vídeo inválido.");
     const { data: old } = await c.admin
       .from("journey_content_progress")
-      .select("completed")
+      .select("completed, completed_at")
       .eq("enrollment_id", library.enrollmentId)
       .eq("step_key", d.stepKey)
       .maybeSingle();
     const completed =
       !!old?.completed ||
-      (!!d.ended && d.durationSeconds > 0 && d.currentSeconds >= d.durationSeconds * 0.9);
+      (d.ended === true && d.durationSeconds > 0 && d.currentSeconds >= d.durationSeconds * 0.9);
     const { error } = await c.admin.from("journey_content_progress").upsert(
       {
         enrollment_id: library.enrollmentId,
@@ -1777,17 +1793,38 @@ async function contentAction(c: Context, action: string, d: any) {
         current_seconds: d.currentSeconds,
         duration_seconds: d.durationSeconds ?? null,
         completed,
-        completed_at: completed ? new Date().toISOString() : null,
+        // Mantém a data real da primeira conclusão.
+        completed_at: completed ? (old?.completed_at ?? new Date().toISOString()) : null,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "enrollment_id,step_key" },
     );
     if (error) throw new Error(error.message);
-    if (!old?.completed && completed)
+    if (completed && (await completeAutomaticStep(library.enrollmentId, d.stepKey, "player_ended")))
       await notifyStageCompleted(library.enrollmentId, c.userId, d.stepKey);
     return { completed };
   }
   throw new Error("Ação de conteúdo inválida.");
+}
+
+/**
+ * Etapas com conclusão automática (vídeo assistido ou questionário enviado)
+ * precisam ser marcadas em journey_step_progress, que é o que move a "próxima etapa".
+ * Só conclui se a regra da etapa for a esperada e ela ainda não estiver concluída.
+ * Retorna true quando a etapa acabou de ser concluída.
+ */
+async function completeAutomaticStep(
+  enrollmentId: string,
+  stepKey: string,
+  rule: "player_ended" | "final_submission",
+) {
+  const { data, error } = await admin.rpc("complete_automatic_journey_step", {
+    p_enrollment_id: enrollmentId,
+    p_step_key: stepKey,
+    p_rule: rule,
+  });
+  if (error) throw new Error(error.message);
+  return data === true;
 }
 
 async function ownEnrollment(c: Context) {
@@ -1962,6 +1999,8 @@ async function startAssessmentInterpretation(result: any) {
     },
     body: JSON.stringify({
       model,
+      // A API mantém a resposta temporariamente para consultas do modo background.
+      // Preserva a configuração original de retenção; falhas e expiração são recuperáveis.
       background: true,
       store: false,
       reasoning: { effort: "low" },
@@ -2049,8 +2088,21 @@ async function applyAssessmentResponseState(
   model: string,
 ) {
   if (payload?.status === "completed") {
-    await persistCompletedAssessmentAI(row.id, attemptId, payload, model);
-    return "generated";
+    try {
+      await persistCompletedAssessmentAI(row.id, attemptId, payload, model);
+      return "generated";
+    } catch (error) {
+      // Resposta concluída mas fora do formato esperado: não adianta tentar de novo
+      // a mesma resposta; marca como falha para a equipe poder gerar outra.
+      await markAssessmentAIFailed(
+        row.id,
+        attemptId,
+        `A interpretação veio fora do formato esperado: ${
+          error instanceof Error ? error.message : "erro desconhecido"
+        }`,
+      );
+      return "failed";
+    }
   }
   if (["failed", "cancelled", "incomplete"].includes(String(payload?.status))) {
     const detail =
@@ -2180,9 +2232,31 @@ async function queueAssessmentAISafely(attemptId: string, result: any) {
   }
 }
 
+const ASSESSMENT_AI_STALE_MS = 15 * 60_000;
+const isStalePending = (row: any) => {
+  const control = pendingAssessmentControl(row);
+  const startedAt = new Date(control?.startedAt ?? row?.created_at ?? 0).getTime();
+  return (
+    row?.status === "pending" &&
+    Number.isFinite(startedAt) &&
+    Date.now() - startedAt > ASSESSMENT_AI_STALE_MS
+  );
+};
+
 async function refreshPendingAssessmentAI(row: any) {
   const control = pendingAssessmentControl(row);
-  if (!control) return row;
+  if (!control) {
+    // Pendente sem identificador da OpenAI e há muito tempo: a geração nunca começou.
+    if (isStalePending(row)) {
+      await markAssessmentAIFailed(
+        row.id,
+        row.attempt_id,
+        "A geração não chegou a começar e precisa ser feita novamente.",
+      );
+      return (await findAssessmentAIOutput(row.attempt_id, row.prompt_version)) ?? row;
+    }
+    return row;
+  }
   try {
     const { payload, model } = await retrieveAssessmentInterpretation(control.responseId);
     const state = await applyAssessmentResponseState(row, row.attempt_id, payload, model);
@@ -2190,9 +2264,9 @@ async function refreshPendingAssessmentAI(row: any) {
     return (await findAssessmentAIOutput(row.attempt_id, row.prompt_version)) ?? row;
   } catch (error) {
     const message = error instanceof Error ? error.message : "Falha não identificada.";
-    const startedAt = new Date(control.startedAt ?? row.created_at ?? 0).getTime();
-    const expired = Number.isFinite(startedAt) && Date.now() - startedAt > 10 * 60_000;
-    if (expired && message.includes("HTTP 404")) {
+    // Depois de 15 minutos sem conseguir consultar, encerra como falha (qualquer erro),
+    // para não deixar a interpretação "pendente para sempre".
+    if (isStalePending(row)) {
       await markAssessmentAIFailed(
         row.id,
         row.attempt_id,
@@ -2253,7 +2327,9 @@ async function assessmentAIView(attemptId: string, options: { staff: boolean; re
         ? (row.authorized_sections ?? [])
         : ["summary_for_mentee"],
     output,
-    canRetry: row.status === "failed" || (options.staff && row.status === "generated"),
+    canRetry:
+      row.status === "failed" ||
+      (options.staff && (row.status === "generated" || isStalePending(row))),
     fallbackPromptVersion,
   };
 }
@@ -2270,6 +2346,11 @@ async function generateAssessmentAIExplicitly(c: Context, d: any) {
     throw new Error("A regeneração de uma interpretação concluída é restrita à equipe RISE NOW.");
 
   let row = await findAssessmentAIOutput(attempt.id, PROMPT_VERSION);
+  if (row && staff && isStalePending(row)) {
+    // Geração travada há mais de 15 minutos: libera para a equipe gerar de novo.
+    await markAssessmentAIFailed(row.id, attempt.id, "Geração travada encerrada pela equipe.");
+    row = (await findAssessmentAIOutput(attempt.id, PROMPT_VERSION)) ?? row;
+  }
   if (!row) {
     const created = await createAssessmentAIOutput(attempt.id, attempt.calculated_result);
     row = created.row;
@@ -2376,6 +2457,11 @@ async function assessmentAction(c: Context, action: string, d: any) {
   }
   if (action === "completeAssessment") {
     const attempt = await ownAttempt(c, d.attemptId);
+    if (d.stepKey) {
+      const { library, item } = await requireContent(c, d.stepKey);
+      if (library.enrollmentId !== attempt.enrollment_id || item.resourceType !== "rise_assessment")
+        throw new Error("Esta etapa não corresponde ao mapeamento comportamental.");
+    }
     if (attempt.status === "completed" && attempt.calculated_result) {
       await queueAssessmentAISafely(attempt.id, attempt.calculated_result);
       return publicAssessment(
@@ -2409,7 +2495,7 @@ async function assessmentAction(c: Context, action: string, d: any) {
       .eq("id", d.attemptId);
     if (ue) throw new Error(ue.message);
     if (d.stepKey) {
-      await Promise.all([
+      const writes = await Promise.all([
         c.admin.from("journey_content_progress").upsert(
           {
             enrollment_id: attempt.enrollment_id,
@@ -2434,6 +2520,7 @@ async function assessmentAction(c: Context, action: string, d: any) {
           { onConflict: "enrollment_id,step_key" },
         ),
       ]);
+      for (const write of writes) if (write.error) throw new Error(write.error.message);
       await notifyStageCompleted(attempt.enrollment_id, c.userId, d.stepKey);
     }
     await queueAssessmentAISafely(attempt.id, result);
@@ -3594,6 +3681,60 @@ async function automationAction(c: Context, action: string, d: any) {
 async function whatsappAction(c: Context, action: string, d: any) {
   await requireStaff(c);
   const configured = gatewayConfigured();
+  if (action === "listWhatsAppContacts") {
+    const [
+      { data: profiles, error: profileError },
+      { data: permissions, error: permissionError },
+      { data: roles, error: roleError },
+    ] = await Promise.all([
+      c.admin
+        .from("profiles")
+        .select("id, display_name, full_name, email, phone")
+        .order("full_name"),
+      c.admin.from("whatsapp_contact_permissions").select("*"),
+      c.admin.from("user_roles").select("user_id,role"),
+    ]);
+    if (profileError || permissionError || roleError)
+      throw new Error("Não foi possível carregar os contatos e autorizações.");
+    const byId = new Map((permissions ?? []).map((p: any) => [p.user_id, p]));
+    return {
+      contacts: (profiles ?? []).map((p: any) => {
+        const consent = byId.get(p.id);
+        const phone = toChatId(p.phone)?.digits ?? null;
+        return {
+          id: p.id,
+          name: p.display_name || p.full_name,
+          email: p.email,
+          phone: p.phone ?? "",
+          audience: (roles ?? []).some(
+            (r: any) => r.user_id === p.id && ["admin", "mentor"].includes(r.role),
+          )
+            ? "mentora"
+            : "mentorado",
+          authorized: !!phone && consent?.authorized === true && consent.phone === phone,
+          recordedAt: consent?.recorded_at ?? null,
+          recordedBy:
+            (profiles ?? []).find((actor: any) => actor.id === consent?.recorded_by)?.full_name ??
+            null,
+        };
+      }),
+    };
+  }
+  if (action === "saveWhatsAppContact") {
+    const rawPhone = String(d.phone ?? "").trim();
+    const phone = toChatId(rawPhone)?.digits ?? null;
+    if (rawPhone && !phone) throw new Error("Telefone inválido. Informe DDD e número.");
+    if (typeof d.authorized !== "boolean")
+      throw new Error("Informe se a pessoa autorizou o envio.");
+    const { error } = await c.admin.rpc("record_whatsapp_permission", {
+      p_user_id: String(d.userId ?? ""),
+      p_phone: phone,
+      p_authorized: d.authorized,
+      p_actor_id: c.userId,
+    });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  }
   if (action === "saveWhatsAppSettings") {
     const on = (value: unknown) => configured && value === true;
     const hours = Math.round(Number(d.meetingReminderHours));
@@ -3790,6 +3931,8 @@ const groups = {
   ]),
   whatsapp: new Set([
     "getWhatsAppAdminState",
+    "listWhatsAppContacts",
+    "saveWhatsAppContact",
     "saveWhatsAppSettings",
     "saveWhatsAppTemplates",
     "startWhatsAppSession",

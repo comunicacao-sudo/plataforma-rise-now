@@ -13,6 +13,8 @@
  *   WHATSAPP_GATEWAY_URL, WHATSAPP_GATEWAY_API_KEY, WHATSAPP_GATEWAY_SESSION_ID
  */
 
+import { authorizedWhatsAppPhone } from "./whatsapp-consent.ts";
+
 export const WHATSAPP_ENGINE = "pamaris_gateway";
 
 /** Pausa entre mensagens consecutivas para reduzir risco de bloqueio do número. */
@@ -129,6 +131,27 @@ export const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve
  * Usa trava otimista (updated_at) para que cron e backend nunca enviem a mesma linha duas vezes.
  */
 export async function deliverNotification(admin: any, row: any) {
+  if (!isGroupChatId(row.chat_id)) {
+    // Consulta novamente antes de cada envio: revogações também bloqueiam a fila antiga.
+    const { data: saved, error } = await admin
+      .from("whatsapp_notifications")
+      .select("recipient_user_id")
+      .eq("id", row.id)
+      .single();
+    if (error) throw new Error("Não foi possível conferir o destinatário.");
+    const phone = toChatId(row.phone)?.digits ?? null;
+    if (!(await authorizedWhatsAppPhone(admin, saved.recipient_user_id, phone))) {
+      await admin
+        .from("whatsapp_notifications")
+        .update({
+          status: "failed",
+          error_message: "Envio bloqueado: WhatsApp sem autorização para este número.",
+        })
+        .eq("id", row.id)
+        .eq("status", "pending");
+      return "skipped" as const;
+    }
+  }
   const claimed = await admin
     .from("whatsapp_notifications")
     .update({ error_message: "Enviando…" })
@@ -207,6 +230,8 @@ export async function enqueueNotification(admin: any, input: NotificationInput) 
   const group = isGroupChatId(input.groupChatId) ? input.groupChatId : null;
   const target = group ? null : toChatId(input.phone);
   if (!group && !target) return null;
+  if (!group && !(await authorizedWhatsAppPhone(admin, input.recipientId, target!.digits)))
+    return null;
   const { data, error } = await admin
     .from("whatsapp_notifications")
     .insert({

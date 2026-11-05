@@ -44,7 +44,7 @@ test("mentor directory exposes only the four professional mentor profiles", () =
 
   for (const email of [
     "camilaum@pamarisdigital.com",
-    "gabriela@pamarisdigital.com",
+    "comunicacao@pamarisdigital.com",
     "ana@pamarisdigital.com",
     "camila@pamarisdigital.com",
   ]) {

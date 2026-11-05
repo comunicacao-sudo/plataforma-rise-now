@@ -56,6 +56,25 @@ export type WhatsAppAdminState = {
 
 type ActionResult = { ok: boolean; error?: string };
 
+export type WhatsAppContact = {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  audience: string;
+  authorized: boolean;
+  recordedAt: string | null;
+  recordedBy: string | null;
+};
+
+export const listWhatsAppContacts = createEdgeFunction<undefined, { contacts: WhatsAppContact[] }>(
+  "listWhatsAppContacts",
+);
+export const saveWhatsAppContact = createEdgeFunction<
+  { userId: string; phone: string; authorized: boolean },
+  ActionResult
+>("saveWhatsAppContact");
+
 export const getWhatsAppAdminState = createEdgeFunction<undefined, WhatsAppAdminState>(
   "getWhatsAppAdminState",
 );

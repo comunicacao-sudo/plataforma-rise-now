@@ -17,7 +17,7 @@ import {
   UsersRound,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   ASSESSMENT_QUESTIONS,
@@ -1171,21 +1171,26 @@ export function RiseAssessmentExperience({
   const [busy, setBusy] = useState(false);
   const [transitionSeen, setTransitionSeen] = useState(false);
   const [finished, setFinished] = useState(false);
-  const answers = useMemo<Map<string, number>>(
-    () =>
+  const [errorMessage, setErrorMessage] = useState("");
+  // Respostas mantidas na tela: o servidor só é lido ao abrir a tentativa, para que
+  // voltar uma pergunta mostre a resposta dada e trocar de aplicativo não mude a posição.
+  const [answers, setAnswers] = useState<Map<string, number>>(() => new Map());
+  const hydratedAttempt = useRef<string | null>(null);
+  useEffect(() => {
+    const attempt = state.data?.attempt;
+    if (!attempt || hydratedAttempt.current === attempt.id) return;
+    hydratedAttempt.current = attempt.id;
+    setAttemptId(attempt.id);
+    setIndex(Math.min(attempt.current_index ?? 0, ASSESSMENT_QUESTIONS.length - 1));
+    setFinished(attempt.status === "completed");
+    setAnswers(
       new Map(
         ((state.data?.answers ?? []) as Array<{ itemId: string; value: number }>).map((item) => [
           item.itemId,
           item.value,
         ]),
       ),
-    [state.data?.answers],
-  );
-  useEffect(() => {
-    if (!state.data?.attempt) return;
-    setAttemptId(state.data.attempt.id);
-    setIndex(Math.min(state.data.attempt.current_index ?? 0, ASSESSMENT_QUESTIONS.length - 1));
-    setFinished(state.data.attempt.status === "completed");
+    );
   }, [state.data]);
   useEffect(() => {
     if (attemptId && !finished) window.scrollTo({ top: 0, behavior: "smooth" });
@@ -1193,24 +1198,67 @@ export function RiseAssessmentExperience({
   const question = ASSESSMENT_QUESTIONS[index]!;
   useEffect(() => setSelected(answers.get(question.id) ?? null), [answers, question.id]);
 
+  const failureText = (error: unknown) =>
+    error instanceof Error && error.message
+      ? error.message
+      : "Não foi possível salvar agora. Confira sua internet e tente de novo.";
+
   async function begin() {
     setBusy(true);
+    setErrorMessage("");
     try {
       const attempt = await start();
+      hydratedAttempt.current = null;
+      setAnswers(new Map());
       setAttemptId(attempt.id);
       setIndex(attempt.current_index);
       setFinished(false);
       setTransitionSeen(false);
       await state.refetch();
+    } catch (error) {
+      setErrorMessage(failureText(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function persistAnswer() {
+    if (!attemptId || selected === null || answers.get(question.id) === selected) return;
+    await save({ data: { attemptId, itemId: question.id, value: selected } });
+    setAnswers((current) => new Map(current).set(question.id, selected));
+  }
+  async function previous() {
+    if (busy) return;
+    setBusy(true);
+    setErrorMessage("");
+    try {
+      await persistAnswer();
+      setIndex((value) => Math.max(0, value - 1));
+      setTransitionSeen(true);
+    } catch (error) {
+      setErrorMessage(failureText(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function leave() {
+    if (busy) return;
+    setBusy(true);
+    setErrorMessage("");
+    try {
+      await persistAnswer();
+      onBack?.();
+    } catch (error) {
+      setErrorMessage(failureText(error));
     } finally {
       setBusy(false);
     }
   }
   async function next() {
-    if (!attemptId || selected === null) return;
+    if (!attemptId || selected === null || busy) return;
     setBusy(true);
+    setErrorMessage("");
     try {
-      await save({ data: { attemptId, itemId: question.id, value: selected } });
+      await persistAnswer();
       if (index === ASSESSMENT_QUESTIONS.length - 1) {
         await complete({ data: { attemptId, stepKey } });
         setFinished(true);
@@ -1220,8 +1268,9 @@ export function RiseAssessmentExperience({
         ]);
       } else {
         setIndex((value) => value + 1);
-        setSelected(answers.get(ASSESSMENT_QUESTIONS[index + 1]!.id) ?? null);
       }
+    } catch (error) {
+      setErrorMessage(failureText(error));
     } finally {
       setBusy(false);
     }
@@ -1230,6 +1279,27 @@ export function RiseAssessmentExperience({
     return (
       <main className="inner-page assessment-page">
         <div className="assessment-loading">Carregando seu mapeamento…</div>
+      </main>
+    );
+  if (state.isError && !attemptId)
+    return (
+      <main className="inner-page assessment-page">
+        <div className="page-width">
+          <button className="recorded-back" type="button" onClick={onBack}>
+            <ArrowLeft size={17} />
+            Minha jornada
+          </button>
+          <p className="form-message" role="alert">
+            Não foi possível carregar o seu mapeamento. Confira sua internet e tente de novo.
+          </p>
+          <button
+            className="button button--primary"
+            type="button"
+            onClick={() => void state.refetch()}
+          >
+            Tentar novamente
+          </button>
+        </div>
       </main>
     );
   if (finished)
@@ -1243,6 +1313,11 @@ export function RiseAssessmentExperience({
             Minha jornada
           </button>
           <AssessmentIntro onStart={() => void begin()} busy={busy} />
+          {errorMessage ? (
+            <p className="form-message" role="alert">
+              {errorMessage}
+            </p>
+          ) : null}
         </div>
       </main>
     );
@@ -1262,7 +1337,12 @@ export function RiseAssessmentExperience({
   return (
     <main className="inner-page assessment-page">
       <div className="assessment-question-shell page-width">
-        <button className="recorded-back" type="button" onClick={onBack}>
+        <button
+          className="recorded-back"
+          type="button"
+          disabled={busy}
+          onClick={() => void leave()}
+        >
           <ArrowLeft size={17} />
           Salvar e sair
         </button>
@@ -1284,6 +1364,7 @@ export function RiseAssessmentExperience({
                 key={option.value}
                 type="button"
                 className={selected === option.value ? "is-selected" : ""}
+                disabled={busy}
                 onClick={() => setSelected(option.value)}
               >
                 <strong>{option.value}</strong>
@@ -1293,14 +1374,7 @@ export function RiseAssessmentExperience({
             ))}
           </div>
           <footer>
-            <button
-              type="button"
-              disabled={index === 0 || busy}
-              onClick={() => {
-                setIndex((value) => Math.max(0, value - 1));
-                setTransitionSeen(true);
-              }}
-            >
+            <button type="button" disabled={index === 0 || busy} onClick={() => void previous()}>
               <ArrowLeft size={17} />
               Anterior
             </button>
@@ -1317,6 +1391,11 @@ export function RiseAssessmentExperience({
               <ArrowRight size={17} />
             </button>
           </footer>
+          {errorMessage ? (
+            <p className="form-message" role="alert">
+              {errorMessage}
+            </p>
+          ) : null}
         </section>
       </div>
     </main>
