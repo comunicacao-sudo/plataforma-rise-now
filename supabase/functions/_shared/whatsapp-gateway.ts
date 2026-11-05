@@ -139,8 +139,9 @@ export async function deliverNotification(admin: any, row: any) {
     .maybeSingle();
   if (!claimed.data) return "skipped" as const;
 
-  const target = toChatId(row.phone);
-  if (!target) {
+  // Grupos guardam o chatId (…@g.us); pessoas, o telefone.
+  const chatId = isGroupChatId(row.chat_id) ? row.chat_id : toChatId(row.phone)?.chatId;
+  if (!chatId) {
     await admin
       .from("whatsapp_notifications")
       .update({ status: "failed", error_message: "Telefone inválido." })
@@ -148,7 +149,7 @@ export async function deliverNotification(admin: any, row: any) {
     return "failed" as const;
   }
   try {
-    const providerId = await sendGatewayText(target.chatId, row.message);
+    const providerId = await sendGatewayText(chatId, row.message);
     await admin
       .from("whatsapp_notifications")
       .update({
@@ -169,11 +170,28 @@ export async function deliverNotification(admin: any, row: any) {
   }
 }
 
+export const isGroupChatId = (value: unknown): value is string =>
+  typeof value === "string" && /^[0-9-]+@g\.us$/.test(value);
+
+export async function listGatewayGroups(): Promise<Array<{ id: string; name: string }>> {
+  const body = await gateway("/groups");
+  const list = Array.isArray(body) ? body : (body?.groups ?? body?.data ?? []);
+  return list
+    .map((group: any) => ({
+      id: String(group?.id?._serialized ?? group?.id ?? ""),
+      name: String(group?.name ?? group?.subject ?? "Grupo sem nome"),
+    }))
+    .filter((group: { id: string }) => isGroupChatId(group.id));
+}
+
 export type NotificationInput = {
   eventType: string;
-  recipientId: string;
-  recipientRole: "mentee" | "mentor" | "admin";
+  recipientId: string | null;
+  recipientRole: "mentee" | "mentor" | "admin" | "group";
   phone: string | null | undefined;
+  /** Para envio em grupo: o chatId do grupo (…@g.us). */
+  groupChatId?: string | null;
+  automationId?: string | null;
   referenceType: string;
   referenceId: string;
   idempotencyKey: string;
@@ -183,18 +201,21 @@ export type NotificationInput = {
 
 /**
  * Registra a notificação como pendente (idempotente). Retorna a linha criada,
- * ou null se o evento estiver desligado, o telefone for inválido ou já houver registro.
+ * ou null se o telefone for inválido ou já houver registro com a mesma chave.
  */
 export async function enqueueNotification(admin: any, input: NotificationInput) {
-  const target = toChatId(input.phone);
-  if (!target) return null;
+  const group = isGroupChatId(input.groupChatId) ? input.groupChatId : null;
+  const target = group ? null : toChatId(input.phone);
+  if (!group && !target) return null;
   const { data, error } = await admin
     .from("whatsapp_notifications")
     .insert({
       event_type: input.eventType,
       recipient_user_id: input.recipientId,
       recipient_role: input.recipientRole,
-      phone: target.digits,
+      phone: target?.digits ?? null,
+      chat_id: group,
+      automation_id: input.automationId ?? null,
       message: input.message,
       target_url: input.targetUrl,
       reference_type: input.referenceType,
@@ -202,7 +223,7 @@ export async function enqueueNotification(admin: any, input: NotificationInput) 
       idempotency_key: input.idempotencyKey,
       status: "pending",
     })
-    .select("id, phone, message, updated_at")
+    .select("id, phone, chat_id, message, updated_at")
     .single();
   if (error?.code === "23505") return null;
   if (error) throw new Error(error.message);

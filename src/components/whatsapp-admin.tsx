@@ -1,83 +1,16 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { MessageCircleMore, Power, QrCode, RefreshCw, Save, Send, ShieldCheck } from "lucide-react";
+import { MessageCircleMore, Power, QrCode, RefreshCw, Send, ShieldCheck } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import {
   getWhatsAppAdminState,
   getWhatsAppQrCode,
-  saveWhatsAppSettings,
-  saveWhatsAppTemplates,
   sendWhatsAppTest,
   startWhatsAppSession,
   type WhatsAppAdminState,
-  type WhatsAppSettings,
 } from "@/lib/whatsapp.functions";
 
-import { WhatsAppTemplatesEditor } from "./whatsapp-templates-editor";
-
-const defaultSettings: WhatsAppSettings = {
-  accountCreated: false,
-  meetingReminder: false,
-  meetingReminderMentor: false,
-  stageReleased: false,
-  stageCompletedMentee: false,
-  stageCompletedMentor: false,
-  meetingReminderHours: 24,
-};
-
-type NotificationOption = {
-  key: Exclude<keyof WhatsAppSettings, "meetingReminderHours">;
-  title: string;
-  description: string;
-};
-
-const notificationGroups: Array<{ title: string; options: NotificationOption[] }> = [
-  {
-    title: "Para mentoradas",
-    options: [
-      {
-        key: "meetingReminder",
-        title: "Lembrete de encontro",
-        description: "Lembra cada mentorada antes de um encontro em que ela participa.",
-      },
-      {
-        key: "stageReleased",
-        title: "Nova etapa liberada",
-        description: "Avisa quando uma etapa com data de liberação fica disponível.",
-      },
-      {
-        key: "stageCompletedMentee",
-        title: "Etapa concluída",
-        description: "Parabeniza e oferece o link para continuar a jornada.",
-      },
-    ],
-  },
-  {
-    title: "Para mentoras",
-    options: [
-      {
-        key: "meetingReminderMentor",
-        title: "Lembrete de encontro",
-        description: "Lembra a mentora responsável antes de cada encontro que ela conduz.",
-      },
-      {
-        key: "stageCompletedMentor",
-        title: "Mentorada concluiu uma etapa",
-        description: "Avisa as mentoras responsáveis quando uma mentorada avança.",
-      },
-    ],
-  },
-  {
-    title: "Para todas",
-    options: [
-      {
-        key: "accountCreated",
-        title: "Conta criada",
-        description: "Avisa que o acesso foi criado e que o link de ativação chegou no e-mail.",
-      },
-    ],
-  },
-];
+import { WhatsAppAutomations } from "./whatsapp-automations";
 
 const eventLabels: Record<string, string> = {
   account_created: "Conta criada",
@@ -86,6 +19,7 @@ const eventLabels: Record<string, string> = {
   stage_released: "Etapa liberada",
   stage_completed_mentee: "Etapa concluída",
   stage_completed_mentor: "Aviso à mentora",
+  automation: "Automação",
 };
 
 const historyLabels: Record<string, string> = {
@@ -136,7 +70,6 @@ export function WhatsAppAdmin() {
         : false;
     },
   });
-  const [settings, setSettings] = useState(defaultSettings);
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [phone, setPhone] = useState("");
   const [testMessage, setTestMessage] = useState(
@@ -146,7 +79,6 @@ export function WhatsAppAdmin() {
   const [feedback, setFeedback] = useState("");
 
   useEffect(() => {
-    if (data?.settings) setSettings({ ...defaultSettings, ...data.settings });
     setQrCode(data?.qrCode ?? null);
   }, [data]);
 
@@ -313,140 +245,56 @@ export function WhatsAppAdmin() {
               ) : null}
             </article>
 
-            <div className="whatsapp-grid">
-              <article className="admin-card whatsapp-card">
-                <div className="section-heading">
-                  <div>
-                    <h2>Notificações automáticas</h2>
-                    <p className="whatsapp-muted">Escolha quais eventos enviam mensagens.</p>
-                  </div>
-                </div>
-                {notificationGroups.map((group) => (
-                  <fieldset key={group.title} className="whatsapp-group">
-                    <legend>{group.title}</legend>
-                    {group.options.map((option) => (
-                      <label key={option.key} className="whatsapp-toggle">
-                        <span>
-                          <strong>{option.title}</strong>
-                          <small className="whatsapp-muted">{option.description}</small>
-                        </span>
-                        <input
-                          type="checkbox"
-                          role="switch"
-                          checked={settings[option.key]}
-                          disabled={!configured}
-                          onChange={(event) =>
-                            setSettings((current) => ({
-                              ...current,
-                              [option.key]: event.target.checked,
-                            }))
-                          }
-                        />
-                      </label>
-                    ))}
-                  </fieldset>
-                ))}
-                <label className="ops-field">
-                  <span>Antecedência dos lembretes de encontro (horas)</span>
-                  <input
-                    type="number"
-                    min={1}
-                    max={168}
-                    value={settings.meetingReminderHours}
-                    onChange={(event) =>
-                      setSettings((current) => ({
-                        ...current,
-                        meetingReminderHours: Math.max(
-                          1,
-                          Math.min(168, Number(event.target.value) || 1),
-                        ),
-                      }))
-                    }
-                  />
-                </label>
-                <button
-                  className="button button--primary"
-                  type="button"
-                  disabled={busy !== null || !configured}
-                  onClick={() =>
-                    void runAction(
-                      "settings",
-                      () => saveWhatsAppSettings({ data: settings }),
-                      "Preferências de notificação salvas.",
-                    )
-                  }
-                >
-                  <Save size={17} /> {busy === "settings" ? "Salvando…" : "Salvar preferências"}
-                </button>
-              </article>
-
-              <article className="admin-card whatsapp-card">
-                <div className="section-heading">
-                  <div>
-                    <h2>Mensagem de teste</h2>
-                    <p className="whatsapp-muted">
-                      Use um telefone com DDD que espera receber o teste.
-                    </p>
-                  </div>
-                </div>
-                <div className="ops-form">
-                  <label className="ops-field">
-                    <span>Telefone</span>
-                    <input
-                      type="tel"
-                      inputMode="tel"
-                      value={phone}
-                      onChange={(event) => setPhone(event.target.value)}
-                      placeholder="(11) 99999-9999"
-                    />
-                  </label>
-                  <label className="ops-field">
-                    <span>Mensagem</span>
-                    <textarea
-                      rows={4}
-                      maxLength={2000}
-                      value={testMessage}
-                      onChange={(event) => setTestMessage(event.target.value)}
-                    />
-                  </label>
-                  <button
-                    className="button button--primary"
-                    type="button"
-                    disabled={busy !== null || !connected}
-                    onClick={sendTestMessage}
-                  >
-                    <Send size={17} /> {busy === "test" ? "Enviando…" : "Enviar teste"}
-                  </button>
-                  {!connected ? (
-                    <small className="whatsapp-muted">Conecte o número para liberar o teste.</small>
-                  ) : null}
-                </div>
-              </article>
-            </div>
-
-            <WhatsAppTemplatesEditor
-              templates={data.templates}
-              available={data.templatesAvailable}
-              disabled={!configured || busy !== null}
-              saving={busy === "templates"}
-              onSave={(templates) =>
-                void runAction(
-                  "templates",
-                  () => saveWhatsAppTemplates({ data: { templates } }),
-                  "Textos das mensagens salvos.",
-                )
-              }
-              onUseInTest={(message) => {
-                setTestMessage(message);
-                setFeedback("Prévia copiada para a mensagem de teste.");
-              }}
-            />
-
             {feedback ? (
               <p className="form-message" role="status">
                 {feedback}
               </p>
             ) : null}
+
+            <WhatsAppAutomations connected={connected} onFeedback={setFeedback} />
+
+            <article className="admin-card whatsapp-card">
+              <div className="section-heading">
+                <div>
+                  <h2>Mensagem avulsa de teste</h2>
+                  <p className="whatsapp-muted">
+                    Envie qualquer texto para um telefone com DDD que espera receber o teste.
+                  </p>
+                </div>
+              </div>
+              <div className="ops-form">
+                <label className="ops-field">
+                  <span>Telefone</span>
+                  <input
+                    type="tel"
+                    inputMode="tel"
+                    value={phone}
+                    onChange={(event) => setPhone(event.target.value)}
+                    placeholder="(11) 99999-9999"
+                  />
+                </label>
+                <label className="ops-field">
+                  <span>Mensagem</span>
+                  <textarea
+                    rows={4}
+                    maxLength={2000}
+                    value={testMessage}
+                    onChange={(event) => setTestMessage(event.target.value)}
+                  />
+                </label>
+                <button
+                  className="button button--primary"
+                  type="button"
+                  disabled={busy !== null || !connected}
+                  onClick={sendTestMessage}
+                >
+                  <Send size={17} /> {busy === "test" ? "Enviando…" : "Enviar teste"}
+                </button>
+                {!connected ? (
+                  <small className="whatsapp-muted">Conecte o número para liberar o teste.</small>
+                ) : null}
+              </div>
+            </article>
 
             <article className="admin-card whatsapp-card">
               <div className="section-heading">
@@ -462,7 +310,9 @@ export function WhatsAppAdmin() {
                   {data.history.map((item) => (
                     <li key={item.id}>
                       <span>
-                        <strong>{eventLabels[item.eventType] ?? item.eventType}</strong>
+                        <strong>
+                          {item.automation ?? eventLabels[item.eventType] ?? item.eventType}
+                        </strong>
                         <small className="whatsapp-muted">
                           {item.phone ?? "—"} · {formatDate(item.at)}
                           {item.error ? ` · ${item.error}` : ""}

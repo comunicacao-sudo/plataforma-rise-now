@@ -1,3 +1,7 @@
+import type {
+  AutomationAudience,
+  AutomationTrigger,
+} from "../../supabase/functions/_shared/whatsapp-automations.ts";
 import type { WhatsAppTemplateKey } from "../../supabase/functions/_shared/whatsapp-templates.ts";
 
 import { createEdgeFunction } from "./edge-function-client";
@@ -41,6 +45,7 @@ export type WhatsAppAdminState = {
   history: Array<{
     id: string;
     eventType: string;
+    automation: string | null;
     recipientRole: string;
     phone: string | null;
     status: "pending" | "sent" | "failed" | "delivered" | "read";
@@ -61,6 +66,56 @@ export const saveWhatsAppTemplates = createEdgeFunction<
   { templates: Partial<Record<WhatsAppTemplateKey, string>> },
   ActionResult
 >("saveWhatsAppTemplates");
+export type WhatsAppAutomation = {
+  id: string;
+  name: string;
+  trigger: AutomationTrigger;
+  audience: AutomationAudience;
+  offsetMinutes: number;
+  weekday: number | null;
+  sendTime: string | null;
+  template: string;
+  enabled: boolean;
+  lastRunAt: string | null;
+  isDefault: boolean;
+};
+
+export type WhatsAppAutomationDraft = Omit<WhatsAppAutomation, "id" | "lastRunAt" | "isDefault"> & {
+  id?: string;
+};
+
+export const listWhatsAppAutomations = createEdgeFunction<
+  undefined,
+  {
+    available: boolean;
+    error?: string;
+    automations: WhatsAppAutomation[];
+    group: { id: string; name: string } | null;
+  }
+>("listWhatsAppAutomations");
+export const saveWhatsAppAutomation = createEdgeFunction<
+  WhatsAppAutomationDraft,
+  ActionResult & { id?: string }
+>("saveWhatsAppAutomation");
+export const toggleWhatsAppAutomation = createEdgeFunction<
+  { id: string; enabled: boolean },
+  ActionResult
+>("toggleWhatsAppAutomation");
+export const deleteWhatsAppAutomation = createEdgeFunction<{ id: string }, ActionResult>(
+  "deleteWhatsAppAutomation",
+);
+export const listWhatsAppGroups = createEdgeFunction<
+  undefined,
+  ActionResult & { groups?: Array<{ id: string; name: string }> }
+>("listWhatsAppGroups");
+export const saveWhatsAppGroup = createEdgeFunction<{ chatId: string }, ActionResult>(
+  "saveWhatsAppGroup",
+);
+export const testWhatsAppAutomation = createEdgeFunction<
+  WhatsAppAutomationDraft & { phone: string },
+  ActionResult
+>("testWhatsAppAutomation");
+
 export const startWhatsAppSession = createEdgeFunction<undefined, ActionResult>(
   "startWhatsAppSession",
 );

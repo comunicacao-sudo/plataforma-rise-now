@@ -13,6 +13,7 @@ import {
   whatsappSettings,
 } from "../_shared/whatsapp-gateway.ts";
 import { renderTemplate } from "../_shared/whatsapp-templates.ts";
+import { runAutomations } from "./automations.ts";
 
 const env = (name: string) => Deno.env.get(name)?.trim() || null;
 const keyFromJson = (name: string) => {
@@ -261,7 +262,7 @@ async function deliverPending(now: Date) {
     .lt("created_at", oldest);
   const { data: pending, error } = await admin
     .from("whatsapp_notifications")
-    .select("id, phone, message, updated_at")
+    .select("id, phone, chat_id, message, updated_at")
     .eq("status", "pending")
     .gte("created_at", oldest)
     .order("created_at", { ascending: true })
@@ -322,6 +323,7 @@ Deno.serve(async (request: Request) => {
     if (settings.enabled_stage_released) queued += await queueStageReleases(settings, now);
     if (settings.enabled_meeting_reminder || settings.enabled_meeting_reminder_mentor)
       queued += await queueMeetingReminders(settings, now);
+    queued += await runAutomations(admin, settings, now);
 
     // Confere a conexão antes de enviar: se o número caiu, as mensagens ficam pendentes.
     const session = await getGatewaySession().catch(() => null);

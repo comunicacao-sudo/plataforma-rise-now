@@ -25,6 +25,7 @@ import {
   getGatewayQrCode,
   getGatewaySession,
   isGatewayReady,
+  listGatewayGroups,
   sendGatewayText,
   sleep,
   startGatewaySession,
@@ -39,6 +40,12 @@ import {
   sanitizeTemplates,
   templateFor,
 } from "../_shared/whatsapp-templates.ts";
+import {
+  DEFAULT_AUTOMATIONS,
+  TRIGGER_DEFINITIONS,
+  renderAutomation,
+  sanitizeAutomation,
+} from "../_shared/whatsapp-automations.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -3422,6 +3429,168 @@ async function googleAction(c: Context, action: string, d: any) {
   return { ok: true, joinUrl };
 }
 
+function automationShape(row: any) {
+  return {
+    id: row.id,
+    name: row.name,
+    trigger: row.trigger,
+    audience: row.audience,
+    offsetMinutes: row.offset_minutes,
+    weekday: row.weekday,
+    sendTime: row.send_time,
+    template: row.template,
+    enabled: row.enabled,
+    lastRunAt: row.last_run_at,
+    isDefault: !!row.default_key,
+  };
+}
+
+async function automationAction(c: Context, action: string, d: any) {
+  await requireStaff(c);
+  if (action === "listWhatsAppAutomations") {
+    const { count, error: countError } = await c.admin
+      .from("whatsapp_automations")
+      .select("id", { count: "exact", head: true });
+    if (countError)
+      return {
+        available: false,
+        automations: [],
+        error: "Falta aplicar a atualização do banco 0045_whatsapp_automations.",
+      };
+    if (!count) {
+      await c.admin.from("whatsapp_automations").upsert(
+        DEFAULT_AUTOMATIONS.map((item) => ({
+          default_key: item.key,
+          name: item.name,
+          trigger: item.trigger,
+          audience: item.audience,
+          offset_minutes: item.offsetMinutes,
+          weekday: item.weekday,
+          send_time: item.sendTime,
+          template: item.template,
+          enabled: false,
+          created_by: c.userId,
+        })),
+        { onConflict: "default_key", ignoreDuplicates: true },
+      );
+    }
+    const [{ data, error }, settings] = await Promise.all([
+      c.admin.from("whatsapp_automations").select("*").order("created_at"),
+      whatsappSettings(c.admin),
+    ]);
+    if (error) throw new Error(error.message);
+    return {
+      available: true,
+      automations: (data ?? []).map(automationShape),
+      group: settings?.group_chat_id
+        ? { id: settings.group_chat_id, name: settings.group_name ?? "Grupo da RISE" }
+        : null,
+    };
+  }
+  if (action === "saveWhatsAppAutomation") {
+    let input;
+    try {
+      input = sanitizeAutomation(d);
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : "Dados inválidos." };
+    }
+    const row = {
+      name: input.name,
+      trigger: input.trigger,
+      audience: input.audience,
+      offset_minutes: input.offsetMinutes,
+      weekday: input.weekday,
+      send_time: input.sendTime,
+      template: input.template,
+      updated_at: new Date().toISOString(),
+    };
+    if (d.id) {
+      const { error } = await c.admin.from("whatsapp_automations").update(row).eq("id", d.id);
+      if (error) throw new Error(error.message);
+      await audit(c, "whatsapp_automation_updated", String(d.id));
+      return { ok: true, id: d.id };
+    }
+    const { data, error } = await c.admin
+      .from("whatsapp_automations")
+      .insert({ ...row, enabled: false, created_by: c.userId })
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
+    await audit(c, "whatsapp_automation_created", data.id, { trigger: input.trigger });
+    return { ok: true, id: data.id };
+  }
+  if (action === "toggleWhatsAppAutomation") {
+    const enabled = d.enabled === true;
+    if (enabled && !gatewayConfigured())
+      return { ok: false, error: "Configure o WhatsApp no servidor antes de ligar automações." };
+    const { data: current } = await c.admin
+      .from("whatsapp_automations")
+      .select("audience")
+      .eq("id", d.id)
+      .maybeSingle();
+    if (!current) return { ok: false, error: "Automação não encontrada." };
+    if (enabled && current.audience === "group") {
+      const settings = await whatsappSettings(c.admin);
+      if (!settings?.group_chat_id)
+        return { ok: false, error: "Escolha primeiro o grupo da RISE no topo da página." };
+    }
+    const now = new Date().toISOString();
+    const { error } = await c.admin
+      .from("whatsapp_automations")
+      .update({ enabled, enabled_at: enabled ? now : null, last_run_at: null, updated_at: now })
+      .eq("id", d.id);
+    if (error) throw new Error(error.message);
+    await audit(
+      c,
+      enabled ? "whatsapp_automation_enabled" : "whatsapp_automation_disabled",
+      String(d.id),
+    );
+    return { ok: true };
+  }
+  if (action === "deleteWhatsAppAutomation") {
+    const { error } = await c.admin.from("whatsapp_automations").delete().eq("id", d.id);
+    if (error) throw new Error(error.message);
+    await audit(c, "whatsapp_automation_deleted", String(d.id));
+    return { ok: true };
+  }
+  if (!gatewayConfigured())
+    return { ok: false, error: "Gateway de WhatsApp ainda não configurado no servidor." };
+  if (action === "listWhatsAppGroups") {
+    return { ok: true, groups: await listGatewayGroups() };
+  }
+  if (action === "saveWhatsAppGroup") {
+    const groups = await listGatewayGroups();
+    const group = groups.find((item) => item.id === d.chatId);
+    if (!group)
+      return { ok: false, error: "Grupo não encontrado. Confira se o número está no grupo." };
+    const { error } = await c.admin
+      .from("whatsapp_settings")
+      .update({ group_chat_id: group.id, group_name: group.name, updated_by: c.userId })
+      .eq("id", "primary");
+    if (error) throw new Error(error.message);
+    await audit(c, "whatsapp_group_selected", group.id, { name: group.name });
+    return { ok: true, group };
+  }
+  if (action === "testWhatsAppAutomation") {
+    let input;
+    try {
+      input = sanitizeAutomation({ ...d, name: d.name || "Teste" });
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : "Dados inválidos." };
+    }
+    const target = toChatId(d.phone);
+    if (!target) return { ok: false, error: "Telefone inválido. Use DDD + número." };
+    if ((await getGatewaySession()).status !== "ready")
+      return { ok: false, error: "O número institucional não está conectado." };
+    const sample = TRIGGER_DEFINITIONS[input.trigger].sample;
+    const message = `🧪 *Teste de automação*\n\n${renderAutomation(input.trigger, input.template, sample)}`;
+    await sendGatewayText(target.chatId, message);
+    await audit(c, "whatsapp_automation_test_sent", target.digits, { trigger: input.trigger });
+    return { ok: true };
+  }
+  throw new Error("Ação de automação inválida.");
+}
+
 async function whatsappAction(c: Context, action: string, d: any) {
   await requireStaff(c);
   const configured = gatewayConfigured();
@@ -3496,7 +3665,9 @@ async function whatsappAction(c: Context, action: string, d: any) {
       whatsappSettings(c.admin),
       c.admin
         .from("whatsapp_notifications")
-        .select("id, event_type, recipient_role, phone, status, error_message, sent_at, created_at")
+        .select(
+          "id, event_type, recipient_role, phone, status, error_message, sent_at, created_at, automation:whatsapp_automations(name)",
+        )
         .order("created_at", { ascending: false })
         .limit(15),
     ]);
@@ -3539,8 +3710,14 @@ async function whatsappAction(c: Context, action: string, d: any) {
       history: (history ?? []).map((row: any) => ({
         id: row.id,
         eventType: row.event_type,
+        automation: row.automation?.name ?? null,
         recipientRole: row.recipient_role,
-        phone: row.phone ? `•••${String(row.phone).slice(-4)}` : null,
+        phone:
+          row.recipient_role === "group"
+            ? "Grupo"
+            : row.phone
+              ? `•••${String(row.phone).slice(-4)}`
+              : null,
         status: row.status,
         error: row.status === "sent" ? null : row.error_message,
         at: row.sent_at ?? row.created_at,
@@ -3619,6 +3796,15 @@ const groups = {
     "getWhatsAppQrCode",
     "sendWhatsAppTest",
   ]),
+  automation: new Set([
+    "listWhatsAppAutomations",
+    "saveWhatsAppAutomation",
+    "toggleWhatsAppAutomation",
+    "deleteWhatsAppAutomation",
+    "listWhatsAppGroups",
+    "saveWhatsAppGroup",
+    "testWhatsAppAutomation",
+  ]),
   profile: new Set(["getMentorDirectory"]),
 };
 
@@ -3652,6 +3838,7 @@ Deno.serve(async (request: Request) => {
     else if (groups.assessment.has(action)) result = await assessmentAction(c, action, d);
     else if (groups.google.has(action)) result = await googleAction(c, action, d);
     else if (groups.whatsapp.has(action)) result = await whatsappAction(c, action, d);
+    else if (groups.automation.has(action)) result = await automationAction(c, action, d);
     else return fail("Ação de backend desconhecida.", 404);
     return json(result);
   } catch (error) {

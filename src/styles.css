@@ -8670,6 +8670,40 @@ hr,
   border-color: #d9534f;
   color: #d9534f;
 }
+.whatsapp-automation {
+  border-bottom: 1px solid var(--platform-line);
+  padding-bottom: 0.6rem;
+}
+.whatsapp-automation .whatsapp-toggle {
+  border-bottom: 0;
+  padding-bottom: 0.3rem;
+}
+.whatsapp-automation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.whatsapp-automation-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: 2.2rem;
+  padding: 0.3rem 0.75rem;
+  border: 1px solid var(--platform-line-strong);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--platform-text);
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.whatsapp-automation-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.whatsapp-editor {
+  border-color: var(--gold);
+}
 .whatsapp-group {
   margin: 0;
   padding: 0;
