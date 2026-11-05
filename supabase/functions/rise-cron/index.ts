@@ -238,13 +238,41 @@ async function deliverPending(now: Date) {
   return result;
 }
 
+/**
+ * Segredo do agendamento: usa o secret CRON_SECRET se existir; senão, o valor
+ * guardado no Vault do banco (migration 0043), o mesmo que o pg_cron envia.
+ */
+let vaultSecret: string | null = null;
+async function expectedCronSecret() {
+  const fromEnv = env("CRON_SECRET");
+  if (fromEnv) return fromEnv;
+  if (vaultSecret) return vaultSecret;
+  const { data, error } = await admin.rpc("rise_cron_secret");
+  if (error) {
+    console.error("[rise-cron] Falha ao ler o segredo do Vault", error.message);
+    return null;
+  }
+  vaultSecret = typeof data === "string" && data.length >= 32 ? data : null;
+  return vaultSecret;
+}
+
+function sameSecret(a: string, b: string) {
+  const x = new TextEncoder().encode(a);
+  const y = new TextEncoder().encode(b);
+  if (x.length !== y.length) return false;
+  let diff = 0;
+  for (let i = 0; i < x.length; i += 1) diff |= x[i]! ^ y[i]!;
+  return diff === 0;
+}
+
 Deno.serve(async (request: Request) => {
   if (request.method !== "POST") return new Response("Method not allowed", { status: 405 });
-  const expected = env("CRON_SECRET");
+  const expected = await expectedCronSecret();
   const provided =
     request.headers.get("x-cron-secret") ??
     request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
-  if (!expected || provided !== expected) return new Response("Unauthorized", { status: 401 });
+  if (!expected || !provided || !sameSecret(provided, expected))
+    return new Response("Unauthorized", { status: 401 });
   if (!gatewayConfigured())
     return Response.json({ ok: true, providerConfigured: false, queued: 0, sent: 0 });
   try {
