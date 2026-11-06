@@ -1,3 +1,5 @@
+import { getMentorContentOverview } from "@/lib/content.functions";
+import { invalidateJourneyData } from "@/lib/journey-sync";
 import { deferredView } from "@/components/deferred-view";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -132,6 +134,7 @@ type MeetingRow = {
   mentor_name: string | null;
   cohort_id: string | null;
   google_event_id: string | null;
+  journey_step_key: string | null;
   phase: { month_number: number; title: string; pillar: string } | null;
 };
 
@@ -142,7 +145,7 @@ function useMeetings() {
       const { data, error } = await supabase
         .from("meetings")
         .select(
-          "id, title, description, kind, audience, scheduled_at, ends_at, duration_minutes, join_url, recording_url, mentor_name, cohort_id, google_event_id, phase:phases(month_number, title, pillar)",
+          "id, title, description, kind, audience, scheduled_at, ends_at, duration_minutes, join_url, recording_url, mentor_name, cohort_id, google_event_id, journey_step_key, phase:phases(month_number, title, pillar)",
         )
         .order("scheduled_at");
       if (error) throw error;
@@ -472,9 +475,15 @@ function ScheduleForm({ onDone }: { onDone: () => void }) {
   const qc = useQueryClient();
   const { data: dir } = useDirectory();
   const createFn = useServerFn(createMeeting);
+  const loadJourney = useServerFn(getMentorContentOverview);
+  const stages = useQuery({
+    queryKey: ["stage-contents", "overview"],
+    queryFn: () => loadJourney(),
+  });
   const [f, setF] = useState({
     title: "",
     description: "",
+    journeyStepKey: "",
     phaseId: "",
     lessonId: "",
     mentorId: "",
@@ -490,7 +499,6 @@ function ScheduleForm({ onDone }: { onDone: () => void }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((p) => ({ ...p, [k]: v }));
-  const phase = dir?.phases.find((p) => p.id === f.phaseId);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -509,6 +517,7 @@ function ScheduleForm({ onDone }: { onDone: () => void }) {
         data: {
           title: f.title,
           description: f.description,
+          journeyStepKey: f.journeyStepKey || null,
           phaseId: f.phaseId || null,
           lessonId: f.lessonId || null,
           mentorId: f.mentorId || null,
@@ -523,7 +532,11 @@ function ScheduleForm({ onDone }: { onDone: () => void }) {
         },
       });
       if (!res.ok) return setMsg(res.error);
-      await qc.invalidateQueries({ queryKey: ["meetings"] });
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["meetings"] }),
+        qc.invalidateQueries({ queryKey: ["calendar-overview"] }),
+        invalidateJourneyData(qc),
+      ]);
       onDone();
     } catch {
       setMsg("Não foi possível agendar. Confira os dados e tente de novo.");
@@ -550,6 +563,38 @@ function ScheduleForm({ onDone }: { onDone: () => void }) {
         <form className="content-modal__body ops-form" onSubmit={(e) => void submit(e)}>
           <span className="eyebrow eyebrow--gold">Agenda RISE</span>
           <h2>Agendar encontro</h2>
+          <Field label="Etapa da jornada (opcional)">
+            <select
+              value={f.journeyStepKey}
+              onChange={(e) => {
+                const key = e.target.value;
+                const stage = stages.data?.pillars
+                  .flatMap((p) => p.steps)
+                  .find((s) => s.stableKey === key);
+                setF((p) => ({
+                  ...p,
+                  journeyStepKey: key,
+                  title: stage?.title ?? p.title,
+                  phaseId: "",
+                  lessonId: "",
+                }));
+              }}
+            >
+              <option value="">Sem vínculo com uma etapa</option>
+              {(stages.data?.pillars ?? []).map((p) => (
+                <optgroup label={p.name} key={p.id}>
+                  {p.steps.map((s) => (
+                    <option key={s.stableKey} value={s.stableKey}>
+                      {s.title}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          </Field>
+          <p className="ops-muted">
+            A data deste encontro aparece automaticamente na jornada das pessoas convidadas.
+          </p>
           <Field label="Título do encontro">
             <input
               value={f.title}
@@ -557,42 +602,6 @@ function ScheduleForm({ onDone }: { onDone: () => void }) {
               placeholder="Ex.: RISE Decision Room"
             />
           </Field>
-          <div className="ops-grid2">
-            <Field label="Mês / pilar">
-              <select
-                value={f.phaseId}
-                onChange={(e) => setF((p) => ({ ...p, phaseId: e.target.value, lessonId: "" }))}
-              >
-                <option value="">Sem vínculo</option>
-                {dir?.phases.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    Mês {p.month_number} · {p.title}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Sessão da trilha (opcional)">
-              <select
-                value={f.lessonId}
-                disabled={!phase}
-                onChange={(e) => {
-                  const l = phase?.lessons.find((x) => x.id === e.target.value);
-                  setF((p) => ({
-                    ...p,
-                    lessonId: e.target.value,
-                    title: p.title || l?.title || "",
-                  }));
-                }}
-              >
-                <option value="">Nenhuma</option>
-                {phase?.lessons.map((l) => (
-                  <option key={l.id} value={l.id}>
-                    {l.title}
-                  </option>
-                ))}
-              </select>
-            </Field>
-          </div>
           <Field label="Mentora responsável">
             <select value={f.mentorId} onChange={(e) => set("mentorId", e.target.value)}>
               <option value="">Escolher…</option>
@@ -723,16 +732,44 @@ function ScheduleForm({ onDone }: { onDone: () => void }) {
 function RecordingEditor({ m, onDone }: { m: MeetingRow; onDone: () => void }) {
   const qc = useQueryClient();
   const fn = useServerFn(updateMeeting);
+  const loadJourney = useServerFn(getMentorContentOverview);
+  const stages = useQuery({
+    queryKey: ["stage-contents", "overview"],
+    queryFn: () => loadJourney(),
+  });
+  const toInput = (value: string) => {
+    const date = new Date(value);
+    return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  };
+  const [startsAt, setStartsAt] = useState(toInput(m.scheduled_at));
+  const [endsAt, setEndsAt] = useState(toInput(m.ends_at ?? new Date(endOf(m)).toISOString()));
+  const [stage, setStage] = useState(m.journey_step_key ?? "");
+  const [busy, setBusy] = useState(false);
   const [rec, setRec] = useState(m.recording_url ?? "");
   const [join, setJoin] = useState(m.join_url ?? "");
   const [msg, setMsg] = useState("");
   async function save() {
+    setBusy(true);
     try {
-      await fn({ data: { id: m.id, recordingUrl: rec || null, joinUrl: join || null } });
+      await fn({
+        data: {
+          id: m.id,
+          recordingUrl: rec || null,
+          joinUrl: join || null,
+          startsAt: new Date(startsAt).toISOString(),
+          endsAt: new Date(endsAt).toISOString(),
+          expectedScheduledAt: m.scheduled_at,
+          journeyStepKey: stage || null,
+        },
+      });
       await qc.invalidateQueries({ queryKey: ["meetings"] });
       onDone();
-    } catch {
-      setMsg("Confira se os links começam com https://");
+    } catch (error) {
+      setMsg(
+        error instanceof Error ? error.message : "Não foi possível salvar. Confira datas e links.",
+      );
+    } finally {
+      setBusy(false);
     }
   }
   return (
@@ -745,14 +782,46 @@ function RecordingEditor({ m, onDone }: { m: MeetingRow; onDone: () => void }) {
         className="content-modal ops-modal"
         role="dialog"
         aria-modal="true"
-        aria-label="Editar links"
+        aria-label="Editar encontro"
       >
         <button className="modal-close" type="button" onClick={onDone} aria-label="Fechar">
           <X size={21} />
         </button>
         <div className="content-modal__body ops-form">
           <span className="eyebrow eyebrow--gold">{m.title}</span>
-          <h2>Links do encontro</h2>
+          <h2>Editar encontro</h2>
+          <Field label="Etapa da jornada">
+            <select value={stage} onChange={(e) => setStage(e.target.value)}>
+              <option value="">Sem vínculo com uma etapa</option>
+              {(stages.data?.pillars ?? []).map((p) => (
+                <optgroup key={p.id} label={p.name}>
+                  {p.steps.map((s) => (
+                    <option key={s.stableKey} value={s.stableKey}>
+                      {s.title}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          </Field>
+          <div className="ops-grid2">
+            <Field label="Início">
+              <input
+                required
+                type="datetime-local"
+                value={startsAt}
+                onChange={(e) => setStartsAt(e.target.value)}
+              />
+            </Field>
+            <Field label="Término">
+              <input
+                required
+                type="datetime-local"
+                value={endsAt}
+                onChange={(e) => setEndsAt(e.target.value)}
+              />
+            </Field>
+          </div>
           <Field label="Link da reunião">
             <input type="url" value={join} onChange={(e) => setJoin(e.target.value)} />
           </Field>
@@ -766,7 +835,12 @@ function RecordingEditor({ m, onDone }: { m: MeetingRow; onDone: () => void }) {
           </Field>
           {msg ? <p className="form-message">{msg}</p> : null}
           <div className="content-modal__actions">
-            <button className="button button--primary" type="button" onClick={() => void save()}>
+            <button
+              className="button button--primary"
+              type="button"
+              disabled={busy}
+              onClick={() => void save()}
+            >
               Salvar
             </button>
           </div>
@@ -822,7 +896,7 @@ function StaffAgenda() {
       <button
         className="icon-button"
         type="button"
-        aria-label="Editar links"
+        aria-label="Editar encontro"
         onClick={() => setEditing(m)}
       >
         <Video size={17} />

@@ -1,3 +1,5 @@
+import { retainPlaybackUrl } from "@/lib/playback-cache";
+import { supabase } from "@/integrations/supabase/client";
 import { JourneyCoverImage } from "@/components/journey-cover-image";
 import { retainJourneyCoverUrls } from "@/lib/journey-asset-cache";
 import { deferredView } from "@/components/deferred-view";
@@ -247,7 +249,7 @@ function ContentCard({
         </span>
         <strong>{item.title}</strong>
         <small>
-          {typeLabel(item)}
+          {(item.videos?.length ?? 0) > 1 ? `${item.videos!.length} aulas` : typeLabel(item)}
           {item.durationMinutes ? ` · ${item.durationMinutes} min` : ""}
         </small>
       </button>
@@ -411,8 +413,14 @@ function JourneyNotebook({
   const addMarker = useServerFn(addJourneyContentMarker);
   const queryClient = useQueryClient();
   const query = useQuery({
-    queryKey: ["journey-study", item.stepKey],
-    queryFn: () => load({ data: { stepKey: item.stepKey } }),
+    queryKey: ["journey-study", item.stepKey, item.videoContentId],
+    queryFn: () =>
+      load({
+        data: {
+          stepKey: item.stepKey,
+          ...(item.videoContentId ? { contentId: item.videoContentId } : {}),
+        },
+      }),
   });
   const [text, setText] = useState("");
   const [ready, setReady] = useState(false);
@@ -429,7 +437,7 @@ function JourneyNotebook({
   }, [query.data, ready]);
 
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || !query.data || text === query.data.note) return;
     setSaveState("saving");
     const timer = window.setTimeout(async () => {
       try {
@@ -440,7 +448,7 @@ function JourneyNotebook({
       }
     }, 800);
     return () => window.clearTimeout(timer);
-  }, [item.stepKey, ready, save, text]);
+  }, [item.stepKey, ready, save, text, query.data]);
 
   async function saveMarker() {
     if (!reflection.trim()) {
@@ -451,6 +459,7 @@ function JourneyNotebook({
       await addMarker({
         data: {
           stepKey: item.stepKey,
+          contentId: item.videoContentId,
           timestampSeconds: Math.max(0, Math.floor(currentTime)),
           reflection,
         },
@@ -487,8 +496,8 @@ function JourneyNotebook({
         <textarea
           value={text}
           onChange={(event) => setText(event.target.value)}
-          placeholder="Anote seus insights enquanto acompanha a aula…"
-          aria-label="Anotações privadas da aula"
+          placeholder="Anote seus insights desta etapa…"
+          aria-label="Anotações privadas da etapa"
           disabled={!ready}
         />
       </div>
@@ -577,27 +586,99 @@ export function JourneyContentLessonPage({
   onBack: () => void;
   onNavigate: (stepKey: string) => void;
 }) {
+  const [selectedVideo, setSelectedVideo] = useState<{ stepKey: string; id: string } | null>(null);
+  const contentId = selectedVideo?.stepKey === stepKey ? selectedVideo.id : undefined;
   const load = useServerFn(getJourneyContent);
   const loadStudy = useServerFn(getJourneyStudyState);
   const saveProgress = useServerFn(saveJourneyContentProgress);
   const queryClient = useQueryClient();
   const query = useQuery({
-    queryKey: ["journey-content", stepKey],
-    queryFn: () => load({ data: { stepKey } }),
+    queryKey: ["journey-content", stepKey, contentId],
+    queryFn: () => load({ data: { stepKey, ...(contentId ? { contentId } : {}) } }),
     ...liveJourneyQueryOptions,
+    structuralSharing: (before, after) => {
+      type Result = Awaited<ReturnType<typeof getJourneyContent>>;
+      const old = before as Result | undefined;
+      const next = after as Result;
+      return old?.enrollmentId === next.enrollmentId
+        ? { ...next, item: retainPlaybackUrl(old?.item, next.item) }
+        : next;
+    },
   });
+  const item = query.data?.item;
   const study = useQuery({
-    queryKey: ["journey-study", stepKey],
-    queryFn: () => loadStudy({ data: { stepKey } }),
+    enabled: !!item,
+    queryKey: ["journey-study", stepKey, item?.videoContentId],
+    queryFn: () =>
+      loadStudy({
+        data: { stepKey, ...(item?.videoContentId ? { contentId: item.videoContentId } : {}) },
+      }),
   });
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState<number | null>(null);
   const [r2Url, setR2Url] = useState<string | null>(null);
   const [r2Error, setR2Error] = useState("");
+  const [progressError, setProgressError] = useState("");
   const [r2Loading, setR2Loading] = useState(false);
   const [player, setPlayer] = useState<PlayerController>({ canSeek: false, seek: () => undefined });
   const lastSaved = useRef(0);
-  const item = query.data?.item;
+  const playbackState = useRef({ seconds: 0, duration: null as number | null });
+  playbackState.current = { seconds: currentTime, duration };
+
+  useEffect(() => {
+    if (!item?.videoContentId) return;
+    let token: string | null = null;
+    let owner: string | null = null;
+    let disposed = false;
+    let lastFlush = 0;
+    void supabase.auth.getSession().then(({ data }) => {
+      if (!disposed) {
+        token = data.session?.access_token ?? null;
+        owner = data.session?.user.id ?? null;
+      }
+    });
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (owner && session?.user.id === owner) token = session.access_token;
+      else token = null;
+    });
+    const flush = () => {
+      const state = playbackState.current;
+      if (!token || !owner || state.seconds <= 0 || Date.now() - lastFlush < 1000) return;
+      lastFlush = Date.now();
+      void fetch(import.meta.env["VITE_SUPABASE_URL"] + "/functions/v1/rise-backend", {
+        method: "POST",
+        keepalive: true,
+        headers: {
+          "Content-Type": "application/json",
+          apikey: import.meta.env["VITE_SUPABASE_PUBLISHABLE_KEY"],
+          Authorization: "Bearer " + token,
+        },
+        body: JSON.stringify({
+          action: "saveJourneyContentProgress",
+          data: {
+            stepKey: item.stepKey,
+            contentId: item.videoContentId,
+            sourceRevision: item.videoRevision,
+            currentSeconds: Math.floor(state.seconds),
+            durationSeconds: state.duration ? Math.floor(state.duration) : null,
+            ended: false,
+          },
+        }),
+      }).catch(() => undefined);
+    };
+    const hide = () => {
+      if (document.visibilityState === "hidden") flush();
+    };
+    window.addEventListener("pagehide", flush);
+    document.addEventListener("visibilitychange", hide);
+    return () => {
+      flush();
+      disposed = true;
+      listener.subscription.unsubscribe();
+      window.removeEventListener("pagehide", flush);
+      document.removeEventListener("visibilitychange", hide);
+    };
+  }, [item?.stepKey, item?.videoContentId, item?.videoRevision]);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -606,14 +687,16 @@ export function JourneyContentLessonPage({
     setR2Url(null);
     setR2Error("");
     lastSaved.current = 0;
-  }, [stepKey]);
+  }, [stepKey, item?.videoContentId, item?.videoRevision]);
 
+  const r2Identity = item?.resourceType === "r2" ? (item.videoContentId ?? item.stepKey) : null;
+  const r2Revision = item?.videoRevision;
   useEffect(() => {
-    if (!item || item.resourceType !== "r2") return;
+    if (!r2Identity) return;
     let cancelled = false;
     setR2Loading(true);
     setR2Error("");
-    void getR2PlaybackUrl(item.stepKey)
+    void getR2PlaybackUrl(r2Identity)
       .then((result) => {
         if (!cancelled) setR2Url(result.url);
       })
@@ -629,26 +712,40 @@ export function JourneyContentLessonPage({
     return () => {
       cancelled = true;
     };
-  }, [item]);
+  }, [r2Identity, r2Revision]);
 
   async function persistProgress(seconds: number, ended = false) {
     if (!item) return;
     const effectiveDuration = duration ?? (item.durationMinutes ? item.durationMinutes * 60 : null);
-    await saveProgress({
-      data: {
-        stepKey: item.stepKey,
-        currentSeconds: Math.floor(seconds),
-        durationSeconds: effectiveDuration ? Math.floor(effectiveDuration) : null,
-        ended,
-      },
-    });
-    if (ended) {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["journey-content-library"] }),
-        queryClient.invalidateQueries({ queryKey: ["journey-study", stepKey] }),
-      ]);
+    try {
+      await saveProgress({
+        data: {
+          stepKey: item.stepKey,
+          contentId: item.videoContentId,
+          sourceRevision: item.videoRevision,
+          currentSeconds: ended ? Math.ceil(seconds) : Math.floor(seconds),
+          durationSeconds: effectiveDuration ? Math.floor(effectiveDuration) : null,
+          ended,
+        },
+      });
+      setProgressError("");
+      if (ended) {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ["journey-content-library"] }),
+          queryClient.invalidateQueries({ queryKey: ["journey-content", stepKey] }),
+          queryClient.invalidateQueries({ queryKey: ["journey-study", stepKey] }),
+        ]);
+      }
+    } catch {
+      setProgressError(
+        "Não foi possível salvar seu avanço. A reprodução continua; vamos tentar novamente.",
+      );
     }
   }
+
+  const videoIndex = item?.videos?.findIndex((video) => video.id === item.videoContentId) ?? -1;
+  const previousVideo = item?.videos?.[videoIndex - 1];
+  const nextVideo = videoIndex >= 0 ? item?.videos?.[videoIndex + 1] : undefined;
 
   if (query.isLoading)
     return <main className="inner-page journey-content-state">Carregando conteúdo…</main>;
@@ -686,7 +783,7 @@ export function JourneyContentLessonPage({
             <span className="eyebrow eyebrow--gold">
               MÊS {item.monthNumber} · {item.pillarName}
             </span>
-            <h1>{item.title}</h1>
+            <h1>{item.videoTitle || item.title}</h1>
             <p>{item.description}</p>
           </header>
           <iframe
@@ -717,7 +814,7 @@ export function JourneyContentLessonPage({
             <span className="eyebrow eyebrow--gold">
               MÊS {item.monthNumber} · {item.pillarName}
             </span>
-            <h1>{item.title}</h1>
+            <h1>{item.videoTitle || item.title}</h1>
             <p>
               {item.responsibleName || "Mentoria RISE NOW"}
               {item.durationMinutes ? (
@@ -735,6 +832,40 @@ export function JourneyContentLessonPage({
         </header>
         <div className="recorded-lesson__workspace">
           <section className="recorded-lesson__main">
+            {(item.videos?.length ?? 0) > 1 ? (
+              <section className="stage-lesson-picker" aria-label="Aulas desta etapa">
+                <h2>Aulas desta etapa</h2>
+                <ol>
+                  {item.videos?.map((video, index) => (
+                    <li key={video.id}>
+                      <button
+                        type="button"
+                        aria-current={item.videoContentId === video.id ? "true" : undefined}
+                        onClick={() => setSelectedVideo({ stepKey, id: video.id })}
+                      >
+                        {video.completed ? <CheckCircle2 size={18} /> : <Play size={18} />}
+                        <span>
+                          <strong>
+                            {index + 1}. {video.title}
+                          </strong>
+                          <small>
+                            {video.durationMinutes
+                              ? video.durationMinutes + " min"
+                              : "Duração a identificar"}{" "}
+                            · {video.completed ? "Concluída" : "Disponível"}
+                          </small>
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ol>
+              </section>
+            ) : null}
+            {progressError ? (
+              <p className="form-message" role="status">
+                {progressError}
+              </p>
+            ) : null}
             {item.resourceType === "r2" || item.mediaUrl ? (
               <div className="recorded-player">
                 {item.resourceType === "r2" && r2Loading ? (
@@ -752,9 +883,14 @@ export function JourneyContentLessonPage({
                   </div>
                 ) : (item.resourceType === "r2" ? r2Url : item.mediaUrl) ? (
                   <RecordedPlayer
+                    key={`${item.stepKey}:${item.videoContentId ?? "legado"}:${item.videoRevision ?? 1}`}
                     url={(item.resourceType === "r2" ? r2Url : item.mediaUrl) ?? ""}
-                    initialTime={study.data?.currentSeconds ?? item.currentSeconds}
-                    onEnded={() => void persistProgress(currentTime, true)}
+                    initialTime={
+                      currentTime > 0
+                        ? currentTime
+                        : (study.data?.currentSeconds ?? item.currentSeconds)
+                    }
+                    onEnded={(seconds) => void persistProgress(seconds ?? currentTime, true)}
                     onTime={(seconds) => {
                       setCurrentTime(seconds);
                       if (seconds - lastSaved.current >= 10) {
@@ -763,6 +899,9 @@ export function JourneyContentLessonPage({
                       }
                     }}
                     onDuration={setDuration}
+                    onPause={(seconds) => {
+                      if (seconds > 0) void persistProgress(seconds);
+                    }}
                     onController={setPlayer}
                   />
                 ) : (
@@ -823,20 +962,33 @@ export function JourneyContentLessonPage({
               />
             ) : null}
           </section>
-          <JourneyNotebook item={item} currentTime={currentTime} player={player} />
+          <JourneyNotebook
+            key={item.stepKey}
+            item={item}
+            currentTime={currentTime}
+            player={player}
+          />
         </div>
         <footer className="lesson-navigation">
           <button
             type="button"
-            disabled={!query.data?.previous}
-            onClick={() => query.data?.previous && onNavigate(query.data.previous)}
+            disabled={!previousVideo && !query.data?.previous}
+            onClick={() =>
+              previousVideo
+                ? setSelectedVideo({ stepKey, id: previousVideo.id })
+                : query.data?.previous && onNavigate(query.data.previous)
+            }
           >
             <ArrowLeft size={18} /> Aula anterior
           </button>
           <button
             type="button"
-            disabled={!query.data?.next}
-            onClick={() => query.data?.next && onNavigate(query.data.next)}
+            disabled={!nextVideo && !query.data?.next}
+            onClick={() =>
+              nextVideo
+                ? setSelectedVideo({ stepKey, id: nextVideo.id })
+                : query.data?.next && onNavigate(query.data.next)
+            }
           >
             Próxima aula <ArrowRight size={18} />
           </button>

@@ -22,5 +22,9 @@ verify_jwt = true
 [functions.rise-cron]
 verify_jwt = false
 
+# O vídeo valida seu ticket assinado, sessão ativa e permissão em cada Range.
+[functions.rise-media]
+verify_jwt = false
+
 [functions.waha-webhook]
 verify_jwt = false

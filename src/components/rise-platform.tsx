@@ -1,4 +1,3 @@
-import { JourneyCoverImage } from "@/components/journey-cover-image";
 import { PwaInstallButton } from "@/components/pwa-install-button";
 import { deferredView } from "@/components/deferred-view";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -18,7 +17,6 @@ import {
   Download,
   Eye,
   EyeOff,
-  FileCheck2,
   LayoutDashboard,
   LockKeyhole,
   LogOut,
@@ -120,7 +118,7 @@ import {
   type NextJourneyStep,
 } from "@/lib/journey.functions";
 import { resolveAppRole, type AppRole } from "@/lib/access";
-import { liveJourneyQueryOptions, resolveJourneyThemeCovers } from "@/lib/journey-sync";
+import { liveJourneyQueryOptions } from "@/lib/journey-sync";
 import { SectionHero } from "@/components/section-hero";
 import {
   applyRiseTheme,
@@ -147,13 +145,12 @@ type View =
   | "whatsapp";
 type AuthMode = "checking" | "login" | "authenticated" | "change-password";
 
-const menteeViews: View[] = ["inicio", "jornada", "agenda", "entregas", "rise90", "mentoras"];
+const menteeViews: View[] = ["inicio", "jornada", "agenda", "rise90", "mentoras"];
 const staffViews: View[] = [
   "painel",
   "gestao-jornada",
   "conteudos",
   "agenda",
-  "entregas",
   "alunas",
   "turmas-acessos",
   "whatsapp",
@@ -170,15 +167,6 @@ function allowedViewsForRole(role: Role) {
 const roleLabels: Record<Role, string> = {
   mentee: "Mentorada",
   admin: "Mentora · Administradora",
-};
-
-const journeyCoverByMonth: Record<number, string> = {
-  1: "/journey-covers/reflection.jpg",
-  2: "/journey-covers/identity-security.jpg",
-  3: "/journey-covers/direction.jpg",
-  4: "/journey-covers/execution.jpg",
-  5: "/journey-covers/consistency.jpg",
-  6: "/journey-covers/sustentation.jpg",
 };
 
 function RiseMark({ compact = false, onActivate }: { compact?: boolean; onActivate?: () => void }) {
@@ -495,16 +483,14 @@ function Header({
           { label: "Início", view: "inicio" },
           { label: "Minha jornada", view: "jornada" },
           { label: "Agenda", view: "agenda" },
-          { label: "Entregas", view: "entregas" },
           { label: "RISE 90", view: "rise90" },
           { label: "Mentoras", view: "mentoras" },
         ]
       : [
           { label: "Painel", view: "painel" },
-          { label: "Minha jornada", view: "gestao-jornada" },
+          { label: "Jornada", view: "gestao-jornada" },
           { label: "Conteúdos", view: "conteudos" },
           { label: "Agenda", view: "agenda" },
-          { label: "Entregas", view: "entregas" },
           { label: "Alunas", view: "alunas" },
           { label: "Turmas e acessos", view: "turmas-acessos" },
           { label: "WhatsApp", view: "whatsapp" },
@@ -751,77 +737,6 @@ function phaseStatus(trail: Trail, month: number) {
       : "upcoming";
 }
 
-function JourneyRail({
-  trail,
-  onView,
-  coversByMonth,
-}: {
-  trail: Trail;
-  onView: () => void;
-  coversByMonth: Map<number, JourneyContentItem>;
-}) {
-  return (
-    <section className="content-section page-width">
-      <div className="section-heading">
-        <div>
-          <h2>Sua jornada de 6 meses</h2>
-          <p>Do autoconhecimento à evolução aplicada e sustentada.</p>
-        </div>
-        <button type="button" onClick={onView}>
-          Abrir jornada <ChevronRight size={17} />
-        </button>
-      </div>
-      <div className="journey-rail">
-        {trail.phases.map((item) => {
-          const status = phaseStatus(trail, item.month);
-          const dynamicCover = coversByMonth.get(item.month);
-          const themeCovers = dynamicCover ? resolveJourneyThemeCovers(dynamicCover) : null;
-          const fallbackCover = journeyCoverByMonth[item.month];
-          const hasCover = Boolean(themeCovers?.light || themeCovers?.dark || fallbackCover);
-          return (
-            <article
-              key={item.month}
-              className={`journey-card journey-card--${status}`}
-              role="link"
-              tabIndex={0}
-              aria-label={`Abrir Minha jornada no mês ${item.month}: ${item.title}`}
-              onClick={onView}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault();
-                  onView();
-                }
-              }}
-            >
-              <JourneyCoverImage
-                item={dynamicCover ?? { coverUrl: fallbackCover ?? null }}
-                className="journey-card__cover"
-                alt={item.title + ", mês " + item.month}
-                loading="lazy"
-              />
-              <div className="journey-card__top">
-                <span>MÊS {item.month}</span>
-                {status === "completed" ? <CheckCircle2 size={19} /> : null}
-                {status === "current" ? <span className="status-pill">AGORA</span> : null}
-              </div>
-              {!hasCover ? (
-                <>
-                  <div className="journey-card__letter">{item.pillar}</div>
-                  <h3>{item.title}</h3>
-                  <p>{item.question}</p>
-                </>
-              ) : null}
-              <div className="journey-card__delivery">
-                <FileCheck2 size={15} /> {item.deliverable?.title}
-              </div>
-            </article>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
 function HomeView({
   trail,
   onView,
@@ -837,19 +752,6 @@ function HomeView({
 }) {
   const startNext = useServerFn(startJourneyStep);
   const queryClient = useQueryClient();
-  const journeyLibrary = useJourneyContentLibrary(true);
-  const coversByMonth = useMemo(() => {
-    const covers = new Map<number, JourneyContentItem>();
-    for (const item of journeyLibrary.data?.items ?? []) {
-      if (
-        !covers.has(item.monthNumber) &&
-        (item.coverUrl || item.coverUrlLight || item.coverUrlDark)
-      ) {
-        covers.set(item.monthNumber, item);
-      }
-    }
-    return covers;
-  }, [journeyLibrary.data?.items]);
   const revisit = trail.phases
     .flatMap((p) => p.lessons)
     .filter((l) => l.completed && l.kind === "aula");
@@ -937,50 +839,14 @@ function HomeView({
       )}
       <div className="dashboard-body">
         <ContinueJourneySection onOpen={(item) => onOpenContent(item.stepKey)} />
-        <JourneyRail trail={trail} coversByMonth={coversByMonth} onView={() => onView("jornada")} />
         <NextMovementSection
           currentMonth={trail.currentMonth}
           onOpen={(item) => onOpenContent(item.stepKey)}
         />
         <Rail title="Revisite quando quiser" items={revisit} onOpen={onOpen} />
         <NextMeetingBanner onAgenda={() => onView("agenda")} />
-        <NextUp trail={trail} onAgenda={() => onView("agenda")} />
       </div>
     </div>
-  );
-}
-
-function NextUp({ trail, onAgenda }: { trail: Trail; onAgenda: () => void }) {
-  const meetings = trail.phases
-    .flatMap((p) => p.lessons)
-    .filter((l) => l.kind === "encontro" && !l.completed);
-  const upcoming =
-    meetings
-      .filter((m) => m.scheduledAt && new Date(m.scheduledAt).getTime() > Date.now())
-      .sort((a, b) => a.scheduledAt!.localeCompare(b.scheduledAt!))[0] ?? meetings[0];
-  if (!upcoming) return null;
-  const d = upcoming.scheduledAt ? new Date(upcoming.scheduledAt) : null;
-  return (
-    <section className="next-up page-width">
-      <div className="next-up__date">
-        <strong>{d ? String(d.getDate()).padStart(2, "0") : "✦"}</strong>
-        <span>
-          {d
-            ? d.toLocaleString("pt-BR", { month: "short" }).replace(".", "").toUpperCase()
-            : `MÊS ${upcoming.month}`}
-        </span>
-      </div>
-      <div className="next-up__copy">
-        <span>Seu próximo encontro</span>
-        <h2>{upcoming.title}</h2>
-        <p>
-          {upcoming.format} com {upcoming.mentor} · {formatWhen(upcoming.scheduledAt)}
-        </p>
-      </div>
-      <button className="button button--glass" type="button" onClick={onAgenda}>
-        Ver agenda <ArrowRight size={17} />
-      </button>
-    </section>
   );
 }
 
@@ -1007,99 +873,164 @@ function JourneyView({
   onOpenLibrary: () => void;
   journeyItems: JourneyContentItem[];
 }) {
+  const months = trail.phases.map((phase) => ({
+    phase,
+    items: buildJourneyTimelineItems(phase.month, phase.lessons, journeyItems),
+  }));
+  const allItems = months.flatMap((month) => month.items);
+  const completed = allItems.filter((item) => item.completed).length;
+  const progress = allItems.length ? Math.round((completed / allItems.length) * 100) : 0;
+  const current =
+    allItems.find(
+      (item) =>
+        !item.completed &&
+        !isJourneyTimelineItemDisabled(item, trail.currentMonth) &&
+        resolveJourneyTimelineTarget(item),
+    ) ?? allItems.find((item) => !item.completed);
+  const groups = [...new Set(months.map((month) => month.phase.pillar))].map((pillar) => ({
+    pillar,
+    months: months.filter((month) => month.phase.pillar === pillar),
+  }));
+  const open = (item: (typeof allItems)[number]) => {
+    const target = resolveJourneyTimelineTarget(item);
+    if (target?.type === "content") onOpenContent(target.stepKey);
+    else if (target?.type === "lesson") onOpen(target.lesson);
+  };
   return (
-    <main className="inner-page inner-page--section-hero">
+    <main className="inner-page inner-page--section-hero mentee-journey-page">
       <SectionHero
         section="Minha jornada"
         phrase="Cada etapa revela a força que sustenta a sua evolução"
       />
-      <div className="page-width journey-recorded-access">
-        <div>
-          <BookOpen size={24} />
-          <span>
-            <strong>Aulas gravadas</strong>
-            <small>Assista e reveja os conteúdos de cada pilar.</small>
-          </span>
+      <div className="page-width mentee-journey-layout">
+        <section className="mentee-current-step" aria-label="Seu avanço na jornada">
+          <span className="eyebrow eyebrow--gold">{current ? "Etapa atual" : "Sua jornada"}</span>
+          <h2>{current?.title ?? "Todas as etapas concluídas"}</h2>
+          {current ? (
+            <p>
+              {current.label}
+              {current.content?.scheduledAt
+                ? " · " + new Date(current.content.scheduledAt).toLocaleDateString("pt-BR")
+                : ""}
+            </p>
+          ) : null}
+          <div className="mentee-journey-progress">
+            <span>Seu avanço</span>
+            <strong>{progress}%</strong>
+          </div>
+          <progress
+            value={completed}
+            max={Math.max(1, allItems.length)}
+            aria-label="Etapas concluídas"
+          />
+          {current &&
+          !isJourneyTimelineItemDisabled(current, trail.currentMonth) &&
+          resolveJourneyTimelineTarget(current) ? (
+            <button className="button button--primary" type="button" onClick={() => open(current)}>
+              Ir para a etapa <ArrowRight size={18} />
+            </button>
+          ) : current ? (
+            <p>Aguardando liberação da próxima etapa.</p>
+          ) : null}
+        </section>
+        <div className="journey-recorded-access">
+          <div>
+            <BookOpen size={24} />
+            <span>
+              <strong>Aulas gravadas</strong>
+              <small>Assista e reveja os conteúdos de cada pilar.</small>
+            </span>
+          </div>
+          <button className="button button--glass" type="button" onClick={onOpenLibrary}>
+            Abrir biblioteca <ArrowRight size={17} />
+          </button>
         </div>
-        <button className="button button--primary" type="button" onClick={onOpenLibrary}>
-          Abrir biblioteca <ArrowRight size={17} />
-        </button>
-      </div>
-      <section className="journey-timeline page-width">
-        {trail.phases.map((item, index) => {
-          const status = phaseStatus(trail, item.month);
-          const timelineItems = buildJourneyTimelineItems(item.month, item.lessons, journeyItems);
-          return (
-            <article className={`timeline-item timeline-item--${status}`} key={item.month}>
-              <div className="timeline-item__axis">
-                <span>{item.month}</span>
-                {index < trail.phases.length - 1 ? <i /> : null}
-              </div>
-              <div className="timeline-item__content">
-                <div>
-                  <span>
-                    {item.pillar} · {item.mentor}
-                  </span>
-                  <h2>{item.title}</h2>
-                  <p>{item.question}</p>
-                  <ul className="timeline-lessons">
-                    {timelineItems.map((timelineItem) => {
-                      const disabled = isJourneyTimelineItemDisabled(
-                        timelineItem,
-                        trail.currentMonth,
-                      );
-                      return (
-                        <li key={timelineItem.key}>
-                          <button
-                            type="button"
-                            disabled={disabled}
-                            onClick={() => {
-                              const target = resolveJourneyTimelineTarget(timelineItem);
-                              if (target?.type === "content") {
-                                onOpenContent(target.stepKey);
-                              } else if (target?.type === "lesson") {
-                                onOpen(target.lesson);
-                              }
-                            }}
-                            title={disabled ? "Esta etapa ainda não foi liberada" : undefined}
-                          >
-                            {timelineItem.completed ? (
-                              <CheckCircle2 size={14} />
-                            ) : (
-                              <Play size={13} />
-                            )}
-                            {timelineItem.title}
-                            <small>{timelineItem.label}</small>
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </div>
-                <div className="timeline-item__delivery">
-                  <small>ENTREGA</small>
-                  <strong>{item.deliverable?.title}</strong>
-                </div>
-                <div className="timeline-item__state">
-                  {status === "completed" ? (
-                    <>
-                      <CheckCircle2 size={18} /> Concluído
-                    </>
-                  ) : status === "current" ? (
-                    <>
-                      <Sparkles size={18} /> Em andamento
-                    </>
+        <section className="mentee-journey-pillars" aria-label="Etapas da jornada RISE">
+          {groups.map((group, index) => {
+            const entries = group.months.flatMap((month) => month.items);
+            const done = entries.length > 0 && entries.every((item) => item.completed);
+            const active = group.months.some(
+              (month) => phaseStatus(trail, month.phase.month) === "current",
+            );
+            return (
+              <article
+                className={
+                  "mentee-journey-pillar " +
+                  (done ? "is-complete" : active ? "is-current" : "is-upcoming")
+                }
+                key={group.pillar}
+              >
+                <header>
+                  <span className="mentee-journey-pillar__number">{index + 1}</span>
+                  <div>
+                    <h2>{group.pillar}</h2>
+                    <p>{[...new Set(group.months.map((m) => m.phase.mentor))].join(" · ")}</p>
+                  </div>
+                </header>
+                <p className="mentee-journey-pillar__state">
+                  {done ? (
+                    <CheckCircle2 size={18} />
+                  ) : active ? (
+                    <Sparkles size={18} />
                   ) : (
-                    <>
-                      <LockKeyhole size={17} /> Em breve
-                    </>
-                  )}
-                </div>
-              </div>
-            </article>
-          );
-        })}
-      </section>
+                    <LockKeyhole size={18} />
+                  )}{" "}
+                  {done ? "Concluído" : active ? "Em andamento" : "Em breve"}
+                </p>
+                {group.months.map(({ phase, items }) => (
+                  <section className="mentee-journey-month" key={phase.month}>
+                    <div className="mentee-journey-month__intro">
+                      <span className="eyebrow">Mês {phase.month}</span>
+                      <h3>{phase.title}</h3>
+                      <p>{phase.question}</p>
+                    </div>
+                    <ul className="mentee-journey-steps">
+                      {items.map((item) => {
+                        const disabled =
+                          isJourneyTimelineItemDisabled(item, trail.currentMonth) ||
+                          !resolveJourneyTimelineTarget(item);
+                        const when = item.content?.scheduledAt || item.content?.releaseAt;
+                        return (
+                          <li key={item.key}>
+                            <button type="button" disabled={disabled} onClick={() => open(item)}>
+                              {item.completed ? (
+                                <CheckCircle2 size={20} />
+                              ) : disabled ? (
+                                <LockKeyhole size={20} />
+                              ) : (
+                                <Play size={20} />
+                              )}
+                              <span>
+                                <strong>{item.title}</strong>
+                                <small>{item.label}</small>
+                              </span>
+                              <span className="mentee-journey-steps__status">
+                                {item.completed
+                                  ? "Concluída"
+                                  : disabled
+                                    ? "Em breve"
+                                    : "Disponível"}
+                                {when ? (
+                                  <time dateTime={when}>
+                                    {new Date(when).toLocaleDateString("pt-BR", {
+                                      day: "2-digit",
+                                      month: "2-digit",
+                                    })}
+                                  </time>
+                                ) : null}
+                              </span>
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </section>
+                ))}
+              </article>
+            );
+          })}
+        </section>
+      </div>
     </main>
   );
 }

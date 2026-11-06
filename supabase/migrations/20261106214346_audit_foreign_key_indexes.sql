@@ -1,0 +1,5 @@
+create index if not exists whatsapp_automations_created_by_idx on public.whatsapp_automations(created_by);
+create index if not exists whatsapp_booking_availability_enrollment_id_idx on public.whatsapp_booking_availability(enrollment_id);
+create index if not exists whatsapp_booking_availability_offering_id_idx on public.whatsapp_booking_availability(offering_id);
+create index if not exists whatsapp_contact_permission_history_recorded_by_idx on public.whatsapp_contact_permission_history(recorded_by);
+create index if not exists whatsapp_contact_permissions_recorded_by_idx on public.whatsapp_contact_permissions(recorded_by);

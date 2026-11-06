@@ -18,6 +18,11 @@ export type JourneyMaterial = {
 
 export type JourneyContentItem = {
   stepKey: string;
+  videoTitle?: string | null;
+  videos?: Array<{ id: string; title: string; durationMinutes: number | null; completed: boolean }>;
+  videoCompleted?: boolean;
+  videoContentId?: string | null;
+  videoRevision?: number | null;
   title: string;
   resourceType: string | null;
   format:
@@ -63,11 +68,11 @@ export const getJourneyContentLibrary = createEdgeFunction<undefined, JourneyCon
   "getJourneyContentLibrary",
 );
 export const getJourneyContent = createEdgeFunction<
-  { stepKey: string },
+  { stepKey: string; contentId?: string },
   { item: JourneyContentItem; enrollmentId: string; previous: string | null; next: string | null }
 >("getJourneyContent");
 export const getJourneyStudyState = createEdgeFunction<
-  { stepKey: string },
+  { stepKey: string; contentId?: string },
   {
     note: string;
     markers: Array<{
@@ -102,6 +107,9 @@ export type StageContentItem = {
   title: string;
   description: string;
   durationMinutes: number | null;
+  durationSeconds?: number | null;
+  sourceRevision?: number;
+  engagement?: { eligible: number; started: number; completed: number };
   mediaPath: string | null;
   filePath: string | null;
   externalUrl: string | null;
@@ -129,7 +137,59 @@ export const getStageContents = createEdgeFunction<
   { items: StageContentItem[] }
 >("getStageContents");
 
+export type MentorContentOverview = {
+  pillars: Array<{
+    id: string;
+    name: string;
+    steps: Array<{
+      stableKey: string;
+      title: string;
+      format: string;
+      monthNumber: number;
+      scheduledAt: string | null;
+      releaseAt: string | null;
+      position: number;
+      items: StageContentItem[];
+    }>;
+  }>;
+};
+export const getMentorContentOverview = createEdgeFunction<undefined, MentorContentOverview>(
+  "getMentorContentOverview",
+);
+
 export const saveStageContent: any = createEdgeFunction("saveStageContent");
+export const inspectStageVideo = createEdgeFunction<
+  { sourceUrl: string },
+  { durationSeconds: number | null }
+>("inspectStageVideo");
+export const getStageVideoPlayback = createEdgeFunction<
+  { contentId: string },
+  { r2: boolean; contentId: string; url: string | null; revision: number }
+>("getStageVideoPlayback");
+export const getProtectedDrivePlayback = createEdgeFunction<{ sourceUrl: string }, { url: string }>(
+  "getProtectedDrivePlayback",
+);
+export const updateStageVideoMetadata = createEdgeFunction<
+  { contentId: string; revision: number; durationSeconds: number },
+  { ok: boolean }
+>("updateStageVideoMetadata");
+export type StageVideoViewer = {
+  content_id: string;
+  enrollment_id: string;
+  user_id: string;
+  display_name: string;
+  current_seconds: number;
+  max_seconds: number;
+  duration_seconds: number | null;
+  completed: boolean;
+  first_viewed_at: string | null;
+  completed_at: string | null;
+  updated_at: string | null;
+};
+export const getStageVideoEngagement = createEdgeFunction<
+  { contentId: string },
+  { viewers: StageVideoViewer[] }
+>("getStageVideoEngagement");
 export const deleteStageContent: any = createEdgeFunction("deleteStageContent");
 
 export const getMyAgendaMaterials = createEdgeFunction<undefined, { items: AgendaMaterial[] }>(
@@ -142,3 +202,8 @@ export const getStageQuestionnaireResponse = createEdgeFunction<
 >("getStageQuestionnaireResponse");
 
 export const submitStageQuestionnaire: any = createEdgeFunction("submitStageQuestionnaire");
+
+export const orderStageContents = createEdgeFunction<
+  { pillarId: string; stepKey: string; expectedIds: string[]; ids: string[] },
+  { ok: boolean }
+>("orderStageContents");

@@ -1,3 +1,4 @@
+import { getMentorContentOverview } from "@/lib/content.functions";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -100,7 +101,11 @@ function EventPill({ event }: { event: CalendarEvent }) {
 
 export function RiseCalendar({ compact = false }: { compact?: boolean }) {
   const load = useServerFn(getCalendarOverview);
-  const [mode, setMode] = useState<CalendarMode>(compact ? "week" : "month");
+  const [mode, setMode] = useState<CalendarMode>(() =>
+    compact || (typeof window !== "undefined" && window.matchMedia("(max-width: 600px)").matches)
+      ? "week"
+      : "month",
+  );
   const [cursor, setCursor] = useState(new Date());
   const range = useMemo(() => rangeFor(mode, cursor), [mode, cursor]);
   const query = useQuery({
@@ -216,8 +221,14 @@ function OfferingModal({
   onClose: (saved: boolean) => void;
 }) {
   const save = useServerFn(createBookingOffering);
+  const loadJourney = useServerFn(getMentorContentOverview);
+  const stages = useQuery({
+    queryKey: ["stage-contents", "overview"],
+    queryFn: () => loadJourney(),
+  });
   const today = dayKey(new Date());
   const [form, setForm] = useState({
+    journeyStepKey: "",
     title: "Encontro individual 1:1",
     description: "",
     mentorId: "",
@@ -293,6 +304,28 @@ function OfferingModal({
           <h2>Disponibilizar encontro</h2>
           <p className="ops-muted">
             A mentorada verá o nome do encontro e escolherá somente um horário livre.
+          </p>
+          <Field label="Etapa da jornada (opcional)">
+            <select
+              value={form.journeyStepKey}
+              onChange={(e) => set("journeyStepKey", e.target.value)}
+            >
+              <option value="">Sem vínculo com uma etapa</option>
+              {(stages.data?.pillars ?? []).map((p) => (
+                <optgroup label={p.name} key={p.id}>
+                  {p.steps
+                    .filter((s) => s.format === "individual_1_1")
+                    .map((s) => (
+                      <option key={s.stableKey} value={s.stableKey}>
+                        {s.title}
+                      </option>
+                    ))}
+                </optgroup>
+              ))}
+            </select>
+          </Field>
+          <p className="ops-muted">
+            Quando a mentorada reservar, a data será atualizada na jornada dela.
           </p>
           <Field label="Nome do encontro">
             <input value={form.title} onChange={(event) => set("title", event.target.value)} />

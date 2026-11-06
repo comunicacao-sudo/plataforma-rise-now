@@ -1,4 +1,7 @@
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { getProtectedDrivePlayback } from "@/lib/content.functions";
+import { driveFileId } from "../../supabase/functions/_shared/video-media";
 import {
   ArrowLeft,
   ArrowRight,
@@ -42,23 +45,75 @@ function formatTime(totalSeconds: number) {
 }
 
 function embedFor(url: string) {
+  let address: URL;
+  try {
+    address = new URL(url);
+  } catch {
+    return { type: "invalid" as const, src: "" };
+  }
+  if (
+    address.protocol !== "https:" &&
+    !(address.protocol === "http:" && ["localhost", "127.0.0.1"].includes(address.hostname))
+  )
+    return { type: "invalid" as const, src: "" };
   const yt = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([\w-]{6,})/);
-  if (yt)
+  if (
+    yt &&
+    ["youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be"].includes(address.hostname)
+  )
     return {
       type: "youtube" as const,
       src: `https://www.youtube.com/embed/${yt[1]}?enablejsapi=1&rel=0`,
     };
   const vm = url.match(/vimeo\.com\/(?:video\/)?(\d+)/);
-  if (vm) return { type: "vimeo" as const, src: `https://player.vimeo.com/video/${vm[1]}?api=1` };
-  const drive = url.match(/drive\.google\.com\/file\/d\/([\w-]+)/);
-  if (drive)
-    return { type: "frame" as const, src: `https://drive.google.com/file/d/${drive[1]}/preview` };
+  if (vm && ["vimeo.com", "www.vimeo.com", "player.vimeo.com"].includes(address.hostname))
+    return { type: "vimeo" as const, src: `https://player.vimeo.com/video/${vm[1]}?api=1` };
+  if (driveFileId(url)) return { type: "drive" as const, src: url };
+  if (["drive.google.com", "docs.google.com"].includes(address.hostname))
+    return { type: "invalid" as const, src: "" };
   if (
     /\.(mp4|webm|mov)(\?|$)/i.test(url) ||
-    /^https:\/\/rise-now-r2\.rise-now-pamaris\.workers\.dev\/media\?ticket=/i.test(url)
+    /^https:\/\/rise-now-r2\.rise-now-pamaris\.workers\.dev\/media\?ticket=/i.test(url) ||
+    /^https:\/\/riakceytqrlvdcgcwfdx\.supabase\.co\/functions\/v1\/rise-media\?ticket=/i.test(url)
   )
     return { type: "video" as const, src: url };
   return { type: "frame" as const, src: url };
+}
+
+type RecordedPlayerProps = {
+  url: string;
+  initialTime?: number;
+  onEnded: (seconds?: number) => void;
+  onTime: (seconds: number) => void;
+  onDuration?: ((seconds: number) => void) | undefined;
+  onPause?: ((seconds: number) => void) | undefined;
+  onController: (controller: PlayerController) => void;
+};
+function DrivePlayer(props: RecordedPlayerProps) {
+  const load = useServerFn(getProtectedDrivePlayback);
+  const query = useQuery({
+    queryKey: ["protected-drive-playback", props.url],
+    queryFn: () => load({ data: { sourceUrl: props.url } }),
+    retry: false,
+    staleTime: 5 * 60_000,
+  });
+  if (query.isError)
+    return (
+      <div className="recorded-player__empty" role="status">
+        <VideoOff size={30} />
+        <p>{query.error.message}</p>
+        <button type="button" className="button button--glass" onClick={() => void query.refetch()}>
+          Tentar novamente
+        </button>
+      </div>
+    );
+  if (!query.data)
+    return (
+      <div className="recorded-player__empty" role="status">
+        Preparando o vídeo…
+      </div>
+    );
+  return <RecordedPlayer {...props} url={query.data.url} />;
 }
 
 export function RecordedPlayer({
@@ -67,25 +122,20 @@ export function RecordedPlayer({
   onEnded,
   onTime,
   onDuration,
+  onPause,
   onController,
-}: {
-  url: string;
-  initialTime?: number;
-  onEnded: () => void;
-  onTime: (seconds: number) => void;
-  onDuration?: (seconds: number) => void;
-  onController: (controller: PlayerController) => void;
-}) {
+}: RecordedPlayerProps) {
   const video = useRef<HTMLVideoElement>(null);
   const frame = useRef<HTMLIFrameElement>(null);
   const embed = useMemo(() => embedFor(url), [url]);
   const ended = useRef(onEnded);
   const time = useRef(onTime);
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
   ended.current = onEnded;
   time.current = onTime;
 
   useEffect(() => {
-    const canSeek = embed.type !== "frame";
+    const canSeek = embed.type !== "frame" && embed.type !== "drive" && embed.type !== "invalid";
     onController({
       canSeek,
       seek(seconds) {
@@ -95,21 +145,26 @@ export function RecordedPlayer({
         } else if (embed.type === "youtube") {
           frame.current?.contentWindow?.postMessage(
             JSON.stringify({ event: "command", func: "seekTo", args: [seconds, true] }),
-            "*",
+            new URL(embed.src).origin,
           );
         } else if (embed.type === "vimeo") {
           frame.current?.contentWindow?.postMessage(
             JSON.stringify({ method: "setCurrentTime", value: seconds }),
-            "*",
+            new URL(embed.src).origin,
           );
         }
       },
     });
-  }, [embed.type, onController]);
+  }, [embed.type, embed.src, onController]);
 
   useEffect(() => {
-    if (embed.type === "video" || embed.type === "frame") return;
+    if (embed.type !== "youtube" && embed.type !== "vimeo") return;
     function onMessage(event: MessageEvent) {
+      if (
+        event.source !== frame.current?.contentWindow ||
+        event.origin !== new URL(embed.src).origin
+      )
+        return;
       let data: unknown = event.data;
       if (typeof data === "string") {
         try {
@@ -142,7 +197,37 @@ export function RecordedPlayer({
     }
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [embed.type]);
+  }, [embed.type, embed.src]);
+
+  if (embed.type === "drive")
+    return (
+      <DrivePlayer
+        url={url}
+        initialTime={initialTime}
+        onEnded={onEnded}
+        onTime={onTime}
+        onDuration={onDuration}
+        onPause={onPause}
+        onController={onController}
+      />
+    );
+  if (embed.type === "invalid")
+    return (
+      <div className="recorded-player__empty" role="status">
+        <VideoOff size={30} />
+        <p>O endereço deste vídeo não é compatível com o player. Procure a equipe RISE.</p>
+      </div>
+    );
+  if (embed.type === "video" && failedUrl === url)
+    return (
+      <div className="recorded-player__empty" role="status">
+        <VideoOff size={30} />
+        <p>Não foi possível reproduzir o vídeo. Verifique a conexão e tente novamente.</p>
+        <button className="button button--glass" type="button" onClick={() => setFailedUrl(null)}>
+          Tentar novamente
+        </button>
+      </div>
+    );
 
   if (embed.type === "video")
     return (
@@ -151,15 +236,23 @@ export function RecordedPlayer({
         className="recorded-player__media"
         src={embed.src}
         controls
+        controlsList="nodownload"
+        playsInline
+        preload="metadata"
+        disableRemotePlayback
+        onContextMenu={(event) => event.preventDefault()}
         onLoadedMetadata={(event) => {
           event.currentTarget.currentTime = Math.min(
             initialTime,
             event.currentTarget.duration || initialTime,
           );
-          onDuration?.(event.currentTarget.duration);
+          if (Number.isFinite(event.currentTarget.duration) && event.currentTarget.duration > 0)
+            onDuration?.(event.currentTarget.duration);
         }}
         onTimeUpdate={(event) => onTime(event.currentTarget.currentTime)}
-        onEnded={onEnded}
+        onEnded={(event) => onEnded(event.currentTarget.currentTime)}
+        onPause={(event) => onPause?.(event.currentTarget.currentTime)}
+        onError={() => setFailedUrl(url)}
       />
     );
 
@@ -173,17 +266,20 @@ export function RecordedPlayer({
       allowFullScreen
       onLoad={() => {
         if (embed.type === "youtube") {
-          frame.current?.contentWindow?.postMessage(JSON.stringify({ event: "listening" }), "*");
+          frame.current?.contentWindow?.postMessage(
+            JSON.stringify({ event: "listening" }),
+            new URL(embed.src).origin,
+          );
           frame.current?.contentWindow?.postMessage(
             JSON.stringify({ event: "command", func: "addEventListener", args: ["onStateChange"] }),
-            "*",
+            new URL(embed.src).origin,
           );
         }
         if (embed.type === "vimeo") {
           for (const value of ["ended", "timeupdate"])
             frame.current?.contentWindow?.postMessage(
               JSON.stringify({ method: "addEventListener", value }),
-              "*",
+              new URL(embed.src).origin,
             );
         }
         if (initialTime > 0 && embed.type !== "frame") {
@@ -191,12 +287,12 @@ export function RecordedPlayer({
             if (embed.type === "youtube") {
               frame.current?.contentWindow?.postMessage(
                 JSON.stringify({ event: "command", func: "seekTo", args: [initialTime, false] }),
-                "*",
+                new URL(embed.src).origin,
               );
             } else {
               frame.current?.contentWindow?.postMessage(
                 JSON.stringify({ method: "setCurrentTime", value: initialTime }),
-                "*",
+                new URL(embed.src).origin,
               );
             }
           }, 400);

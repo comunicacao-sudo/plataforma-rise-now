@@ -26,6 +26,8 @@ import {
   getJourneyEditor,
   publishJourneyDraft,
   saveJourneyDraft,
+  updateJourneyPillar,
+  type JourneyEditor,
   type JourneyDraftStep,
   type NextJourneyStep,
 } from "@/lib/journey.functions";
@@ -446,17 +448,30 @@ function StepForm({
   );
 }
 
-export function JourneyAdmin() {
+function JourneyPillarPanel({
+  pillarId,
+  index,
+  initial,
+}: {
+  pillarId: string;
+  index: number;
+  initial?: JourneyEditor;
+}) {
   const load = useServerFn(getJourneyEditor);
   const save = useServerFn(saveJourneyDraft);
   const publish = useServerFn(publishJourneyDraft);
   const confirm = useServerFn(confirmJourneyStep);
   const qc = useQueryClient();
-  const [pillarId, setPillarId] = useState<string>();
+  const rename = useServerFn(updateJourneyPillar);
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [pillarName, setPillarName] = useState("");
+  const [baseRevision, setBaseRevision] = useState<number | null>(null);
   const query = useQuery({
     queryKey: ["journey-editor", pillarId],
     queryFn: () => load({ data: pillarId ? { pillarId } : undefined }),
     ...liveJourneyQueryOptions,
+    refetchInterval: false,
+    ...(initial ? { initialData: initial } : {}),
   });
   const [localSteps, setLocalSteps] = useState<JourneyDraftStep[] | null>(null);
   const [editing, setEditing] = useState<JourneyDraftStep | null>(null);
@@ -484,13 +499,37 @@ export function JourneyAdmin() {
     [preview, data?.selected?.name],
   );
 
+  function changeSteps(next: JourneyDraftStep[]) {
+    setBaseRevision((value) => value ?? data?.revision ?? 0);
+    setLocalSteps(next);
+  }
+  function editStep(step: JourneyDraftStep) {
+    changeSteps([...steps]);
+    setEditing(step);
+  }
+  async function renameNow() {
+    if (!data?.selected || !pillarName.trim()) return;
+    setBusy("rename");
+    setMessage("");
+    try {
+      await rename({
+        data: { pillarId, name: pillarName.trim(), expectedName: data.selected.name },
+      });
+      setRenameOpen(false);
+      await invalidateJourneyData(qc);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Não foi possível editar o pilar.");
+    } finally {
+      setBusy("");
+    }
+  }
   function move(from: number, to: number) {
-    if (to < 0 || to >= steps.length || from === to) return;
+    if (from < 0 || from >= steps.length || to < 0 || to >= steps.length || from === to) return;
     const copy = [...steps];
     const [item] = copy.splice(from, 1);
     if (!item) return;
     copy.splice(to, 0, item);
-    setLocalSteps(copy);
+    changeSteps(copy);
   }
 
   function upsert(step: JourneyDraftStep) {
@@ -498,7 +537,7 @@ export function JourneyAdmin() {
     const copy = [...steps];
     if (index >= 0) copy[index] = step;
     else copy.push(step);
-    setLocalSteps(copy);
+    changeSteps(copy);
     setEditing(null);
   }
 
@@ -520,8 +559,15 @@ export function JourneyAdmin() {
     setBusy("save");
     setMessage("");
     try {
-      await save({ data: { pillarId: selectedPillarId, expectedRevision: data.revision, steps } });
+      await save({
+        data: {
+          pillarId: selectedPillarId,
+          expectedRevision: baseRevision ?? data.revision,
+          steps,
+        },
+      });
       setLocalSteps(null);
+      setBaseRevision(null);
       await Promise.all([
         qc.invalidateQueries({ queryKey: ["journey-editor"] }),
         qc.invalidateQueries({ queryKey: ["journey-content-structure"] }),
@@ -554,7 +600,7 @@ export function JourneyAdmin() {
       const saved = await save({
         data: {
           pillarId: selectedPillarId,
-          expectedRevision: data.revision,
+          expectedRevision: baseRevision ?? data.revision,
           steps,
         },
       });
@@ -569,6 +615,7 @@ export function JourneyAdmin() {
       });
 
       setLocalSteps(null);
+      setBaseRevision(null);
       setPublishOpen(false);
       setApplyActive(true);
 
@@ -583,6 +630,7 @@ export function JourneyAdmin() {
       const detail = error instanceof Error ? error.message : "Não foi possível publicar.";
       if (draftWasSaved) {
         setLocalSteps(null);
+        setBaseRevision(null);
         await invalidateJourneyData(qc);
         await qc.refetchQueries({
           queryKey: ["journey-editor", pillarId],
@@ -617,69 +665,56 @@ export function JourneyAdmin() {
   if (query.isLoading)
     return (
       <main className="inner-page">
-        <div className="page-width journey-editor-loading">Carregando sua jornada…</div>
+        <div className="journey-editor-loading">Carregando sua jornada…</div>
       </main>
     );
   if (query.error)
     return (
       <main className="inner-page">
-        <div className="page-width journey-editor-error">
-          <h1>Não foi possível abrir Minha jornada.</h1>
-          <p>A migration da jornada precisa estar aplicada no banco conectado.</p>
+        <div className="journey-editor-error">
+          <h2>Não foi possível abrir este pilar.</h2>
+          <button
+            className="button button--glass"
+            type="button"
+            onClick={() => void query.refetch()}
+          >
+            Tentar novamente
+          </button>
         </div>
       </main>
     );
 
   return (
-    <main className="inner-page journey-editor-page">
-      <div className="page-intro page-width">
-        <span className="eyebrow eyebrow--gold">Administração da jornada</span>
-        <h1>Gestão da jornada</h1>
-        <p>Organize a estrutura das etapas, ordem, identificação, capas e textos da jornada.</p>
-      </div>
-      <section className="page-width journey-editor-toolbar">
+    <article className="mentor-journey-pillar journey-editor-page">
+      <header className="journey-editor-toolbar">
         <div>
-          <span>Pilar</span>
-          {data?.isAdmin && (data.pillars?.length ?? 0) > 1 ? (
-            <select
-              value={selectedPillarId}
-              onChange={(e) => {
-                setPillarId(e.target.value);
-                setLocalSteps(null);
-              }}
-            >
-              {data.pillars.map((pillar) => (
-                <option key={pillar.id} value={pillar.id}>
-                  {pillar.name}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <strong>{data?.selected?.name ?? "Sem pilar vinculado"}</strong>
-          )}
+          <span className="eyebrow eyebrow--gold">Pilar {index + 1}</span>
+          <h2>{data?.selected?.name ?? "Pilar"}</h2>
           <small>{data?.selected?.mentorName}</small>
         </div>
         <div className="journey-editor-toolbar__actions">
           <button
             className="button button--glass"
             type="button"
-            onClick={() => setEditing(emptyStep())}
-            disabled={!data?.selected}
+            disabled={busy !== ""}
+            onClick={() => {
+              setPillarName(data?.selected?.name ?? "");
+              setRenameOpen(true);
+            }}
+          >
+            <Pencil size={16} /> Editar pilar
+          </button>
+          <button
+            className="button button--glass"
+            type="button"
+            onClick={() => editStep(emptyStep())}
+            disabled={!data?.selected || busy !== ""}
           >
             <Plus size={18} /> Adicionar etapa
           </button>
-          <button
-            className="button button--primary"
-            type="button"
-            onClick={() => setPublishOpen(true)}
-            disabled={busy !== "" || !steps.length}
-          >
-            <Send size={17} /> Publicar este pilar
-          </button>
         </div>
-      </section>
-
-      <section className="page-width journey-editor-list" aria-label="Etapas do rascunho">
+      </header>
+      <section className="journey-editor-list" aria-label="Etapas do rascunho">
         {!steps.length ? (
           <div className="journey-editor-empty">
             <h2>Seu rascunho ainda não tem etapas.</h2>
@@ -691,16 +726,40 @@ export function JourneyAdmin() {
               key={step.stableKey}
               className="journey-step-row"
               draggable
-              onDragStart={(event) => event.dataTransfer.setData("text/plain", String(index))}
+              onDragStart={(event) =>
+                event.dataTransfer.setData(
+                  "application/x-rise-journey-step",
+                  JSON.stringify({ pillarId, stepKey: step.stableKey }),
+                )
+              }
               onDragOver={(event) => event.preventDefault()}
-              onDrop={(event) => move(Number(event.dataTransfer.getData("text/plain")), index)}
+              onDrop={(event) => {
+                event.preventDefault();
+                try {
+                  const source = JSON.parse(
+                    event.dataTransfer.getData("application/x-rise-journey-step"),
+                  );
+                  if (source.pillarId === pillarId)
+                    move(
+                      steps.findIndex((item) => item.stableKey === source.stepKey),
+                      index,
+                    );
+                } catch {
+                  /* Arrastos externos não alteram a jornada. */
+                }
+              }}
             >
               <span className="journey-step-row__number">{index + 1}</span>
               <GripVertical className="journey-step-row__grip" aria-hidden="true" />
               <div className="journey-step-row__copy">
                 <strong>{step.title || "Etapa sem título"}</strong>
                 <span>
-                  {formatLabels[step.format]} · Mês {step.monthNumber}
+                  {step.calendarScheduledAt
+                    ? "Agenda: " + new Date(step.calendarScheduledAt).toLocaleDateString("pt-BR")
+                    : step.scheduledAt
+                      ? new Date(step.scheduledAt).toLocaleDateString("pt-BR")
+                      : "Data a definir"}{" "}
+                  · {formatLabels[step.format]} · Mês {step.monthNumber}
                 </span>
               </div>
               <span
@@ -722,6 +781,7 @@ export function JourneyAdmin() {
                       resourceId: null,
                       resourceUrl: null,
                       scheduledAt: null,
+                      calendarScheduledAt: null,
                       mediaPath: null,
                       materials: [],
                       accessScope: "general" as const,
@@ -730,7 +790,7 @@ export function JourneyAdmin() {
                     };
                     const next = [...steps];
                     next.splice(index + 1, 0, copy);
-                    setLocalSteps(next);
+                    changeSteps(next);
                   }}
                   aria-label={`Duplicar ${step.title}`}
                 >
@@ -771,7 +831,7 @@ export function JourneyAdmin() {
                   onClick={() =>
                     window.confirm(
                       `Remover “${step.title}” do rascunho? O histórico publicado será preservado.`,
-                    ) && setLocalSteps(steps.filter((item) => item.stableKey !== step.stableKey))
+                    ) && changeSteps(steps.filter((item) => item.stableKey !== step.stableKey))
                   }
                   aria-label={`Remover ${step.title}`}
                 >
@@ -783,7 +843,7 @@ export function JourneyAdmin() {
         )}
       </section>
 
-      <section className="page-width journey-editor-footer">
+      <section className="journey-editor-footer">
         <div>
           {message ? (
             <p role="status">{message}</p>
@@ -821,12 +881,12 @@ export function JourneyAdmin() {
 
       {(data?.confirmations?.length ?? 0) > 0 ? (
         <section
-          className="page-width journey-confirmations"
-          aria-labelledby="journey-confirmations-title"
+          className="journey-confirmations"
+          aria-labelledby={"journey-confirmations-" + pillarId}
         >
           <div>
             <span className="eyebrow eyebrow--gold">Validação humana</span>
-            <h2 id="journey-confirmations-title">Conclusões para confirmar</h2>
+            <h2 id={"journey-confirmations-" + pillarId}>Conclusões para confirmar</h2>
             <p>Somente confirme depois de verificar que a atividade realmente aconteceu.</p>
           </div>
           <div className="journey-confirmations__list">
@@ -934,6 +994,90 @@ export function JourneyAdmin() {
           </div>
         </div>
       ) : null}
+      {renameOpen ? (
+        <div
+          className="journey-editor-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Editar pilar"
+        >
+          <form
+            className="journey-publish-card"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void renameNow();
+            }}
+          >
+            <h2>Editar pilar</h2>
+            <label className="ops-field">
+              <span>Nome do pilar</span>
+              <input
+                value={pillarName}
+                maxLength={120}
+                required
+                onChange={(e) => setPillarName(e.target.value)}
+              />
+            </label>
+            <div className="journey-editor-form__actions">
+              <button
+                className="button button--glass"
+                type="button"
+                onClick={() => setRenameOpen(false)}
+              >
+                Voltar
+              </button>
+              <button className="button button--primary" type="submit" disabled={busy !== ""}>
+                Salvar pilar
+              </button>
+            </div>
+            {message ? <p role="status">{message}</p> : null}
+          </form>
+        </div>
+      ) : null}
+    </article>
+  );
+}
+
+export function JourneyAdmin() {
+  const load = useServerFn(getJourneyEditor);
+  const query = useQuery({
+    queryKey: ["journey-editor", "overview"],
+    queryFn: () => load(),
+    ...liveJourneyQueryOptions,
+    refetchInterval: false,
+  });
+  return (
+    <main className="inner-page mentor-journey-overview">
+      <div className="page-intro page-width">
+        <span className="eyebrow eyebrow--gold">Mentoria RISE</span>
+        <h1>Jornada da mentoria</h1>
+        <p>Organize os pilares, as etapas e as frases que conduzem a evolução das mentoradas.</p>
+      </div>
+      <div className="page-width mentor-journey-groups">
+        {query.isLoading ? (
+          <p role="status">Carregando jornada…</p>
+        ) : query.isError ? (
+          <div>
+            <p>Não foi possível carregar a jornada.</p>
+            <button
+              className="button button--glass"
+              type="button"
+              onClick={() => void query.refetch()}
+            >
+              Tentar novamente
+            </button>
+          </div>
+        ) : (
+          (query.data?.pillars ?? []).map((pillar, index) => (
+            <JourneyPillarPanel
+              key={pillar.id}
+              pillarId={pillar.id}
+              index={index}
+              {...(query.data?.selected?.id === pillar.id ? { initial: query.data } : {})}
+            />
+          ))
+        )}
+      </div>
     </main>
   );
 }

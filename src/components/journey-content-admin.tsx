@@ -2,6 +2,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   ArrowLeft,
+  ArrowUp,
+  ArrowDown,
   BookOpen,
   ChevronLeft,
   ChevronRight,
@@ -19,7 +21,10 @@ import {
   UsersRound,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { RecordedPlayer } from "@/components/recorded-lessons";
+import { readLocalVideoDuration, videoDurationLabel } from "@/lib/video-duration";
+import { driveFileId } from "../../supabase/functions/_shared/video-media";
 
 import { supabase } from "@/integrations/supabase/client";
 import { getDirectory } from "@/lib/admin.functions";
@@ -36,13 +41,19 @@ import {
   createJourneyUpload,
   deleteStageContent,
   getStageContents,
+  getMentorContentOverview,
+  inspectStageVideo,
+  getStageVideoPlayback,
+  getStageVideoEngagement,
+  updateStageVideoMetadata,
   saveStageContent,
+  orderStageContents,
   type StageContentItem,
   type StageQuestion,
 } from "@/lib/content.functions";
 import { getJourneyEditor, type JourneyDraftStep } from "@/lib/journey.functions";
 import { invalidateJourneyData, liveJourneyQueryOptions } from "@/lib/journey-sync";
-import { deleteLessonFromR2, uploadLessonToR2 } from "@/lib/r2-worker";
+import { uploadLessonToR2, getR2PlaybackUrl } from "@/lib/r2-worker";
 
 const typeLabel: Record<StageContentItem["contentType"], string> = {
   video: "Aula gravada",
@@ -93,6 +104,7 @@ function ContentForm({
   step,
   initial,
   defaultType,
+  nextPosition = 0,
   cohorts,
   mentees,
   onDone,
@@ -101,11 +113,13 @@ function ContentForm({
   step: JourneyDraftStep;
   initial: StageContentItem | null;
   defaultType?: StageContentItem["contentType"] | undefined;
+  nextPosition?: number;
   cohorts: Array<{ id: string; name: string }>;
   mentees: Array<{ id: string; name: string }>;
   onDone: () => void;
 }) {
   const saveFn = useServerFn(saveStageContent);
+  const inspectVideo = useServerFn(inspectStageVideo);
   const createUpload = useServerFn(createJourneyUpload);
   const qc = useQueryClient();
 
@@ -117,6 +131,10 @@ function ContentForm({
   const [duration, setDuration] = useState(
     initial?.durationMinutes ? String(initial.durationMinutes) : "",
   );
+  const [durationSeconds, setDurationSeconds] = useState<number | null>(
+    initial?.durationSeconds ?? null,
+  );
+  const [detectingDuration, setDetectingDuration] = useState(false);
   const [mediaPath, setMediaPath] = useState(initial?.mediaPath ?? null);
   const [filePath, setFilePath] = useState(initial?.filePath ?? null);
   const [externalUrl, setExternalUrl] = useState(initial?.externalUrl ?? "");
@@ -133,16 +151,48 @@ function ContentForm({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
 
+  useEffect(() => {
+    setDetectingDuration(false);
+    if (contentType !== "video" || !driveFileId(externalUrl)) return;
+    let active = true;
+    const timer = window.setTimeout(() => {
+      setDetectingDuration(true);
+      void inspectVideo({ data: { sourceUrl: externalUrl } })
+        .then((result) => {
+          if (!active) return;
+          setDurationSeconds(result.durationSeconds);
+          if (result.durationSeconds) setDuration(String(Math.ceil(result.durationSeconds / 60)));
+        })
+        .catch((error) => {
+          if (active)
+            setMessage(
+              error instanceof Error ? error.message : "Não foi possível detectar a duração.",
+            );
+        })
+        .finally(() => {
+          if (active) setDetectingDuration(false);
+        });
+    }, 700);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [contentType, externalUrl, inspectVideo]);
+
   async function uploadVideo(file: File) {
     setUploading(true);
     setMessage("");
     setProgress(0);
+    const metadata = readLocalVideoDuration(file);
     try {
       const path = await uploadLessonToR2(file, (done, total) => {
         setProgress(total > 0 ? Math.round((done / total) * 100) : 0);
       });
       setMediaPath(path);
       setExternalUrl("");
+      const seconds = await metadata;
+      setDurationSeconds(seconds);
+      setDuration(seconds ? String(Math.ceil(seconds / 60)) : "");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Não foi possível enviar a aula.");
     } finally {
@@ -204,6 +254,7 @@ function ContentForm({
           title: cleanTitle,
           description,
           durationMinutes: duration ? Number(duration) : null,
+          durationSeconds,
           mediaPath,
           filePath,
           externalUrl: externalUrl.trim() || null,
@@ -211,20 +262,10 @@ function ContentForm({
           cohortId: accessScope === "cohort" ? cohortId : null,
           menteeId: accessScope === "mentee" ? menteeId : null,
           questionnaire: { questions },
-          position: initial?.position ?? 0,
+          position: initial?.position ?? nextPosition,
           active: true,
         },
       });
-
-      if (initial?.mediaPath?.startsWith("r2:") && initial.mediaPath !== mediaPath) {
-        await deleteLessonFromR2(initial.mediaPath);
-      }
-      if (initial?.filePath && initial.filePath !== filePath) {
-        const { error: cleanupError } = await supabase.storage
-          .from("journey-content")
-          .remove([initial.filePath]);
-        if (cleanupError) throw cleanupError;
-      }
 
       await invalidateJourneyData(qc);
       onDone();
@@ -335,9 +376,17 @@ function ContentForm({
                   min={1}
                   max={1440}
                   value={duration}
-                  onChange={(event) => setDuration(event.target.value)}
+                  onChange={(event) => {
+                    setDuration(event.target.value);
+                    setDurationSeconds(null);
+                  }}
                 />
               </label>
+              {detectingDuration ? (
+                <p className="ops-muted" role="status">
+                  Lendo a duração do vídeo…
+                </p>
+              ) : null}
               <label className="journey-upload">
                 <Upload size={18} />
                 <span>
@@ -366,7 +415,11 @@ function ContentForm({
                   type="url"
                   placeholder="https://"
                   value={externalUrl}
-                  onChange={(event) => setExternalUrl(event.target.value)}
+                  onChange={(event) => {
+                    setExternalUrl(event.target.value);
+                    setDurationSeconds(null);
+                    if (event.target.value.trim()) setMediaPath(null);
+                  }}
                 />
               </label>
             </fieldset>
@@ -529,11 +582,185 @@ function ContentForm({
               className="button button--primary"
               type="button"
               onClick={() => void save()}
-              disabled={busy || uploading}
+              disabled={busy || uploading || detectingDuration}
             >
               <Save size={16} /> {busy ? "Salvando…" : "Salvar conteúdo"}
             </button>
           </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+const ignorePlayerEvent = () => undefined;
+function StageVideoPreview({ item }: { item: StageContentItem }) {
+  const load = useServerFn(getStageVideoPlayback);
+  const updateMetadata = useServerFn(updateStageVideoMetadata);
+  const qc = useQueryClient();
+  const detected = useRef<number | null>(null);
+  const query = useQuery({
+    queryKey: ["stage-video-preview", item.id, item.sourceRevision],
+    queryFn: async () => {
+      const result = await load({ data: { contentId: item.id } });
+      return result.r2 ? (await getR2PlaybackUrl(result.contentId)).url : result.url;
+    },
+    retry: false,
+    staleTime: 5 * 60_000,
+  });
+  if (query.isError)
+    return (
+      <div className="recorded-player__empty" role="status">
+        <p>{query.error.message}</p>
+        <button type="button" className="button button--glass" onClick={() => void query.refetch()}>
+          Tentar novamente
+        </button>
+      </div>
+    );
+  if (!query.data) return <p role="status">Preparando a prévia do vídeo…</p>;
+  return (
+    <>
+      <div className="recorded-player">
+        <RecordedPlayer
+          url={query.data}
+          onEnded={ignorePlayerEvent}
+          onTime={ignorePlayerEvent}
+          onController={ignorePlayerEvent}
+          onDuration={(value) => {
+            const seconds = Math.round(value);
+            if (
+              !Number.isFinite(seconds) ||
+              seconds <= 0 ||
+              seconds === item.durationSeconds ||
+              detected.current === seconds
+            )
+              return;
+            detected.current = seconds;
+            void updateMetadata({
+              data: {
+                contentId: item.id,
+                revision: item.sourceRevision ?? 1,
+                durationSeconds: seconds,
+              },
+            })
+              .then(() => qc.invalidateQueries({ queryKey: ["stage-contents"] }))
+              .catch(() => {
+                detected.current = null;
+              });
+          }}
+        />
+      </div>
+      <p className="ops-muted">
+        Prévia da mentora: esta reprodução não conta como progresso dos mentorados.
+      </p>
+    </>
+  );
+}
+
+function VideoEngagement({ item, onClose }: { item: StageContentItem; onClose: () => void }) {
+  const load = useServerFn(getStageVideoEngagement);
+  const query = useQuery({
+    queryKey: ["stage-video-engagement", item.id, item.sourceRevision],
+    queryFn: () => load({ data: { contentId: item.id } }),
+    retry: false,
+    staleTime: 30000,
+  });
+  const viewers = query.data?.viewers ?? [];
+  return (
+    <div className="modal-backdrop content-admin-preview" role="presentation">
+      <section
+        className="content-modal ops-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Acompanhamento de ${item.title}`}
+      >
+        <button className="modal-close" type="button" aria-label="Fechar" onClick={onClose}>
+          <X size={21} />
+        </button>
+        <div className="content-modal__body ops-form">
+          <span className="eyebrow eyebrow--gold">Acompanhamento da aula</span>
+          <h2>{item.title}</h2>
+          <p className="ops-muted">
+            Mentorados com acesso liberado ao vídeo atual. O progresso mostra a maior posição
+            alcançada; a prévia da mentora não entra nos registros.
+          </p>
+          {query.isLoading ? (
+            <p role="status">Carregando acompanhamento…</p>
+          ) : query.isError ? (
+            <div role="status">
+              <p>Não foi possível carregar o acompanhamento.</p>
+              <button
+                type="button"
+                className="button button--glass"
+                onClick={() => void query.refetch()}
+              >
+                Tentar novamente
+              </button>
+            </div>
+          ) : (
+            <>
+              <p>
+                {viewers.filter((v) => v.first_viewed_at).length} iniciaram ·{" "}
+                {viewers.filter((v) => v.completed).length} concluíram · {viewers.length} com acesso
+              </p>
+              {viewers.length ? (
+                <div className="content-admin-table-wrap">
+                  <table className="content-admin-table">
+                    <thead>
+                      <tr>
+                        <th>Mentorado</th>
+                        <th>Situação</th>
+                        <th>Progresso</th>
+                        <th>Última reprodução</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {viewers.map((v) => {
+                        const percent = v.duration_seconds
+                          ? Math.min(100, Math.round((v.max_seconds / v.duration_seconds) * 100))
+                          : null;
+                        return (
+                          <tr key={v.enrollment_id}>
+                            <td data-label="Mentorado">{v.display_name}</td>
+                            <td data-label="Situação">
+                              {v.completed
+                                ? "Concluído"
+                                : v.first_viewed_at
+                                  ? "Em andamento"
+                                  : "Não iniciado"}
+                            </td>
+                            <td data-label="Progresso">
+                              {percent === null ? (
+                                "—"
+                              ) : (
+                                <>
+                                  <progress
+                                    className="content-admin-video-progress"
+                                    max={100}
+                                    value={percent}
+                                    aria-label={`Progresso de ${v.display_name}`}
+                                  />
+                                  <small>{percent}%</small>
+                                </>
+                              )}
+                            </td>
+                            <td data-label="Última reprodução">
+                              {v.updated_at ? new Date(v.updated_at).toLocaleString("pt-BR") : "—"}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p>Nenhum mentorado tem acesso liberado a esta gravação no momento.</p>
+              )}
+            </>
+          )}
+          <button type="button" className="button button--glass" onClick={onClose}>
+            Fechar
+          </button>
         </div>
       </section>
     </div>
@@ -576,6 +803,7 @@ function ContentPreview({
             </div>
           </div>
           <p>{item.description || "Este conteúdo ainda não possui descrição."}</p>
+          {item.contentType === "video" ? <StageVideoPreview item={item} /> : null}
           <dl className="content-admin-preview__details">
             <div>
               <dt>Destinatário</dt>
@@ -604,7 +832,7 @@ function ContentPreview({
             <button className="button button--glass" type="button" onClick={onClose}>
               Fechar
             </button>
-            {externalUrl ? (
+            {externalUrl && item.contentType !== "video" ? (
               <a
                 className="button button--primary"
                 href={externalUrl}
@@ -637,9 +865,31 @@ function StageContentManager({
   onBack: () => void;
 }) {
   const deleteFn = useServerFn(deleteStageContent);
+  const reorder = useServerFn(orderStageContents);
+  const [reordering, setReordering] = useState(false);
+  const ordered = [...items].sort((a, b) => a.position - b.position || a.id.localeCompare(b.id));
+  async function moveContent(id: string, direction: number) {
+    const index = ordered.findIndex((i) => i.id === id);
+    const target = index + direction;
+    if (target < 0 || target >= ordered.length) return;
+    const ids = ordered.map((i) => i.id);
+    [ids[index], ids[target]] = [ids[target]!, ids[index]!];
+    setReordering(true);
+    try {
+      await reorder({
+        data: { pillarId, stepKey: step.stableKey, expectedIds: ordered.map((i) => i.id), ids },
+      });
+      await invalidateJourneyData(qc);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Não foi possível alterar a ordem.");
+    } finally {
+      setReordering(false);
+    }
+  }
   const qc = useQueryClient();
   const [editing, setEditing] = useState<StageContentItem | null | "new">(null);
   const [previewing, setPreviewing] = useState<StageContentItem | null>(null);
+  const [tracking, setTracking] = useState<StageContentItem | null>(null);
   const [newType, setNewType] = useState<StageContentItem["contentType"]>("video");
   const [search, setSearch] = useState("");
   const [cohortFilter, setCohortFilter] = useState("all");
@@ -689,9 +939,6 @@ function StageContentManager({
     if (!window.confirm(`Remover “${item.title}” desta etapa?`)) return;
     setMessage("");
     try {
-      if (item.mediaPath?.startsWith("r2:")) {
-        await deleteLessonFromR2(item.mediaPath);
-      }
       await deleteFn({ data: { id: item.id } });
       await invalidateJourneyData(qc);
     } catch (error) {
@@ -854,6 +1101,14 @@ function StageContentManager({
                           <div>
                             <strong>{item.title}</strong>
                             <small>{item.description || "Sem descrição"}</small>
+                            {item.contentType === "video" ? (
+                              <small>
+                                {videoDurationLabel(item.durationSeconds, item.durationMinutes)}
+                                {item.engagement
+                                  ? ` · Concluíram ${item.engagement.completed} de ${item.engagement.eligible}`
+                                  : ""}
+                              </small>
+                            ) : null}
                           </div>
                         </div>
                       </td>
@@ -879,9 +1134,30 @@ function StageContentManager({
                       </td>
                       <td data-label="Ações">
                         <div className="content-admin-actions">
+                          <button
+                            type="button"
+                            disabled={reordering || ordered[0]?.id === item.id}
+                            onClick={() => void moveContent(item.id, -1)}
+                            aria-label={`Mover ${item.title} para cima`}
+                          >
+                            <ArrowUp size={15} />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={reordering || ordered.at(-1)?.id === item.id}
+                            onClick={() => void moveContent(item.id, 1)}
+                            aria-label={`Mover ${item.title} para baixo`}
+                          >
+                            <ArrowDown size={15} />
+                          </button>
                           <button type="button" onClick={() => setPreviewing(item)}>
                             <Eye size={15} /> Visualizar
                           </button>
+                          {item.contentType === "video" ? (
+                            <button type="button" onClick={() => setTracking(item)}>
+                              <UsersRound size={15} /> Acompanhamento
+                            </button>
+                          ) : null}
                           <button type="button" onClick={() => setEditing(item)}>
                             <Pencil size={15} /> Editar
                           </button>
@@ -958,6 +1234,7 @@ function StageContentManager({
           pillarId={pillarId}
           step={step}
           initial={editing === "new" ? null : editing}
+          nextPosition={Math.max(-1, ...items.map((i) => i.position)) + 1}
           defaultType={editing === "new" ? newType : undefined}
           cohorts={cohorts}
           mentees={mentees}
@@ -972,109 +1249,119 @@ function StageContentManager({
           onClose={() => setPreviewing(null)}
         />
       ) : null}
+      {tracking ? <VideoEngagement item={tracking} onClose={() => setTracking(null)} /> : null}
     </div>
   );
 }
 
 export function JourneyContentAdmin() {
+  const loadOverview = useServerFn(getMentorContentOverview);
   const loadJourney = useServerFn(getJourneyEditor);
   const loadContents = useServerFn(getStageContents);
   const loadDirectory = useServerFn(getDirectory);
-  const [pillarId, setPillarId] = useState<string>();
-  const [selectedStep, setSelectedStep] = useState<JourneyDraftStep | null>(null);
-  const [search, setSearch] = useState("");
-  const [cohortFilter, setCohortFilter] = useState("all");
-  const [audienceFilter, setAudienceFilter] = useState<AudienceFilter>("all");
-  const [page, setPage] = useState(1);
-
-  const journey = useQuery({
-    queryKey: ["journey-content-structure", pillarId],
-    queryFn: () => loadJourney({ data: pillarId ? { pillarId } : undefined }),
+  const overview = useQuery({
+    queryKey: ["stage-contents", "overview"],
+    queryFn: () => loadOverview(),
     ...liveJourneyQueryOptions,
   });
-  const selectedPillarId = journey.data?.selected?.id;
-
-  const contents = useQuery({
-    queryKey: ["stage-contents", selectedPillarId],
-    enabled: !!selectedPillarId,
-    queryFn: () => loadContents({ data: { pillarId: selectedPillarId! } }),
-    ...liveJourneyQueryOptions,
-  });
-
   const directory = useQuery({
     queryKey: ["directory", "content-admin"],
     queryFn: () => loadDirectory(),
   });
-
-  const cohorts = (directory.data?.cohorts ?? []).map((cohort) => ({
-    id: cohort.id,
-    name: cohort.name,
+  const [selection, setSelection] = useState<{ pillarId: string; stepKey: string } | null>(null);
+  const [search, setSearch] = useState("");
+  const [pillarFilter, setPillarFilter] = useState("all");
+  const [cohortFilter, setCohortFilter] = useState("all");
+  const [audienceFilter, setAudienceFilter] = useState<AudienceFilter>("all");
+  const journey = useQuery({
+    queryKey: ["journey-content-structure", selection?.pillarId],
+    enabled: !!selection,
+    queryFn: () => loadJourney({ data: { pillarId: selection!.pillarId } }),
+    ...liveJourneyQueryOptions,
+  });
+  const contents = useQuery({
+    queryKey: ["stage-contents", selection?.pillarId],
+    enabled: !!selection,
+    queryFn: () => loadContents({ data: { pillarId: selection!.pillarId } }),
+    ...liveJourneyQueryOptions,
+  });
+  const cohorts = (directory.data?.cohorts ?? []).map((c) => ({ id: c.id, name: c.name }));
+  const mentees = (directory.data?.enrollments ?? []).map((e) => ({
+    id: e.menteeId,
+    name: e.name,
   }));
-  const mentees = (directory.data?.enrollments ?? []).map((enrollment) => ({
-    id: enrollment.menteeId,
-    name: enrollment.name,
-  }));
-
-  const byStep = useMemo(() => {
-    const map = new Map<string, StageContentItem[]>();
-    for (const item of contents.data?.items ?? []) {
-      const list = map.get(item.stepKey) ?? [];
-      list.push(item);
-      map.set(item.stepKey, list);
-    }
-    return map;
-  }, [contents.data?.items]);
-
-  const steps = useMemo(() => journey.data?.steps ?? [], [journey.data?.steps]);
-  const filteredSteps = useMemo(
-    () =>
-      steps.filter((step) =>
-        stageMatchesFilters(step.title, byStep.get(step.stableKey) ?? [], {
+  const selectedStep = journey.data?.steps.find((s) => s.stableKey === selection?.stepKey);
+  const groups = (overview.data?.pillars ?? [])
+    .filter((p) => pillarFilter === "all" || p.id === pillarFilter)
+    .map((p) => ({
+      ...p,
+      steps: p.steps.filter((s) =>
+        stageMatchesFilters(s.title, s.items, {
           search,
           cohortId: cohortFilter,
           audience: audienceFilter,
         }),
       ),
-    [audienceFilter, byStep, cohortFilter, search, steps],
-  );
-  const pagedSteps = useMemo(() => paginate(filteredSteps, page, 8), [filteredSteps, page]);
-
-  useEffect(() => {
-    if (page !== pagedSteps.page) setPage(pagedSteps.page);
-  }, [page, pagedSteps.page]);
-
-  function clearFilters() {
+    }))
+    .filter((p) => p.steps.length > 0);
+  const clear = () => {
     setSearch("");
+    setPillarFilter("all");
     setCohortFilter("all");
     setAudienceFilter("all");
-    setPage(1);
-  }
-
-  if (selectedStep && selectedPillarId) {
+  };
+  if (selection) {
     return (
       <main className="inner-page content-admin-page">
         <div className="page-width">
-          <StageContentManager
-            pillarId={selectedPillarId}
-            step={selectedStep}
-            items={byStep.get(selectedStep.stableKey) ?? []}
-            cohorts={cohorts}
-            mentees={mentees}
-            onBack={() => setSelectedStep(null)}
-          />
+          {journey.isLoading || contents.isLoading ? (
+            <p role="status">Carregando conteúdos da etapa…</p>
+          ) : journey.isError || contents.isError || !selectedStep ? (
+            <div className="content-admin-empty">
+              <h2>Não foi possível carregar esta etapa.</h2>
+              <button
+                className="button button--glass"
+                type="button"
+                onClick={() => setSelection(null)}
+              >
+                Voltar para conteúdos
+              </button>
+            </div>
+          ) : (
+            <StageContentManager
+              pillarId={selection.pillarId}
+              step={selectedStep}
+              items={(contents.data?.items ?? []).filter(
+                (i) => i.stepKey === selectedStep.stableKey,
+              )}
+              cohorts={cohorts}
+              mentees={mentees}
+              onBack={() => setSelection(null)}
+            />
+          )}
         </div>
       </main>
     );
   }
-
+  const formatNames: Record<string, string> = {
+    cohort_onboarding: "Onboarding da turma",
+    recorded_class: "Aula gravada",
+    collective_recording: "Encontro coletivo gravado",
+    live_group: "Encontro coletivo",
+    individual_1_1: "Encontro 1:1",
+    questionnaire: "Questionário",
+    form: "Formulário",
+  };
   return (
-    <main className="inner-page content-admin-page">
+    <main className="inner-page content-admin-page mentor-content-overview">
       <div className="page-intro page-width">
-        <span className="eyebrow eyebrow--gold">Conteúdos / gerenciamento</span>
+        <span className="eyebrow eyebrow--gold">Conteúdos</span>
         <h1>Conteúdos da jornada</h1>
-        <p>Organize aulas, materiais e questionários para cada etapa, turma ou mentorado.</p>
+        <p>
+          Organize aulas e materiais para cada etapa, turma ou mentorado. Datas e etapas se editam
+          em Jornada.
+        </p>
       </div>
-
       <section className="page-width content-admin-filters">
         <label className="content-admin-search">
           <Search size={18} />
@@ -1083,42 +1370,27 @@ export function JourneyContentAdmin() {
             type="search"
             placeholder="Buscar etapa, aula ou material"
             value={search}
-            onChange={(event) => {
-              setSearch(event.target.value);
-              setPage(1);
-            }}
+            onChange={(e) => setSearch(e.target.value)}
           />
         </label>
         <label>
           <span>Pilar</span>
-          <select
-            value={journey.data?.selected?.id ?? ""}
-            onChange={(event) => {
-              setPillarId(event.target.value);
-              setSelectedStep(null);
-              setPage(1);
-            }}
-          >
-            {(journey.data?.pillars ?? []).map((pillar) => (
-              <option key={pillar.id} value={pillar.id}>
-                {pillar.name}
+          <select value={pillarFilter} onChange={(e) => setPillarFilter(e.target.value)}>
+            <option value="all">Todos</option>
+            {(overview.data?.pillars ?? []).map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
               </option>
             ))}
           </select>
         </label>
         <label>
           <span>Turma</span>
-          <select
-            value={cohortFilter}
-            onChange={(event) => {
-              setCohortFilter(event.target.value);
-              setPage(1);
-            }}
-          >
+          <select value={cohortFilter} onChange={(e) => setCohortFilter(e.target.value)}>
             <option value="all">Todas</option>
-            {cohorts.map((cohort) => (
-              <option key={cohort.id} value={cohort.id}>
-                {cohort.name}
+            {cohorts.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
               </option>
             ))}
           </select>
@@ -1127,10 +1399,7 @@ export function JourneyContentAdmin() {
           <span>Público</span>
           <select
             value={audienceFilter}
-            onChange={(event) => {
-              setAudienceFilter(event.target.value as AudienceFilter);
-              setPage(1);
-            }}
+            onChange={(e) => setAudienceFilter(e.target.value as AudienceFilter)}
           >
             <option value="all">Todos</option>
             <option value="general">Todos os mentorados</option>
@@ -1138,113 +1407,83 @@ export function JourneyContentAdmin() {
             <option value="mentee">Mentorado específico</option>
           </select>
         </label>
-        <button className="content-admin-clear" type="button" onClick={clearFilters}>
+        <button className="content-admin-clear" type="button" onClick={clear}>
           Limpar
         </button>
       </section>
-
-      <section className="page-width content-admin-stages">
-        <div className="content-admin-stages__heading">
-          <div>
-            <h2>Etapas</h2>
-            <p>Acesse uma etapa para gerenciar seus conteúdos e destinatários.</p>
-          </div>
-          <span>{filteredSteps.length} etapas nesta visualização</span>
-        </div>
-
-        {journey.isLoading || contents.isLoading ? (
-          <div className="content-admin-loading" role="status">
-            <span /> Carregando conteúdos da jornada…
-          </div>
-        ) : journey.isError || contents.isError ? (
+      <div className="page-width mentor-content-groups">
+        {overview.isLoading ? (
+          <p className="content-admin-loading" role="status">
+            Carregando conteúdos da jornada…
+          </p>
+        ) : overview.isError ? (
           <div className="content-admin-empty">
-            <Layers3 size={34} />
-            <h2>Não foi possível carregar os conteúdos</h2>
-            <p>Atualize a página. Se o problema continuar, verifique sua conexão.</p>
+            <h2>Não foi possível carregar os conteúdos.</h2>
+            <button
+              className="button button--glass"
+              type="button"
+              onClick={() => void overview.refetch()}
+            >
+              Tentar novamente
+            </button>
           </div>
-        ) : pagedSteps.total ? (
-          <div className="content-admin-stage-list">
-            {pagedSteps.items.map((step) => {
-              const index = steps.findIndex((item) => item.stableKey === step.stableKey);
-              const stageItems = byStep.get(step.stableKey) ?? [];
-              const counts = summarizeStageContent(stageItems);
-              const Icon = counts.video
-                ? Play
-                : counts.material
-                  ? FileText
-                  : counts.questionnaire
-                    ? BookOpen
-                    : Layers3;
-              return (
-                <article className="content-admin-stage-row" key={step.stableKey}>
-                  <span className="content-admin-stage-row__icon">
-                    <Icon size={24} />
-                  </span>
-                  <div className="content-admin-stage-row__copy">
-                    <strong>{step.title || "Etapa sem título"}</strong>
-                    <p>
-                      Etapa {index + 1} · Mês {step.monthNumber}
-                      <i /> {counts.video} {counts.video === 1 ? "aula" : "aulas"} <i />{" "}
-                      {counts.material} {counts.material === 1 ? "material" : "materiais"} <i />{" "}
-                      {counts.questionnaire}{" "}
-                      {counts.questionnaire === 1 ? "questionário" : "questionários"}
-                    </p>
-                  </div>
-                  <span className="content-admin-stage-row__count">
-                    {counts.total} {counts.total === 1 ? "conteúdo" : "conteúdos"}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedStep(step);
-                      window.scrollTo({ top: 0, behavior: "smooth" });
-                    }}
-                  >
-                    Gerenciar <ChevronRight size={18} />
-                  </button>
-                </article>
-              );
-            })}
-          </div>
-        ) : (
+        ) : !groups.length ? (
           <div className="content-admin-empty">
-            <Layers3 size={34} />
             <h2>Nenhuma etapa encontrada</h2>
             <p>Limpe os filtros ou tente outra busca.</p>
-            <button className="button button--glass" type="button" onClick={clearFilters}>
+            <button className="button button--glass" type="button" onClick={clear}>
               Limpar filtros
             </button>
           </div>
+        ) : (
+          groups.map((p) => (
+            <section className="mentor-content-group" key={p.id} aria-label={p.name}>
+              <h2>{p.name}</h2>
+              <div className="content-admin-stage-list">
+                {p.steps.map((s) => {
+                  const counts = summarizeStageContent(s.items);
+                  const Icon = counts.video
+                    ? Play
+                    : counts.material
+                      ? FileText
+                      : counts.questionnaire
+                        ? BookOpen
+                        : Layers3;
+                  const when = s.scheduledAt || s.releaseAt;
+                  return (
+                    <article className="content-admin-stage-row" key={s.stableKey}>
+                      <span className="content-admin-stage-row__icon">
+                        <Icon size={24} />
+                      </span>
+                      <div className="content-admin-stage-row__copy">
+                        <strong>{s.title || "Etapa sem título"}</strong>
+                        <p>
+                          {when ? new Date(when).toLocaleDateString("pt-BR") : "Data a definir"} ·{" "}
+                          {formatNames[s.format] ?? "Etapa"} · {counts.video} aula(s) ·{" "}
+                          {counts.material} material(is)
+                          {counts.questionnaire ? " · questionário" : ""}
+                        </p>
+                      </div>
+                      <span className="content-admin-stage-row__count">
+                        {counts.total} {counts.total === 1 ? "conteúdo" : "conteúdos"}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelection({ pillarId: p.id, stepKey: s.stableKey });
+                          window.scrollTo({ top: 0, behavior: "smooth" });
+                        }}
+                      >
+                        Gerenciar <ChevronRight size={18} />
+                      </button>
+                    </article>
+                  );
+                })}
+              </div>
+            </section>
+          ))
         )}
-
-        {pagedSteps.total ? (
-          <footer className="content-admin-pagination">
-            <span>
-              Exibindo {(pagedSteps.page - 1) * 8 + 1} a{" "}
-              {Math.min(pagedSteps.page * 8, pagedSteps.total)} de {pagedSteps.total} etapas
-            </span>
-            <div>
-              <button
-                type="button"
-                disabled={pagedSteps.page === 1}
-                onClick={() => setPage((current) => Math.max(1, current - 1))}
-                aria-label="Página anterior"
-              >
-                <ChevronLeft size={18} />
-              </button>
-              <strong>{pagedSteps.page}</strong>
-              <button
-                type="button"
-                disabled={pagedSteps.page === pagedSteps.pageCount}
-                onClick={() => setPage((current) => Math.min(pagedSteps.pageCount, current + 1))}
-                aria-label="Próxima página"
-              >
-                <ChevronRight size={18} />
-              </button>
-            </div>
-          </footer>
-        ) : null}
-      </section>
+      </div>
     </main>
   );
 }

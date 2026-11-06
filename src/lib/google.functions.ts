@@ -19,7 +19,7 @@ export type CalendarEvent = {
   title: string;
   startsAt: string;
   endsAt: string;
-  source: "google" | "rise";
+  source: "google" | "rise" | "journey";
   kind: "google" | "collective" | "individual";
   joinUrl: string | null;
 };

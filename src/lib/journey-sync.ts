@@ -21,6 +21,7 @@ export const journeyQueryKeys = [
   ["next-journey-step"],
   ["trail"],
   ["agenda-materials"],
+  ["calendar-overview"],
 ] as const;
 
 export async function invalidateJourneyData(queryClient: QueryClient) {

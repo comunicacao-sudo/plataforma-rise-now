@@ -32,6 +32,7 @@ export type JourneyDraftStep = {
   resourceId: string | null;
   resourceUrl: string | null;
   scheduledAt: string | null;
+  calendarScheduledAt?: string | null;
   releaseAt: string | null;
   completionRule: (typeof completionRules)[number];
   required: boolean;
@@ -105,6 +106,10 @@ export const getJourneyEditor = createEdgeFunction<
   JourneyEditor
 >("getJourneyEditor");
 export const saveJourneyDraft: any = createEdgeFunction("saveJourneyDraft");
+export const updateJourneyPillar = createEdgeFunction<
+  { pillarId: string; name: string; expectedName: string },
+  { ok: boolean }
+>("updateJourneyPillar");
 export const publishJourneyDraft: any = createEdgeFunction("publishJourneyDraft");
 export const getNextJourneyStep = createEdgeFunction<undefined, NextJourneyStep>(
   "getNextJourneyStep",

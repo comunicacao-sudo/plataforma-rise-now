@@ -2,6 +2,13 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { requireApprovedAccount } from "../_shared/approved-access.ts";
 import {
+  createMediaTicket,
+  driveFileId,
+  mediaSessionId,
+  readDriveVideo,
+  validVideoDuration,
+} from "../_shared/video-media.ts";
+import {
   isJourneyContentLocked,
   visibleStageQuestionnaire,
 } from "../_shared/content-visibility.ts";
@@ -745,10 +752,59 @@ function buildLink(base: string, params: Record<string, string>) {
   return target.toString();
 }
 
+async function linkedJourneyDates(c: Context, keys: string[]) {
+  const dates = new Map<string, string>();
+  if (!keys.length) return dates;
+  const result = await c.db
+    .from("meetings")
+    .select("journey_step_key,scheduled_at")
+    .in("journey_step_key", keys)
+    .order("scheduled_at");
+  if (result.error) throw new Error("Não foi possível atualizar as datas da Agenda.");
+  for (const meeting of result.data ?? []) {
+    const old = dates.get(meeting.journey_step_key);
+    if (!old || Date.parse(old) < Date.now())
+      dates.set(meeting.journey_step_key, meeting.scheduled_at);
+  }
+  return dates;
+}
+
 async function journeyAction(c: Context, action: string, d: any) {
+  if (action === "updateJourneyPillar") {
+    await requireStaff(c);
+    const name = String(d.name ?? "")
+      .trim()
+      .slice(0, 100);
+    if (!name) throw new Error("Informe o nome do pilar.");
+    const result = await c.admin
+      .from("journey_pillars")
+      .update({ name })
+      .eq("id", String(d.pillarId ?? ""))
+      .eq("name", String(d.expectedName ?? ""))
+      .select("id")
+      .maybeSingle();
+    if (result.error) throw new Error("Não foi possível salvar o pilar.");
+    if (!result.data)
+      throw new Error("Este pilar foi alterado. Atualize a página e tente novamente.");
+    await audit(c, "journey_pillar_updated", String(d.pillarId), { name });
+    return { ok: true };
+  }
   if (action === "getNextJourneyStep") {
     const { data, error } = await c.db.rpc("get_next_journey_step");
     if (error) throw new Error(error.message);
+    if (data?.stepKey) {
+      const linked = await c.db
+        .from("meetings")
+        .select("scheduled_at")
+        .eq("journey_step_key", data.stepKey)
+        .order("scheduled_at");
+      if (linked.error) throw new Error(linked.error.message);
+      let date: string | null = null;
+      for (const m of linked.data ?? []) {
+        if (!date || Date.parse(date) < Date.now()) date = m.scheduled_at;
+      }
+      if (date) data.scheduledAt = date;
+    }
     return data;
   }
   if (action === "saveJourneyDraft") {
@@ -953,9 +1009,15 @@ async function journeyAction(c: Context, action: string, d: any) {
       stepTitle: titles.get(x.step_key) ?? "Etapa",
     }));
   }
-  const coverUrls = await signedBatch(
-    (steps ?? []).flatMap((s: any) => [s.cover_path, s.cover_path_light, s.cover_path_dark]),
-  );
+  const [coverUrls, calendarDates] = await Promise.all([
+    signedBatch(
+      (steps ?? []).flatMap((s: any) => [s.cover_path, s.cover_path_light, s.cover_path_dark]),
+    ),
+    linkedJourneyDates(
+      c,
+      (steps ?? []).map((s: any) => s.stable_key),
+    ),
+  ]);
   const mapped = (steps ?? []).map((s: any) => ({
     stableKey: s.stable_key,
     title: s.title,
@@ -970,6 +1032,7 @@ async function journeyAction(c: Context, action: string, d: any) {
     resourceId: s.resource_id,
     resourceUrl: s.resource_url,
     scheduledAt: s.scheduled_at,
+    calendarScheduledAt: calendarDates.get(s.stable_key) ?? null,
     releaseAt: s.release_at,
     completionRule: s.completion_rule,
     required: s.required,
@@ -1043,7 +1106,32 @@ async function signedBatch(paths: Array<string | null | undefined>) {
   });
   return urls;
 }
-async function loadLibrary(userId: string) {
+async function drivePlaybackUrl(
+  userId: string,
+  authorization: string,
+  contentId: string,
+  revision: number,
+) {
+  const ticket = await createMediaTicket(
+    {
+      userId,
+      contentId,
+      revision,
+      sessionId: mediaSessionId(authorization),
+      expiresAt: Date.now() + 6 * 3600_000,
+    },
+    env("APP_USER_CONNECTION_KEY_SECRET") ?? env("SUPABASE_SERVICE_ROLE_KEY")!,
+  );
+  return `${url}/functions/v1/rise-media?ticket=${encodeURIComponent(ticket)}`;
+}
+
+async function loadLibrary(
+  c: Context,
+  includeAssets = true,
+  selection?: { stepKey: string; contentId: string },
+) {
+  const userId = c.userId;
+  const authorization = c.request.headers.get("Authorization") ?? "";
   const { data: enrollment, error } = await admin
     .from("enrollments")
     .select("id, program_id, cohort_id, mentee_id, current_month, status, created_at")
@@ -1142,10 +1230,11 @@ async function loadLibrary(userId: string) {
     if (typeof s.cover_path_dark === "string" && s.cover_path_dark)
       assetPaths.push(s.cover_path_dark);
     const locked = isJourneyContentLocked(s, enrollment.current_month, now);
-    const stageMediaPath =
-      typeof stageVideo?.media_path === "string" ? stageVideo.media_path : null;
-    if (!locked && stageMediaPath && !stageMediaPath.startsWith("r2:"))
-      assetPaths.push(stageMediaPath);
+    if (!locked)
+      for (const video of stageRows.filter((r: any) => r.content_type === "video")) {
+        if (video.media_path && !video.media_path.startsWith("r2:"))
+          assetPaths.push(video.media_path);
+      }
     if (!locked && stageMaterials.length) {
       for (const material of stageMaterials) {
         if (typeof material?.file_path === "string" && material.file_path) {
@@ -1154,109 +1243,200 @@ async function loadLibrary(userId: string) {
       }
     }
   }
-  const signedUrls = await signedBatch(assetPaths);
+  const signedUrls = includeAssets
+    ? await signedBatch(assetPaths)
+    : new Map<string, string | null>();
+  const [meetingResult, videoProgressResult] = await Promise.all([
+    c.db
+      .from("meetings")
+      .select("journey_step_key,scheduled_at,ends_at,duration_minutes")
+      .in(
+        "journey_step_key",
+        allowedStepKeys.length ? allowedStepKeys : ["00000000-0000-0000-0000-000000000000"],
+      )
+      .order("scheduled_at"),
+    c.admin
+      .from("journey_video_progress")
+      .select("content_id,source_revision,current_seconds,duration_seconds,completed")
+      .eq("enrollment_id", enrollment.id)
+      .eq("user_id", userId),
+  ]);
+  if (meetingResult.error || videoProgressResult.error)
+    throw new Error("Não foi possível atualizar a jornada.");
+  const dates = new Map<string, string>();
+  for (const meeting of meetingResult.data ?? []) {
+    const key = meeting.journey_step_key;
+    const old = dates.get(key);
+    if (!old || Date.parse(old) < Date.now()) dates.set(key, meeting.scheduled_at);
+  }
 
-  const items = allowed.map((s: any) => {
-    const p = versions.get(s.version_id) ?? { name: "Jornada", position: 999 };
-    const locked = isJourneyContentLocked(s, enrollment.current_month, now);
-    const stageRows = stageByStep.get(s.stable_key) ?? [];
-    const stageVideo = chooseStage(stageRows, "video");
-    const stageQuestionnaire = chooseStage(stageRows, "questionnaire");
-    const stageMaterials = stageRows
-      .filter((row: any) => row.content_type === "material")
-      .sort((a: any, b: any) => (a.position ?? 0) - (b.position ?? 0));
-    const effectiveMediaPath =
-      typeof stageVideo?.media_path === "string" && stageVideo.media_path
-        ? stageVideo.media_path
-        : null;
-    const effectiveExternalVideo =
-      typeof stageVideo?.external_url === "string" && stageVideo.external_url
-        ? stageVideo.external_url
-        : null;
-    const r2Media =
-      !locked && typeof effectiveMediaPath === "string" && effectiveMediaPath.startsWith("r2:");
-    const mediaUrl = locked
-      ? null
-      : (effectiveExternalVideo ??
-        (typeof effectiveMediaPath === "string" && effectiveMediaPath && !r2Media
-          ? (signedUrls.get(effectiveMediaPath) ?? null)
-          : null));
-    const materials = locked
-      ? []
-      : stageMaterials.map((m: any) => ({
-          id: String(m.id),
-          title: String(m.title ?? "Material de apoio"),
-          url: typeof m.external_url === "string" ? m.external_url : null,
-          filePath: typeof m.file_path === "string" ? m.file_path : null,
-          fileUrl: typeof m.file_path === "string" ? (signedUrls.get(m.file_path) ?? null) : null,
-        }));
-    const state = byStep.get(s.stable_key);
-    const questionnaireUrl =
-      !locked && stageQuestionnaire ? (stageQuestionnaire.external_url ?? null) : null;
-    const hasStageContent = !!stageVideo || !!stageQuestionnaire || stageMaterials.length > 0;
-    const hasResource = videoFormats.has(s.format)
-      ? hasStageContent || r2Media || !!mediaUrl
-      : ["questionnaire", "form"].includes(s.format)
-        ? !!stageQuestionnaire || s.resource_type === "rise_assessment" || !!s.resource_url
-        : hasStageContent || true;
-    return {
-      stepKey: s.stable_key,
-      title: s.title,
-      resourceType: stageVideo
-        ? r2Media
-          ? "r2"
-          : "external"
-        : s.resource_type === "rise_assessment"
-          ? "rise_assessment"
-          : null,
-      format: s.format,
-      description: s.description ?? "",
-      summary: s.summary || s.description || "",
-      responsibleName: s.responsible_name,
-      durationMinutes:
-        typeof stageVideo?.duration_minutes === "number"
-          ? stageVideo.duration_minutes
-          : s.duration_minutes,
-      monthNumber: s.month_number,
-      pillarName: p.name,
-      position: p.position * 1000 + s.position,
-      coverUrl: typeof s.cover_path === "string" ? (signedUrls.get(s.cover_path) ?? null) : null,
-      coverUrlLight:
-        typeof s.cover_path_light === "string"
-          ? (signedUrls.get(s.cover_path_light) ?? null)
-          : typeof s.cover_path === "string"
-            ? (signedUrls.get(s.cover_path) ?? null)
+  const items = await Promise.all(
+    allowed.map(async (s: any) => {
+      const p = versions.get(s.version_id) ?? { name: "Jornada", position: 999 };
+      const locked = isJourneyContentLocked(s, enrollment.current_month, now);
+      const stageRows = stageByStep.get(s.stable_key) ?? [];
+      const videos = stageRows
+        .filter((r: any) => r.content_type === "video")
+        .sort(
+          (a: any, b: any) =>
+            (a.position ?? 0) - (b.position ?? 0) ||
+            String(a.created_at).localeCompare(String(b.created_at)) ||
+            a.id.localeCompare(b.id),
+        );
+      const stageVideo =
+        (selection?.stepKey === s.stable_key
+          ? videos.find((v: any) => v.id === selection.contentId)
+          : null) ??
+        videos[0] ??
+        null;
+      const stageQuestionnaire = chooseStage(stageRows, "questionnaire");
+      const stageMaterials = stageRows
+        .filter((row: any) => row.content_type === "material")
+        .sort((a: any, b: any) => (a.position ?? 0) - (b.position ?? 0));
+      const effectiveMediaPath =
+        typeof stageVideo?.media_path === "string" && stageVideo.media_path
+          ? stageVideo.media_path
+          : null;
+      const effectiveExternalVideo =
+        typeof stageVideo?.external_url === "string" && stageVideo.external_url
+          ? stageVideo.external_url
+          : null;
+      const r2Media =
+        !locked && typeof effectiveMediaPath === "string" && effectiveMediaPath.startsWith("r2:");
+      const mediaUrl = locked
+        ? null
+        : ((includeAssets && driveFileId(effectiveExternalVideo ?? "") && stageVideo?.id
+            ? await drivePlaybackUrl(
+                userId,
+                authorization,
+                stageVideo.id,
+                stageVideo.source_revision ?? 1,
+              )
+            : effectiveExternalVideo) ??
+          (typeof effectiveMediaPath === "string" && effectiveMediaPath && !r2Media
+            ? (signedUrls.get(effectiveMediaPath) ?? null)
+            : null));
+      const materials = locked
+        ? []
+        : stageMaterials.map((m: any) => ({
+            id: String(m.id),
+            title: String(m.title ?? "Material de apoio"),
+            url: typeof m.external_url === "string" ? m.external_url : null,
+            filePath: typeof m.file_path === "string" ? m.file_path : null,
+            fileUrl: typeof m.file_path === "string" ? (signedUrls.get(m.file_path) ?? null) : null,
+          }));
+      const specificState = (videoProgressResult.data ?? []).find(
+        (v: any) =>
+          v.content_id === stageVideo?.id && v.source_revision === stageVideo.source_revision,
+      );
+      const state =
+        specificState ??
+        (videos.length !== 1 || (stageVideo?.source_revision ?? 1) > 1
+          ? null
+          : byStep.get(s.stable_key));
+      const questionnaireUrl =
+        !locked && stageQuestionnaire ? (stageQuestionnaire.external_url ?? null) : null;
+      const hasStageContent = !!stageVideo || !!stageQuestionnaire || stageMaterials.length > 0;
+      const hasResource = videoFormats.has(s.format)
+        ? hasStageContent || r2Media || !!mediaUrl
+        : ["questionnaire", "form"].includes(s.format)
+          ? !!stageQuestionnaire || s.resource_type === "rise_assessment" || !!s.resource_url
+          : hasStageContent || true;
+      return {
+        stepKey: s.stable_key,
+        videoTitle: stageVideo?.title ?? null,
+        videos: videos.map((video: any) => {
+          const watched = (videoProgressResult.data ?? []).find(
+            (v: any) => v.content_id === video.id && v.source_revision === video.source_revision,
+          );
+          return {
+            id: video.id,
+            title: video.title,
+            durationMinutes: video.duration_minutes,
+            completed:
+              watched?.completed ??
+              (videos.length === 1 && video.source_revision === 1
+                ? !!byStep.get(s.stable_key)?.completed
+                : false),
+          };
+        }),
+        videoCompleted: !!state?.completed,
+        videoContentId: stageVideo?.id ?? null,
+        videoRevision: stageVideo?.source_revision ?? null,
+        title: s.title,
+        resourceType: stageVideo
+          ? r2Media
+            ? "r2"
+            : "external"
+          : s.resource_type === "rise_assessment"
+            ? "rise_assessment"
             : null,
-      coverUrlDark:
-        typeof s.cover_path_dark === "string"
-          ? (signedUrls.get(s.cover_path_dark) ?? null)
-          : typeof s.cover_path === "string"
-            ? (signedUrls.get(s.cover_path) ?? null)
-            : null,
-      mediaUrl: !locked ? mediaUrl : null,
-      questionnaireUrl,
-      ...visibleStageQuestionnaire(locked, stageQuestionnaire),
-      scheduledAt: s.scheduled_at,
-      releaseAt: s.release_at,
-      topics: Array.isArray(s.topics) ? s.topics : [],
-      materials,
-      accessScope: s.access_scope,
-      availability: locked ? "coming_soon" : hasResource ? "available" : "missing_resource",
-      completed: !!state?.completed,
-      currentSeconds: state?.current_seconds ?? 0,
-      durationSeconds: state?.duration_seconds ?? null,
-    };
-  });
+        format: s.format,
+        description: s.description ?? "",
+        summary: s.summary || s.description || "",
+        responsibleName: s.responsible_name,
+        durationMinutes:
+          typeof stageVideo?.duration_minutes === "number"
+            ? stageVideo.duration_minutes
+            : s.duration_minutes,
+        monthNumber: s.month_number,
+        pillarName: p.name,
+        position: p.position * 1000 + s.position,
+        coverUrl: typeof s.cover_path === "string" ? (signedUrls.get(s.cover_path) ?? null) : null,
+        coverUrlLight:
+          typeof s.cover_path_light === "string"
+            ? (signedUrls.get(s.cover_path_light) ?? null)
+            : typeof s.cover_path === "string"
+              ? (signedUrls.get(s.cover_path) ?? null)
+              : null,
+        coverUrlDark:
+          typeof s.cover_path_dark === "string"
+            ? (signedUrls.get(s.cover_path_dark) ?? null)
+            : typeof s.cover_path === "string"
+              ? (signedUrls.get(s.cover_path) ?? null)
+              : null,
+        mediaUrl: !locked ? mediaUrl : null,
+        questionnaireUrl,
+        ...visibleStageQuestionnaire(locked, stageQuestionnaire),
+        scheduledAt: dates.get(s.stable_key) ?? s.scheduled_at,
+        releaseAt: s.release_at,
+        topics: Array.isArray(s.topics) ? s.topics : [],
+        materials,
+        accessScope: s.access_scope,
+        availability: locked ? "coming_soon" : hasResource ? "available" : "missing_resource",
+        completed: videos.length
+          ? videos.every((video: any) =>
+              (videoProgressResult.data ?? []).some(
+                (v: any) =>
+                  v.content_id === video.id &&
+                  v.source_revision === video.source_revision &&
+                  v.completed,
+              ),
+            ) ||
+            (videos.length === 1 &&
+              stageVideo.source_revision === 1 &&
+              !!byStep.get(s.stable_key)?.completed)
+          : !!state?.completed,
+        currentSeconds: state?.current_seconds ?? 0,
+        durationSeconds: state?.duration_seconds ?? stageVideo?.duration_seconds ?? null,
+      };
+    }),
+  );
   return {
     enrollmentId: enrollment.id,
     currentMonth: enrollment.current_month,
     items: items.sort((a, b) => a.position - b.position),
   };
 }
-async function requireContent(c: Context, stepKey: string) {
-  const library = await loadLibrary(c.userId);
+async function requireContent(c: Context, stepKey: string, contentId?: string) {
+  const library = await loadLibrary(c, true, contentId ? { stepKey, contentId } : undefined);
   const item = library?.items.find((x: any) => x.stepKey === stepKey);
-  if (!library || !item || item.availability === "coming_soon")
+  if (
+    !library ||
+    !item ||
+    item.availability === "coming_soon" ||
+    (contentId && item.videoContentId !== contentId)
+  )
     throw new Error("Você não tem permissão para acessar este conteúdo.");
   return { library, item };
 }
@@ -1284,6 +1464,8 @@ function stageContentShape(row: any) {
     title: row.title,
     description: row.description ?? "",
     durationMinutes: row.duration_minutes,
+    durationSeconds: row.duration_seconds ?? null,
+    sourceRevision: row.source_revision ?? 1,
     mediaPath: row.media_path,
     filePath: row.file_path,
     externalUrl: row.external_url,
@@ -1419,7 +1601,165 @@ async function visibleStageContents(c: Context, contentType?: string) {
 }
 
 async function contentAction(c: Context, action: string, d: any) {
-  if (action === "getJourneyContentLibrary") return loadLibrary(c.userId);
+  if (action === "getMentorContentOverview") {
+    await requireStaff(c);
+    const [{ data: pillars, error: pe }, { data: versions, error: ve }, { data: rows, error: ce }] =
+      await Promise.all([
+        c.admin.from("journey_pillars").select("id,name,position").order("position"),
+        c.admin.from("journey_versions").select("id,pillar_id").eq("status", "draft"),
+        c.admin.from("journey_stage_contents").select("*").eq("active", true).order("position"),
+      ]);
+    if (pe || ve || ce) throw new Error("Não foi possível carregar os conteúdos da jornada.");
+    const ids = (versions ?? []).map((v: any) => v.id);
+    const stepResult = ids.length
+      ? await c.admin
+          .from("journey_steps")
+          .select(
+            "stable_key,version_id,title,format,month_number,scheduled_at,release_at,position",
+          )
+          .in("version_id", ids)
+          .is("archived_at", null)
+          .order("position")
+      : { data: [], error: null };
+    if (stepResult.error) throw new Error("Não foi possível carregar as etapas.");
+    const calendarDates = await linkedJourneyDates(
+      c,
+      (stepResult.data ?? []).map((s: any) => s.stable_key),
+    );
+    return {
+      pillars: (pillars ?? []).map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        steps: (stepResult.data ?? [])
+          .filter((s: any) =>
+            (versions ?? []).some((v: any) => v.id === s.version_id && v.pillar_id === p.id),
+          )
+          .map((s: any) => ({
+            stableKey: s.stable_key,
+            title: s.title,
+            format: s.format,
+            monthNumber: s.month_number,
+            scheduledAt: calendarDates.get(s.stable_key) ?? s.scheduled_at,
+            releaseAt: s.release_at,
+            position: s.position,
+            items: (rows ?? [])
+              .filter((r: any) => r.pillar_id === p.id && r.step_key === s.stable_key)
+              .map(stageContentShape),
+          })),
+      })),
+    };
+  }
+  if (action === "saveJourneyContentProgress" && d.contentId) {
+    if (await isStaff(c)) return { completed: false, preview: true };
+    if (!Number.isFinite(d.currentSeconds) || d.currentSeconds < 0 || d.currentSeconds > 86400)
+      throw new Error("Progresso inválido.");
+    const result = await c.admin.rpc("record_stage_video_progress", {
+      p_user_id: c.userId,
+      p_content_id: String(d.contentId),
+      p_current: Math.floor(d.currentSeconds),
+      p_duration: validVideoDuration(d.durationSeconds),
+      p_ended: d.ended === true,
+      p_revision: Number(d.sourceRevision),
+    });
+    if (result.error)
+      throw new Error(
+        "Não foi possível salvar o progresso. Se a gravação foi alterada, reabra a aula.",
+      );
+    const saved = result.data;
+    if (
+      saved?.stepCompleted &&
+      (await completeAutomaticStep(saved.enrollmentId, saved.stepKey, "player_ended"))
+    )
+      await notifyStageCompleted(saved.enrollmentId, c.userId, saved.stepKey);
+    return { completed: saved?.completed === true };
+  }
+  if (action === "getJourneyContentLibrary") return loadLibrary(c);
+
+  if (action === "inspectStageVideo") {
+    await requireStaff(c);
+    const source = String(d.sourceUrl ?? "");
+    if (!driveFileId(source)) return { durationSeconds: null };
+    return readDriveVideo(
+      source,
+      env("GOOGLE_DRIVE_API_KEY"),
+      env("APP_BASE_URL") ?? "https://board.mentoriarisenow.com.br",
+    );
+  }
+  if (action === "getStageVideoEngagement") {
+    await requireStaff(c);
+    const { data, error } = await c.admin.rpc("stage_video_engagement", {
+      p_content_ids: [String(d.contentId ?? "")],
+    });
+    if (error) throw new Error("Não foi possível carregar o acompanhamento deste vídeo.");
+    return { viewers: data ?? [] };
+  }
+  if (action === "updateStageVideoMetadata") {
+    await requireStaff(c);
+    const seconds = validVideoDuration(d.durationSeconds);
+    if (!seconds) throw new Error("Duração de vídeo inválida.");
+    const { error } = await c.admin
+      .from("journey_stage_contents")
+      .update({ duration_seconds: seconds, duration_minutes: Math.ceil(seconds / 60) })
+      .eq("id", String(d.contentId ?? ""))
+      .eq("source_revision", Number(d.revision))
+      .eq("content_type", "video");
+    if (error) throw new Error("Não foi possível atualizar a duração.");
+    return { ok: true };
+  }
+  if (action === "getStageVideoPlayback" || action === "getProtectedDrivePlayback") {
+    let contentId = String(d.contentId ?? "");
+    if (action === "getProtectedDrivePlayback") {
+      const source = String(d.sourceUrl ?? "");
+      if (!driveFileId(source)) throw new Error("Link de vídeo inválido.");
+      const { data: matches, error } = await c.admin
+        .from("journey_stage_contents")
+        .select("id")
+        .eq("external_url", source)
+        .eq("active", true)
+        .eq("content_type", "video")
+        .limit(100);
+      if (error) throw new Error("Não foi possível verificar o vídeo.");
+      contentId = "";
+      for (const match of matches ?? []) {
+        const allowed = await c.admin.rpc("authorize_stage_video", {
+          p_user_id: c.userId,
+          p_content_id: match.id,
+        });
+        if (allowed.error) throw new Error("Não foi possível verificar seu acesso.");
+        if (allowed.data) {
+          contentId = match.id;
+          break;
+        }
+      }
+    } else await requireStaff(c);
+    if (!contentId) throw new Error("Este vídeo não está liberado para o seu acesso.");
+    const { data: source, error } = await c.admin.rpc("authorize_stage_video", {
+      p_user_id: c.userId,
+      p_content_id: contentId,
+    });
+    if (error) throw new Error("Não foi possível verificar o acesso ao vídeo.");
+    if (!source) throw new Error("Vídeo não disponível para este acesso.");
+    if (source.mediaPath?.startsWith("r2:"))
+      return { r2: true, contentId, url: null, revision: source.revision };
+    if (driveFileId(source.externalUrl ?? "")) {
+      if (!env("GOOGLE_DRIVE_API_KEY"))
+        throw new Error("Falta configurar a integração do Google Drive na RISE.");
+      return {
+        r2: false,
+        contentId,
+        url: await drivePlaybackUrl(
+          c.userId,
+          c.request.headers.get("Authorization") ?? "",
+          contentId,
+          source.revision,
+        ),
+        revision: source.revision,
+      };
+    }
+    const media = source.externalUrl || (source.mediaPath ? await signed(source.mediaPath) : null);
+    if (!media) throw new Error("Esta aula ainda não tem vídeo disponível.");
+    return { r2: false, contentId, url: media, revision: source.revision };
+  }
 
   if (action === "getStageContents") {
     await requireStaff(c);
@@ -1428,10 +1768,33 @@ async function contentAction(c: Context, action: string, d: any) {
       .from("journey_stage_contents")
       .select("*")
       .eq("pillar_id", pillarId)
+      .eq("active", true)
       .order("step_key")
       .order("position");
     if (error) throw new Error(error.message);
-    return { items: (data ?? []).map(stageContentShape) };
+    const ids = (data ?? [])
+      .filter((row: any) => row.content_type === "video")
+      .map((row: any) => row.id);
+    const engagement = ids.length
+      ? await c.admin.rpc("stage_video_engagement", { p_content_ids: ids })
+      : { data: [], error: null };
+    if (engagement.error) throw new Error("Não foi possível carregar o acompanhamento dos vídeos.");
+    return {
+      items: (data ?? []).map((row: any) => {
+        const viewers = (engagement.data ?? []).filter((v: any) => v.content_id === row.id);
+        return {
+          ...stageContentShape(row),
+          engagement:
+            row.content_type === "video"
+              ? {
+                  eligible: viewers.length,
+                  started: viewers.filter((v: any) => v.first_viewed_at).length,
+                  completed: viewers.filter((v: any) => v.completed).length,
+                }
+              : undefined,
+        };
+      }),
+    };
   }
 
   if (action === "saveStageContent") {
@@ -1471,6 +1834,28 @@ async function contentAction(c: Context, action: string, d: any) {
     if (accessScope === "cohort" && !cohortId) throw new Error("Selecione a turma.");
     if (accessScope === "mentee" && !menteeId) throw new Error("Selecione o mentorado.");
 
+    const externalVideo = contentType === "video" ? String(d.externalUrl ?? "").trim() : "";
+    if (d.externalUrl) {
+      let parsed: URL;
+      try {
+        parsed = new URL(String(d.externalUrl));
+      } catch {
+        throw new Error("Informe um link válido.");
+      }
+      if (parsed.protocol !== "https:") throw new Error("O link precisa começar com https://");
+    }
+    const remoteVideo =
+      env("GOOGLE_DRIVE_API_KEY") && driveFileId(externalVideo)
+        ? await readDriveVideo(
+            externalVideo,
+            env("GOOGLE_DRIVE_API_KEY"),
+            env("APP_BASE_URL") ?? "https://board.mentoriarisenow.com.br",
+          )
+        : null;
+    const detectedDuration =
+      contentType === "video"
+        ? (remoteVideo?.durationSeconds ?? validVideoDuration(d.durationSeconds))
+        : null;
     const payload = {
       pillar_id: pillarId,
       step_key: stepKey,
@@ -1479,15 +1864,18 @@ async function contentAction(c: Context, action: string, d: any) {
       description: String(d.description ?? "")
         .trim()
         .slice(0, 5000),
-      duration_minutes:
-        contentType === "video" &&
-        d.durationMinutes !== null &&
-        d.durationMinutes !== undefined &&
-        String(d.durationMinutes).trim() !== "" &&
-        Number.isFinite(Number(d.durationMinutes))
+      duration_seconds: detectedDuration,
+      duration_minutes: detectedDuration
+        ? Math.ceil(detectedDuration / 60)
+        : contentType === "video" &&
+            d.durationMinutes !== null &&
+            d.durationMinutes !== undefined &&
+            String(d.durationMinutes).trim() !== "" &&
+            Number.isFinite(Number(d.durationMinutes))
           ? Math.max(1, Math.min(1440, Number(d.durationMinutes)))
           : null,
-      media_path: contentType === "video" ? String(d.mediaPath ?? "") || null : null,
+      media_path:
+        contentType === "video" && !externalVideo ? String(d.mediaPath ?? "") || null : null,
       file_path: contentType === "material" ? String(d.filePath ?? "") || null : null,
       external_url: ["video", "material"].includes(contentType)
         ? String(d.externalUrl ?? "") || null
@@ -1507,7 +1895,7 @@ async function contentAction(c: Context, action: string, d: any) {
 
     const id = String(d.id ?? "").trim();
 
-    if (!id && ["video", "questionnaire"].includes(contentType)) {
+    if (!id && contentType === "questionnaire") {
       let duplicateQuery = c.admin
         .from("journey_stage_contents")
         .select("id")
@@ -1529,9 +1917,7 @@ async function contentAction(c: Context, action: string, d: any) {
       if (duplicateError) throw new Error(duplicateError.message);
       if (duplicate) {
         throw new Error(
-          contentType === "video"
-            ? "Já existe uma aula para esse público nesta etapa. Edite a aula existente."
-            : "Já existe um questionário para esse público nesta etapa. Edite o questionário existente.",
+          "Já existe um questionário para esse público nesta etapa. Edite o questionário existente.",
         );
       }
     }
@@ -1544,24 +1930,23 @@ async function contentAction(c: Context, action: string, d: any) {
     return { item: stageContentShape(data) };
   }
 
+  if (action === "orderStageContents") {
+    await requireStaff(c);
+    const result = await c.admin.rpc("order_stage_contents", {
+      p_pillar: d.pillarId,
+      p_step: d.stepKey,
+      p_expected: d.expectedIds,
+      p_ids: d.ids,
+    });
+    if (result.error) throw new Error(result.error.message);
+    return { ok: true };
+  }
   if (action === "deleteStageContent") {
     await requireStaff(c);
-    const id = String(d.id ?? "");
-    const { data: existing, error: loadError } = await c.admin
+    const { error } = await c.admin
       .from("journey_stage_contents")
-      .select("file_path")
-      .eq("id", id)
-      .maybeSingle();
-    if (loadError) throw new Error(loadError.message);
-
-    if (existing?.file_path) {
-      const { error: storageError } = await c.admin.storage
-        .from("journey-content")
-        .remove([existing.file_path]);
-      if (storageError) throw new Error(storageError.message);
-    }
-
-    const { error } = await c.admin.from("journey_stage_contents").delete().eq("id", id);
+      .update({ active: false, updated_at: new Date().toISOString() })
+      .eq("id", String(d.id ?? ""));
     if (error) throw new Error(error.message);
     return { ok: true };
   }
@@ -1703,7 +2088,7 @@ async function contentAction(c: Context, action: string, d: any) {
     if (error || !data) throw new Error(error?.message ?? "Não foi possível preparar o upload.");
     return { path, token: data.token };
   }
-  const { library, item } = await requireContent(c, d.stepKey);
+  const { library, item } = await requireContent(c, d.stepKey, d.contentId);
   if (action === "getJourneyContent") {
     const available = library.items.filter(
       (x: any) => videoFormats.has(x.format) && x.availability !== "coming_soon",
@@ -1729,6 +2114,7 @@ async function contentAction(c: Context, action: string, d: any) {
         .select("id, timestamp_seconds, reflection, created_at")
         .eq("user_id", c.userId)
         .eq("step_key", d.stepKey)
+        .filter("content_id", d.contentId ? "eq" : "is", d.contentId ?? null)
         .order("timestamp_seconds"),
       c.admin
         .from("journey_content_progress")
@@ -1740,9 +2126,9 @@ async function contentAction(c: Context, action: string, d: any) {
     return {
       note: note?.content ?? "",
       markers: markers ?? [],
-      currentSeconds: progress?.current_seconds ?? 0,
-      durationSeconds: progress?.duration_seconds ?? null,
-      completed: !!progress?.completed,
+      currentSeconds: item.currentSeconds ?? progress?.current_seconds ?? 0,
+      durationSeconds: item.durationSeconds ?? null,
+      completed: !!(item.videoCompleted ?? item.completed),
     };
   }
   if (action === "saveJourneyContentNote") {
@@ -1766,6 +2152,7 @@ async function contentAction(c: Context, action: string, d: any) {
         enrollment_id: library.enrollmentId,
         step_key: d.stepKey,
         user_id: c.userId,
+        content_id: d.contentId || null,
         timestamp_seconds: d.timestampSeconds,
         reflection: d.reflection,
       })
@@ -1775,6 +2162,7 @@ async function contentAction(c: Context, action: string, d: any) {
     return data;
   }
   if (action === "saveJourneyContentProgress") {
+    if (await isStaff(c)) return { completed: false, preview: true };
     if (
       !Number.isFinite(d.currentSeconds) ||
       d.currentSeconds < 0 ||
@@ -2925,7 +3313,9 @@ async function googleAction(c: Context, action: string, d: any) {
     }
     const { data: meetings, error } = await c.db
       .from("meetings")
-      .select("id, title, kind, scheduled_at, ends_at, duration_minutes, join_url")
+      .select(
+        "id, title, kind, scheduled_at, ends_at, duration_minutes, join_url, journey_step_key, google_event_id",
+      )
       .lt("scheduled_at", endsAt.toISOString())
       .order("scheduled_at");
     if (error) throw new Error(error.message);
@@ -2944,8 +3334,52 @@ async function googleAction(c: Context, action: string, d: any) {
         joinUrl: meeting.join_url,
       }))
       .filter((event: any) => Date.parse(event.endsAt) > startsAt.getTime());
+    const staff = await isStaff(c);
+    let plannedSteps: any[] = [];
+    if (staff) {
+      const result = await c.db
+        .from("journey_steps")
+        .select(
+          "stable_key,title,scheduled_at,duration_minutes,format,journey_versions!inner(status)",
+        )
+        .eq("journey_versions.status", "draft")
+        .is("archived_at", null)
+        .not("scheduled_at", "is", null);
+      if (result.error) throw new Error(result.error.message);
+      plannedSteps = (result.data ?? []).map((s: any) => ({
+        stepKey: s.stable_key,
+        title: s.title,
+        scheduledAt: s.scheduled_at,
+        durationMinutes: s.duration_minutes,
+        format: s.format,
+      }));
+    } else plannedSteps = (await loadLibrary(c, false))?.items ?? [];
+    const linkedKeys = new Set(
+      (meetings ?? []).map((m: any) => m.journey_step_key).filter(Boolean),
+    );
+    const googleIds = new Set((meetings ?? []).map((m: any) => m.google_event_id).filter(Boolean));
+    googleEvents = googleEvents.filter((e) => !googleIds.has(e.id.replace("google:", "")));
+    const planned = plannedSteps
+      .filter(
+        (s) =>
+          s.scheduledAt &&
+          !linkedKeys.has(s.stepKey) &&
+          Date.parse(s.scheduledAt) < endsAt.getTime() &&
+          Date.parse(s.scheduledAt) >= startsAt.getTime(),
+      )
+      .map((s) => ({
+        id: "journey:" + s.stepKey,
+        title: s.title + " · etapa prevista",
+        startsAt: s.scheduledAt,
+        endsAt: new Date(
+          Date.parse(s.scheduledAt) + (s.durationMinutes ?? 60) * 60000,
+        ).toISOString(),
+        source: "journey",
+        kind: s.format === "individual_1_1" ? "individual" : "collective",
+        joinUrl: null,
+      }));
     return {
-      events: [...googleEvents, ...riseEvents].sort(
+      events: [...googleEvents, ...riseEvents, ...planned].sort(
         (a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt),
       ),
       googleConnected,
@@ -3157,6 +3591,7 @@ async function googleAction(c: Context, action: string, d: any) {
       .insert({
         mentor_id: d.mentorId,
         title: String(d.title).trim(),
+        journey_step_key: d.journeyStepKey || null,
         description: String(d.description ?? "").trim() || null,
         duration_minutes: Number(d.durationMinutes ?? 60),
         buffer_minutes: Number(d.bufferMinutes ?? 15),
@@ -3205,12 +3640,91 @@ async function googleAction(c: Context, action: string, d: any) {
     return { ok: true };
   }
 
+  if (action === "createMeeting" || action === "updateMeeting") {
+    for (const value of [d.joinUrl, d.recordingUrl]) {
+      if (!value) continue;
+      let parsed: URL;
+      try {
+        parsed = new URL(value);
+      } catch {
+        throw new Error("Informe um link válido.");
+      }
+      if (parsed.protocol !== "https:" || parsed.username || parsed.password)
+        throw new Error("Use um link https:// válido.");
+    }
+  }
   if (action === "updateMeeting") {
-    const { error } = await c.db
+    const { data: meeting, error: readError } = await c.db
       .from("meetings")
-      .update({ recording_url: d.recordingUrl ?? null, join_url: d.joinUrl ?? null })
-      .eq("id", d.id);
-    if (error) throw new Error(error.message);
+      .select("id,scheduled_at,ends_at,duration_minutes,google_event_id,created_by,mentor_id")
+      .eq("id", d.id)
+      .maybeSingle();
+    const adminRole = await c.db.rpc("has_role", { _user_id: c.userId, _role: "admin" });
+    if (
+      readError ||
+      !meeting ||
+      (!adminRole.data && meeting.created_by !== c.userId && meeting.mentor_id !== c.userId)
+    )
+      throw new Error("Você não pode editar este encontro.");
+    const patch: any = { recording_url: d.recordingUrl ?? null, join_url: d.joinUrl ?? null };
+    if ("journeyStepKey" in d) patch.journey_step_key = d.journeyStepKey || null;
+    if (patch.journey_step_key) {
+      const check = await c.db
+        .from("journey_steps")
+        .select("stable_key")
+        .eq("stable_key", patch.journey_step_key)
+        .is("archived_at", null)
+        .limit(1);
+      if (check.error || !check.data?.length) throw new Error("Etapa inválida.");
+    }
+    if (d.startsAt || d.endsAt) {
+      const start = Date.parse(d.startsAt),
+        end = Date.parse(d.endsAt);
+      if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start)
+        throw new Error("Confira a data e os horários.");
+      if (
+        d.expectedScheduledAt &&
+        Date.parse(d.expectedScheduledAt) !== Date.parse(meeting.scheduled_at)
+      )
+        throw new Error("Este encontro foi alterado. Atualize a página antes de salvar.");
+      patch.scheduled_at = new Date(start).toISOString();
+      patch.ends_at = new Date(end).toISOString();
+      patch.duration_minutes = Math.round((end - start) / 60000);
+      if (
+        meeting.google_event_id &&
+        meeting.created_by &&
+        (patch.scheduled_at !== meeting.scheduled_at || patch.ends_at !== meeting.ends_at)
+      ) {
+        const response = await googleFetch(
+          meeting.created_by,
+          "/calendar/v3/calendars/primary/events/" +
+            encodeURIComponent(meeting.google_event_id) +
+            "?sendUpdates=all",
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              start: { dateTime: patch.scheduled_at, timeZone: "America/Sao_Paulo" },
+              end: { dateTime: patch.ends_at, timeZone: "America/Sao_Paulo" },
+            }),
+          },
+        );
+        if (!response.ok)
+          throw new Error(
+            "Não foi possível atualizar o Google Agenda. Reconecte a conta que criou o encontro e tente novamente.",
+          );
+      }
+    }
+    const { data: saved, error } = await c.db
+      .from("meetings")
+      .update(patch)
+      .eq("id", d.id)
+      .select("id")
+      .maybeSingle();
+    if (error || !saved)
+      throw new Error(
+        "Não foi possível atualizar o encontro. Confira também a data no Google Agenda.",
+      );
     return { ok: true };
   }
   if (action === "cancelMeeting") {
@@ -3234,6 +3748,22 @@ async function googleAction(c: Context, action: string, d: any) {
     return { ok: true, googleWarning };
   }
   if (action !== "createMeeting") throw new Error("Ação Google inválida.");
+  if (
+    !String(d.title ?? "").trim() ||
+    !Number.isFinite(Date.parse(d.startsAt)) ||
+    !Number.isFinite(Date.parse(d.endsAt)) ||
+    Date.parse(d.endsAt) <= Date.parse(d.startsAt)
+  )
+    throw new Error("Preencha título, data e horários válidos.");
+  if (d.journeyStepKey) {
+    const check = await c.db
+      .from("journey_steps")
+      .select("stable_key")
+      .eq("stable_key", d.journeyStepKey)
+      .is("archived_at", null)
+      .limit(1);
+    if (check.error || !check.data?.length) throw new Error("Etapa da jornada inválida.");
+  }
   let query = c.admin
     .from("enrollments")
     .select("id, mentee:profiles!enrollments_mentee_id_fkey(email)")
@@ -3303,6 +3833,7 @@ async function googleAction(c: Context, action: string, d: any) {
     .from("meetings")
     .insert({
       title: d.title,
+      journey_step_key: d.journeyStepKey || null,
       description: d.description || null,
       kind: d.kind,
       scheduled_at: d.startsAt,
@@ -3720,6 +4251,7 @@ const groups = {
   ]),
   journey: new Set([
     "getJourneyEditor",
+    "updateJourneyPillar",
     "saveJourneyDraft",
     "publishJourneyDraft",
     "getNextJourneyStep",
@@ -3735,8 +4267,15 @@ const groups = {
     "saveJourneyContentProgress",
     "createJourneyUpload",
     "getStageContents",
+    "getMentorContentOverview",
+    "inspectStageVideo",
+    "getStageVideoPlayback",
+    "getProtectedDrivePlayback",
+    "getStageVideoEngagement",
+    "updateStageVideoMetadata",
     "saveStageContent",
     "deleteStageContent",
+    "orderStageContents",
     "getMyAgendaMaterials",
     "getStageQuestionnaireResponse",
     "submitStageQuestionnaire",
