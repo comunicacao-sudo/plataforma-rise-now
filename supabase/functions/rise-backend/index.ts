@@ -1,5 +1,8 @@
 // @ts-nocheck
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { reconcileGoogleCancellations } from "../_shared/google-cancellations.ts";
+import { googleCalendarClient } from "../_shared/google-calendar.ts";
+import { computeBookingSlots } from "../_shared/booking-slots.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.117.2";
 import {
   AI_ASSESSMENT_OUTPUT_JSON_SCHEMA,
@@ -2357,6 +2360,13 @@ async function generateAssessmentAIExplicitly(c: Context, d: any) {
     if (created.shouldGenerate && row)
       await beginAssessmentAIGeneration(row, attempt.id, attempt.calculated_result);
   } else if (row.status === "failed" || (row.status === "generated" && d.force)) {
+    const quota = await c.admin.rpc("consume_operation_quota", {
+      p_user_id: c.userId,
+      p_operation: "assessment_ai_retry",
+      p_limit: staff ? 10 : 3,
+      p_cooldown_seconds: 300,
+    });
+    if (quota.error) throw new Error(quota.error.message);
     const { data, error } = await c.admin
       .from("assessment_ai_outputs")
       .update({ status: "pending", output: null, generated_at: null })
@@ -2404,7 +2414,7 @@ async function assessmentAction(c: Context, action: string, d: any) {
   }
   if (action === "startAssessment") {
     const enrollment = await ownEnrollment(c);
-    const { data: open } = await c.admin
+    const { data: open, error: openError } = await c.admin
       .from("assessment_attempts")
       .select("id, status, current_index")
       .eq("enrollment_id", enrollment.id)
@@ -2412,7 +2422,15 @@ async function assessmentAction(c: Context, action: string, d: any) {
       .order("started_at", { ascending: false })
       .limit(1)
       .maybeSingle();
+    if (openError) throw new Error(openError.message);
     if (open) return open;
+    const quota = await c.admin.rpc("consume_operation_quota", {
+      p_user_id: c.userId,
+      p_operation: "assessment_start",
+      p_limit: 2,
+      p_cooldown_seconds: 60,
+    });
+    if (quota.error) throw new Error(quota.error.message);
     const { data, error } = await c.admin
       .from("assessment_attempts")
       .insert({
@@ -2462,37 +2480,35 @@ async function assessmentAction(c: Context, action: string, d: any) {
       if (library.enrollmentId !== attempt.enrollment_id || item.resourceType !== "rise_assessment")
         throw new Error("Esta etapa não corresponde ao mapeamento comportamental.");
     }
-    if (attempt.status === "completed" && attempt.calculated_result) {
-      await queueAssessmentAISafely(attempt.id, attempt.calculated_result);
-      return publicAssessment(
-        attempt.calculated_result,
-        attempt.report_status === "full_report_released",
-      );
-    }
+    const alreadyCompleted = attempt.status === "completed" && !!attempt.calculated_result;
     const { data: responses, error } = await c.admin
       .from("assessment_responses")
       .select("item_id, value")
       .eq("attempt_id", d.attemptId);
     if (error) throw new Error(error.message);
-    const result = calculateAssessment(
-      (responses ?? []).map((x: any) => ({ itemId: x.item_id, value: x.value })),
-    );
+    const result = alreadyCompleted
+      ? attempt.calculated_result
+      : calculateAssessment(
+          (responses ?? []).map((x: any) => ({ itemId: x.item_id, value: x.value })),
+        );
     const now = new Date().toISOString();
-    const { error: ue } = await c.admin
-      .from("assessment_attempts")
-      .update({
-        status: "completed",
-        assessment_version: ASSESSMENT_VERSION,
-        scoring_version: SCORING_VERSION,
-        prompt_version: PROMPT_VERSION,
-        current_index: ASSESSMENT_QUESTIONS.length,
-        completed_at: now,
-        calculated_at: result.calculatedAt,
-        calculated_result: result,
-        report_status: "summary_available",
-        updated_at: now,
-      })
-      .eq("id", d.attemptId);
+    const { error: ue } = alreadyCompleted
+      ? { error: null }
+      : await c.admin
+          .from("assessment_attempts")
+          .update({
+            status: "completed",
+            assessment_version: ASSESSMENT_VERSION,
+            scoring_version: SCORING_VERSION,
+            prompt_version: PROMPT_VERSION,
+            current_index: ASSESSMENT_QUESTIONS.length,
+            completed_at: now,
+            calculated_at: result.calculatedAt,
+            calculated_result: result,
+            report_status: "summary_available",
+            updated_at: now,
+          })
+          .eq("id", d.attemptId);
     if (ue) throw new Error(ue.message);
     if (d.stepKey) {
       const writes = await Promise.all([
@@ -2524,7 +2540,10 @@ async function assessmentAction(c: Context, action: string, d: any) {
       await notifyStageCompleted(attempt.enrollment_id, c.userId, d.stepKey);
     }
     await queueAssessmentAISafely(attempt.id, result);
-    return publicAssessment(result, false);
+    return publicAssessment(
+      result,
+      alreadyCompleted && attempt.report_status === "full_report_released",
+    );
   }
   if (action === "getMyAssessmentProfile") {
     const enrollment = await ownEnrollment(c);
@@ -2691,115 +2710,8 @@ async function hmac(value: string) {
     .replaceAll("/", "_")
     .replaceAll("=", "");
 }
-async function encryptionKey() {
-  const raw = env("APP_USER_CONNECTION_KEY_SECRET");
-  if (!raw) throw new Error("Segredo de conexão Google não configurado.");
-  const data = unb64(raw);
-  if (data.length !== 32)
-    throw new Error("APP_USER_CONNECTION_KEY_SECRET precisa ter 32 bytes em Base64.");
-  return crypto.subtle.importKey("raw", data, "AES-GCM", false, ["encrypt", "decrypt"]);
-}
-async function encrypt(value: unknown) {
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const encrypted = new Uint8Array(
-    await crypto.subtle.encrypt(
-      { name: "AES-GCM", iv },
-      await encryptionKey(),
-      bytes(JSON.stringify(value)),
-    ),
-  );
-  return `${b64(iv)}.${b64(encrypted)}`;
-}
-async function decrypt(value: string) {
-  const [iv, ciphertext] = value.split(".");
-  const plain = await crypto.subtle.decrypt(
-    { name: "AES-GCM", iv: unb64(iv) },
-    await encryptionKey(),
-    unb64(ciphertext),
-  );
-  return JSON.parse(new TextDecoder().decode(plain));
-}
-async function saveGoogle(userId: string, tokens: any) {
-  const { error } = await admin.from("app_user_connections").upsert(
-    {
-      user_id: userId,
-      connector_id: "google_calendar",
-      connection_key_ciphertext: await encrypt(tokens),
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "user_id,connector_id" },
-  );
-  if (error) throw new Error(error.message);
-}
-async function googleTokens(userId: string) {
-  const { data, error } = await admin
-    .from("app_user_connections")
-    .select("connection_key_ciphertext")
-    .eq("user_id", userId)
-    .eq("connector_id", "google_calendar")
-    .maybeSingle();
-  if (error) throw new Error(error.message);
-  if (!data) return null;
-  return decrypt(data.connection_key_ciphertext);
-}
-async function googleAccess(userId: string) {
-  const tokens = await googleTokens(userId);
-  if (!tokens) return null;
-  if (tokens.access_token && Number(tokens.expires_at ?? 0) > Date.now() + 60_000)
-    return tokens.access_token;
-  if (!tokens.refresh_token) return null;
-  const response = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      client_id: env("GOOGLE_CLIENT_ID")!,
-      client_secret: env("GOOGLE_CLIENT_SECRET")!,
-      grant_type: "refresh_token",
-      refresh_token: tokens.refresh_token,
-    }),
-  });
-  if (!response.ok) return null;
-  const next = await response.json();
-  const merged = {
-    ...tokens,
-    ...next,
-    expires_at: Date.now() + Number(next.expires_in ?? 3600) * 1000,
-  };
-  await saveGoogle(userId, merged);
-  return merged.access_token;
-}
-async function googleFetch(userId: string, path: string, init: RequestInit = {}) {
-  const token = await googleAccess(userId);
-  if (!token) return new Response("Reconnect required", { status: 401 });
-  const headers = new Headers(init.headers);
-  headers.set("Authorization", `Bearer ${token}`);
-  return fetch(`https://www.googleapis.com${path}`, { ...init, headers });
-}
-
-function hasGoogleFreeBusyScope(tokens: any) {
-  return String(tokens?.scope ?? "")
-    .split(/\s+/)
-    .includes(googleFreeBusyScope);
-}
-
-async function googleBusy(userId: string, startsAt: string, endsAt: string) {
-  const tokens = await googleTokens(userId);
-  if (!tokens || !hasGoogleFreeBusyScope(tokens)) return { connected: false, busy: [] };
-  const response = await googleFetch(userId, "/calendar/v3/freeBusy", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ timeMin: startsAt, timeMax: endsAt, items: [{ id: "primary" }] }),
-  });
-  if (!response.ok) return { connected: false, busy: [] };
-  const payload = await response.json();
-  return {
-    connected: true,
-    busy: (payload?.calendars?.primary?.busy ?? []).map((item: any) => ({
-      startsAt: item.start,
-      endsAt: item.end,
-    })),
-  };
-}
+const { googleTokens, googleAccess, googleFetch, googleBusy, saveGoogle, hasGoogleFreeBusyScope } =
+  googleCalendarClient(admin);
 
 function overlaps(startsAt: string, endsAt: string, busy: any[]) {
   const start = Date.parse(startsAt);
@@ -2858,25 +2770,31 @@ async function availableBookingSlots(
   const maxEnd = new Date(windowStart.getTime() + 45 * 86400000);
   if (windowEnd > maxEnd) throw new Error("Consulte no máximo 45 dias por vez.");
 
-  const [{ data: reservations }, { data: exceptions }, mentorGoogle, menteeGoogle] =
-    await Promise.all([
-      c.admin
-        .from("booking_reservations")
-        .select("starts_at, ends_at")
-        .in("status", ["pending", "confirmed"])
-        .or(`mentor_id.eq.${offering.mentor_id},enrollment_id.eq.${enrollment.id}`)
-        .lt("starts_at", windowEnd.toISOString())
-        .gt("ends_at", windowStart.toISOString()),
-      c.admin
-        .from("booking_availability_exceptions")
-        .select("starts_at, ends_at, is_available")
-        .eq("offering_id", offering.id)
-        .lt("starts_at", windowEnd.toISOString())
-        .gt("ends_at", windowStart.toISOString()),
-      googleBusy(offering.mentor_id, windowStart.toISOString(), windowEnd.toISOString()),
-      googleBusy(c.userId, windowStart.toISOString(), windowEnd.toISOString()),
-    ]);
+  const [
+    { data: reservations, error: reservationsError },
+    { data: exceptions, error: exceptionsError },
+    mentorGoogle,
+    menteeGoogle,
+  ] = await Promise.all([
+    c.admin
+      .from("booking_reservations")
+      .select("starts_at, ends_at")
+      .in("status", ["pending", "confirmed"])
+      .or(`mentor_id.eq.${offering.mentor_id},enrollment_id.eq.${enrollment.id}`)
+      .lt("starts_at", windowEnd.toISOString())
+      .gt("ends_at", windowStart.toISOString()),
+    c.admin
+      .from("booking_availability_exceptions")
+      .select("starts_at, ends_at, is_available")
+      .eq("offering_id", offering.id)
+      .lt("starts_at", windowEnd.toISOString())
+      .gt("ends_at", windowStart.toISOString()),
+    googleBusy(offering.mentor_id, windowStart.toISOString(), windowEnd.toISOString()),
+    googleBusy(c.userId, windowStart.toISOString(), windowEnd.toISOString()),
+  ]);
 
+  if (reservationsError || exceptionsError)
+    throw new Error("Não foi possível conferir os horários reservados.");
   if (!mentorGoogle.connected)
     throw new Error("A mentora precisa reconectar o Google Agenda antes de liberar reservas.");
   const busy = [
@@ -2887,43 +2805,12 @@ async function availableBookingSlots(
       .filter((item: any) => !item.is_available)
       .map((item: any) => ({ startsAt: item.starts_at, endsAt: item.ends_at })),
   ];
-  const nowWithNotice = Date.now() + Number(offering.booking_notice_hours) * 3600000;
-  const result: Array<{ startsAt: string; endsAt: string }> = [];
-  const cursor = new Date(
-    Date.UTC(windowStart.getUTCFullYear(), windowStart.getUTCMonth(), windowStart.getUTCDate()),
+  const result = computeBookingSlots(
+    offering,
+    windowStart.toISOString(),
+    windowEnd.toISOString(),
+    busy,
   );
-  const last = new Date(
-    Date.UTC(windowEnd.getUTCFullYear(), windowEnd.getUTCMonth(), windowEnd.getUTCDate()),
-  );
-  for (; cursor <= last; cursor.setUTCDate(cursor.getUTCDate() + 1)) {
-    const day = cursor.toISOString().slice(0, 10);
-    const weekday = cursor.getUTCDay();
-    for (const rule of (offering.rules ?? []).filter(
-      (r: any) => r.active && Number(r.weekday) === weekday,
-    )) {
-      if (day < rule.valid_from || (rule.valid_until && day > rule.valid_until)) continue;
-      const dayStart = Date.parse(`${day}T${String(rule.start_time).slice(0, 5)}:00-03:00`);
-      const dayEnd = Date.parse(`${day}T${String(rule.end_time).slice(0, 5)}:00-03:00`);
-      const step = Math.max(
-        Number(rule.slot_interval_minutes),
-        Number(offering.duration_minutes) + Number(offering.buffer_minutes),
-      );
-      for (
-        let start = dayStart;
-        start + Number(offering.duration_minutes) * 60000 <= dayEnd;
-        start += step * 60000
-      ) {
-        const end = start + Number(offering.duration_minutes) * 60000;
-        const slot = {
-          startsAt: new Date(start).toISOString(),
-          endsAt: new Date(end).toISOString(),
-        };
-        if (start < windowStart.getTime() || end > windowEnd.getTime() || start < nowWithNotice)
-          continue;
-        if (!overlaps(slot.startsAt, slot.endsAt, busy)) result.push(slot);
-      }
-    }
-  }
   return { slots: result, googleConnected: menteeGoogle.connected };
 }
 
@@ -3186,7 +3073,8 @@ async function googleAction(c: Context, action: string, d: any) {
       .select("id")
       .single();
     if (reserveError) throw new Error("Esse horário acabou de ser reservado. Escolha outro.");
-    let googleEventId: string | null = null;
+    // ID determinístico permite cancelar também se a resposta do Google se perder.
+    let googleEventId: string | null = reservation.id.replaceAll("-", "");
     try {
       const mentee = enrollment.mentee;
       const response = await googleFetch(
@@ -3196,6 +3084,7 @@ async function googleAction(c: Context, action: string, d: any) {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
+            id: googleEventId,
             summary: `RISE NOW · ${offering.title}`,
             description: offering.description ?? "Encontro individual da mentoria RISE NOW.",
             start: { dateTime: slot.startsAt, timeZone: offering.timezone },
@@ -3214,40 +3103,25 @@ async function googleAction(c: Context, action: string, d: any) {
         throw new Error("O Google não conseguiu criar o encontro. Tente novamente.");
       const event = await response.json();
       googleEventId = event.id;
-      const { data: meeting, error: meetingError } = await c.admin
-        .from("meetings")
-        .insert({
-          enrollment_id: enrollment.id,
-          title: offering.title,
-          description: offering.description,
-          kind: "individual",
-          scheduled_at: slot.startsAt,
-          ends_at: slot.endsAt,
-          duration_minutes: offering.duration_minutes,
-          join_url: event.hangoutLink ?? null,
-          audience: "selected",
-          mentor_id: offering.mentor_id,
-          mentor_name: offering.mentor?.display_name || offering.mentor?.full_name,
-          google_event_id: googleEventId,
-          created_by: offering.mentor_id,
-        })
-        .select("id")
-        .single();
-      if (meetingError) throw new Error(meetingError.message);
-      const { error: confirmError } = await c.admin
-        .from("booking_reservations")
-        .update({ status: "confirmed", meeting_id: meeting.id })
-        .eq("id", reservation.id);
+      const { data: meetingId, error: confirmError } = await c.admin.rpc("confirm_booking", {
+        p_reservation_id: reservation.id,
+        p_google_event_id: googleEventId,
+        p_join_url: event.hangoutLink ?? null,
+      });
       if (confirmError) throw new Error(confirmError.message);
-      return { ok: true, meetingId: meeting.id };
+      return { ok: true, meetingId };
     } catch (error) {
-      if (googleEventId)
-        await googleFetch(
-          offering.mentor_id,
-          `/calendar/v3/calendars/primary/events/${encodeURIComponent(googleEventId)}?sendUpdates=all`,
-          { method: "DELETE" },
-        ).catch(() => null);
-      await c.admin.from("booking_reservations").delete().eq("id", reservation.id);
+      const compensation = await c.admin.rpc("cancel_booking_atomic", {
+        p_reservation_id: reservation.id,
+        p_actor_id: c.userId,
+        p_google_event_id: googleEventId,
+        p_google_user_id: offering.mentor_id,
+      });
+      if (compensation.error)
+        console.error("booking_compensation_failed", reservation.id, compensation.error.message);
+      // A fila mantém novas tentativas se o Google estiver fora do ar.
+      await reconcileGoogleCancellations(c.admin);
+
       throw error;
     }
   }
@@ -3263,32 +3137,24 @@ async function googleAction(c: Context, action: string, d: any) {
       .maybeSingle();
     if (error || !reservation) throw new Error("Reserva não encontrada.");
     if (!staff && reservation.enrollment?.mentee_id !== c.userId) throw new Error("Acesso negado.");
-    if (reservation.status !== "confirmed") throw new Error("A reserva já foi cancelada.");
+    if (reservation.status === "cancelled") {
+      await reconcileGoogleCancellations(c.admin);
+      return { ok: true, googleWarning: false };
+    }
     if (
       !staff &&
       Date.parse(reservation.starts_at) - Date.now() <
         Number(reservation.offering?.cancellation_notice_hours ?? 24) * 3600000
     )
       throw new Error("O prazo para cancelamento online encerrou. Fale com a equipe RISE.");
-    await c.admin
-      .from("booking_reservations")
-      .update({
-        status: "cancelled",
-        cancelled_by: c.userId,
-        cancelled_at: new Date().toISOString(),
-      })
-      .eq("id", reservation.id);
-    let googleWarning = false;
-    if (reservation.meeting?.google_event_id && reservation.meeting?.created_by) {
-      const response = await googleFetch(
-        reservation.meeting.created_by,
-        `/calendar/v3/calendars/primary/events/${encodeURIComponent(reservation.meeting.google_event_id)}?sendUpdates=all`,
-        { method: "DELETE" },
-      );
-      googleWarning = !response.ok && ![404, 410].includes(response.status);
-    }
-    if (reservation.meeting_id)
-      await c.admin.from("meetings").delete().eq("id", reservation.meeting_id);
+    const { error: cancelError } = await c.admin.rpc("cancel_booking_atomic", {
+      p_reservation_id: reservation.id,
+      p_actor_id: c.userId,
+      p_google_event_id: reservation.meeting?.google_event_id ?? null,
+      p_google_user_id: reservation.meeting?.created_by ?? null,
+    });
+    if (cancelError) throw new Error(cancelError.message);
+    const googleWarning = !(await reconcileGoogleCancellations(c.admin));
     return { ok: true, googleWarning };
   }
 

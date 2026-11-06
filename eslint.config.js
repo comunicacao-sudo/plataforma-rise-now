@@ -11,6 +11,7 @@ export default tseslint.config(
       "dist",
       ".output",
       ".vinxi",
+      ".session-checks/**",
       // Supabase Edge Functions run in Deno and are validated/deployed separately.
       "supabase/functions",
       // Lovable regenerates these adapters and database types verbatim.

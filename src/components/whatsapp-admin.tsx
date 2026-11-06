@@ -25,6 +25,7 @@ const eventLabels: Record<string, string> = {
 
 const historyLabels: Record<string, string> = {
   pending: "Na fila",
+  processing: "Enviando",
   sent: "Enviada",
   delivered: "Entregue",
   read: "Lida",

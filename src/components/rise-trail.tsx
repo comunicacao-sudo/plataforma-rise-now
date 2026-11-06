@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
+import { queueNoteSave } from "@/lib/note-save-queue";
 import { supabase } from "@/integrations/supabase/client";
 import { liveJourneyQueryOptions } from "@/lib/journey-sync";
 import { CalendarButtons, MaterialsList } from "@/components/rise-extras";
@@ -284,9 +285,20 @@ function NotebookEditor({ lesson, trail }: { lesson: TrailLesson; trail: Trail }
   const [state, setState] = useState<"loading" | "idle" | "saving" | "saved" | "error">("loading");
   const [ready, setReady] = useState(false);
   const [retry, setRetry] = useState(0);
-  const noteId = useRef<string | null>(null);
+  const draftKey = useRef("");
+  const userId = useRef("");
   const lastSaved = useRef("");
-  const queue = useRef<Promise<void>>(Promise.resolve());
+  const latest = useRef("");
+  const mounted = useRef(false);
+  const saveLatest = useRef<() => Promise<unknown>>(async () => {});
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      void saveLatest.current();
+    };
+  }, []);
 
   useEffect(() => {
     if (ready) return;
@@ -295,19 +307,32 @@ function NotebookEditor({ lesson, trail }: { lesson: TrailLesson; trail: Trail }
       try {
         const { data: auth, error: authError } = await supabase.auth.getUser();
         if (authError || !auth.user) throw new Error("Sessão expirada.");
-        const { data, error } = await supabase
-          .from("notes")
-          .select("id, content")
-          .eq("lesson_id", lesson.id)
-          .eq("author_id", auth.user.id)
-          .eq("visibility", "mentee_private")
-          .limit(1)
-          .maybeSingle();
-        if (error) throw error;
+        userId.current = auth.user.id;
+        draftKey.current =
+          "rise-notebook:" + auth.user.id + ":" + trail.enrollmentId + ":" + lesson.id;
+        // Espera uma gravação da tela anterior antes de ler a nota.
+        const data = await queueNoteSave(draftKey.current, async () => {
+          const result = await supabase
+            .from("notes")
+            .select("id, content")
+            .eq("lesson_id", lesson.id)
+            .eq("author_id", auth.user.id)
+            .eq("visibility", "mentee_private")
+            .limit(1)
+            .maybeSingle();
+          if (result.error) throw result.error;
+          return result.data;
+        });
         if (!active) return;
-        noteId.current = data?.id ?? null;
         lastSaved.current = data?.content ?? "";
-        setText(lastSaved.current);
+        let draft: string | null = null;
+        try {
+          draft = sessionStorage.getItem(draftKey.current);
+        } catch {
+          /* navegador sem armazenamento */
+        }
+        latest.current = draft ?? lastSaved.current;
+        setText(latest.current);
         setReady(true);
         setState("idle");
       } catch {
@@ -317,67 +342,85 @@ function NotebookEditor({ lesson, trail }: { lesson: TrailLesson; trail: Trail }
     return () => {
       active = false;
     };
-  }, [lesson.id, retry, ready]);
+  }, [lesson.id, trail.enrollmentId, retry, ready]);
+
+  saveLatest.current = async () => {
+    if (!ready || !trail.enrollmentId || latest.current === lastSaved.current) return;
+    const value = latest.current;
+    const enrollmentId = trail.enrollmentId;
+    if (mounted.current) setState("saving");
+    try {
+      await queueNoteSave(draftKey.current, async () => {
+        // Lê o id na fila: duas montagens não criam duas notas.
+        const existing = await supabase
+          .from("notes")
+          .select("id")
+          .eq("lesson_id", lesson.id)
+          .eq("author_id", userId.current)
+          .eq("visibility", "mentee_private")
+          .limit(1)
+          .maybeSingle();
+        if (existing.error) throw existing.error;
+        if (existing.data) {
+          const result = await supabase
+            .from("notes")
+            .update({ content: value })
+            .eq("id", existing.data.id)
+            .select("id")
+            .single();
+          if (result.error) throw result.error;
+        } else if (value.trim()) {
+          const result = await supabase
+            .from("notes")
+            .insert({
+              enrollment_id: enrollmentId,
+              lesson_id: lesson.id,
+              author_id: userId.current,
+              visibility: "mentee_private",
+              content: value,
+            })
+            .select("id")
+            .single();
+          if (result.error) throw result.error;
+        }
+      });
+      lastSaved.current = value;
+      try {
+        if (sessionStorage.getItem(draftKey.current) === value)
+          sessionStorage.removeItem(draftKey.current);
+      } catch {
+        /* sem armazenamento */
+      }
+      if (mounted.current && latest.current === value) setState("saved");
+    } catch {
+      if (mounted.current) setState("error");
+    }
+  };
 
   useEffect(() => {
-    if (!ready || !trail.enrollmentId || text === lastSaved.current) return;
-    let active = true;
+    if (!ready || text === lastSaved.current) return;
     setState("saving");
-    const enrollmentId = trail.enrollmentId;
-    const timer = window.setTimeout(() => {
-      // Serializa gravações: evita criar duas notas enquanto a primeira ainda está salvando.
-      queue.current = queue.current
-        .catch(() => {})
-        .then(async () => {
-          try {
-            if (noteId.current) {
-              const { error } = await supabase
-                .from("notes")
-                .update({ content: text })
-                .eq("id", noteId.current)
-                .select("id")
-                .single();
-              if (error) throw error;
-            } else if (text.trim()) {
-              const { data: auth } = await supabase.auth.getUser();
-              if (!auth.user) throw new Error("Sessão expirada.");
-              const { data, error } = await supabase
-                .from("notes")
-                .insert({
-                  enrollment_id: enrollmentId,
-                  lesson_id: lesson.id,
-                  author_id: auth.user.id,
-                  visibility: "mentee_private",
-                  content: text,
-                })
-                .select("id")
-                .single();
-              if (error) throw error;
-              noteId.current = data.id;
-            }
-            lastSaved.current = text;
-            if (active) setState("saved");
-          } catch {
-            if (active) setState("error");
-          }
-        });
-    }, 1000);
-    return () => {
-      active = false;
-      window.clearTimeout(timer);
-    };
-  }, [ready, text, lesson.id, trail.enrollmentId, retry]);
+    const timer = window.setTimeout(() => void saveLatest.current(), 600);
+    return () => window.clearTimeout(timer);
+  }, [ready, text, retry]);
 
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => {
-      if (ready && text !== lastSaved.current) {
+      if (ready && latest.current !== lastSaved.current) {
         event.preventDefault();
         event.returnValue = "";
       }
     };
+    const flush = () => {
+      if (document.visibilityState === "hidden") void saveLatest.current();
+    };
     window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, [ready, text]);
+    document.addEventListener("visibilitychange", flush);
+    return () => {
+      window.removeEventListener("beforeunload", warn);
+      document.removeEventListener("visibilitychange", flush);
+    };
+  }, [ready]);
 
   return (
     <section className="lesson-block">
@@ -399,7 +442,17 @@ function NotebookEditor({ lesson, trail }: { lesson: TrailLesson; trail: Trail }
         className="notebook"
         aria-label="Caderno de anotações"
         value={text}
-        onChange={(event) => setText(event.target.value)}
+        onChange={(event) => {
+          const value = event.target.value;
+          latest.current = value;
+          try {
+            sessionStorage.setItem(draftKey.current, value);
+          } catch {
+            /* salvamento remoto continua */
+          }
+          setText(value);
+        }}
+        onBlur={() => void saveLatest.current()}
         placeholder="Seus insights, perguntas e decisões sobre este encontro…"
         disabled={!ready || !trail.enrollmentId}
       />

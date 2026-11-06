@@ -3,3 +3,11 @@
 
 /fonts/*
   Cache-Control: public, max-age=31536000, immutable
+
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/*
+  X-Frame-Options: SAMEORIGIN
+  Content-Security-Policy: frame-ancestors 'self' https://lovable.dev https://*.lovable.dev; object-src 'none'; base-uri 'self'
+  X-Content-Type-Options: nosniff

@@ -1,3 +1,4 @@
+import { deferredView } from "@/components/deferred-view";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -17,7 +18,16 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { RecordedPlayer, type PlayerController } from "@/components/recorded-lessons";
-import { RiseAssessmentExperience } from "@/components/rise-assessment";
+const RiseAssessmentExperience = deferredView<
+  import("react").ComponentProps<
+    typeof import("@/components/rise-assessment").RiseAssessmentExperience
+  > &
+    object
+>(() =>
+  import("@/components/rise-assessment").then((module) => ({
+    default: module.RiseAssessmentExperience,
+  })),
+);
 import { getR2PlaybackUrl } from "@/lib/r2-worker";
 import {
   addJourneyContentMarker,

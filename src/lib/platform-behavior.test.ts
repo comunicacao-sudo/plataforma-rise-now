@@ -91,7 +91,8 @@ test("agenda unifies Google events, collective meetings and named 1:1 booking", 
   const migration = readFileSync("drizzle/migrations/0038_calendar_booking.sql", "utf8");
 
   assert.match(backend, /calendar\.events\.freebusy/);
-  assert.match(backend, /\/calendar\/v3\/freeBusy/);
+  const googleCalendar = readFileSync("supabase/functions/_shared/google-calendar.ts", "utf8");
+  assert.match(googleCalendar, /\/calendar\/v3\/freeBusy/);
   assert.match(backend, /action === "getCalendarOverview"/);
   assert.match(backend, /action === "bookOneToOne"/);
   assert.match(backend, /d\.audience === "cohorts"/);

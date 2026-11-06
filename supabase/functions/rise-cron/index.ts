@@ -14,6 +14,7 @@ import {
 } from "../_shared/whatsapp-gateway.ts";
 import { renderTemplate } from "../_shared/whatsapp-templates.ts";
 import { runAutomations } from "./automations.ts";
+import { reconcileGoogleCancellations } from "../_shared/google-cancellations.ts";
 
 const env = (name: string) => Deno.env.get(name)?.trim() || null;
 const keyFromJson = (name: string) => {
@@ -253,6 +254,16 @@ async function queueMeetingReminders(settings: any, now: Date) {
 
 /** Envia as pendentes em fila, uma por vez, com pausa entre elas. */
 async function deliverPending(now: Date) {
+  // Uma execução interrompida pode ter entregue antes de cair: não reenvia às cegas.
+  const uncertain = await admin
+    .from("whatsapp_notifications")
+    .update({
+      status: "failed",
+      error_message: "Envio interrompido sem confirmação. Confira o WhatsApp antes de reenviar.",
+    })
+    .eq("status", "processing")
+    .lt("updated_at", new Date(now.getTime() - 5 * 60_000).toISOString());
+  if (uncertain.error) throw new Error(uncertain.error.message);
   const oldest = new Date(now.getTime() - WHATSAPP_PENDING_MAX_AGE_MS).toISOString();
   // Pendentes antigas demais (ex.: lembrete de encontro que já passou) expiram.
   await admin
@@ -316,9 +327,12 @@ Deno.serve(async (request: Request) => {
   // Avança o mês da jornada de cada mentorada pela data de início (migration 0046).
   const months = await admin.rpc("refresh_journey_months");
   if (months.error) console.error("[rise-cron] mês da jornada", months.error.message);
-  if (!gatewayConfigured())
-    return Response.json({ ok: true, providerConfigured: false, queued: 0, sent: 0 });
   try {
+    const recovered = await admin.rpc("recover_stale_bookings");
+    if (recovered.error) throw new Error(recovered.error.message);
+    await reconcileGoogleCancellations(admin);
+    if (!gatewayConfigured())
+      return Response.json({ ok: true, providerConfigured: false, queued: 0, sent: 0 });
     const settings = await whatsappSettings(admin);
     if (!settings) return Response.json({ ok: true, queued: 0, sent: 0 });
     const now = new Date();

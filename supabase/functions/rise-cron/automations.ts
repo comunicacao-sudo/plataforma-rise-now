@@ -6,6 +6,9 @@
  * com pausa entre mensagens. Chaves de idempotência impedem envios repetidos.
  */
 import { enqueueNotification, gatewayConfig } from "../_shared/whatsapp-gateway.ts";
+import { checkedDb } from "../_shared/checked-db.ts";
+import { computeBookingSlots } from "../_shared/booking-slots.ts";
+import { googleCalendarClient } from "../_shared/google-calendar.ts";
 import {
   formatDayMonth,
   formatHour,
@@ -37,28 +40,33 @@ function appLink(params: Record<string, string> = {}) {
 }
 
 export async function runAutomations(admin: any, settings: any, now: Date) {
+  admin = checkedDb(admin);
   const { data: automations, error } = await admin
     .from("whatsapp_automations")
     .select("*")
     .eq("enabled", true);
   if (error) {
-    // Tabela ainda não criada (migration 0045 pendente): segue sem automações.
-    console.error("[automações] leitura falhou", error.message);
-    return 0;
+    throw new Error(error.message);
   }
   const ctx = new Context(admin, settings, now);
   let queued = 0;
+  const failures: string[] = [];
   for (const automation of automations ?? []) {
     try {
       queued += await ctx.run(automation);
+      await admin
+        .from("whatsapp_automations")
+        .update({ last_run_at: now.toISOString() })
+        .eq("id", automation.id);
     } catch (runError) {
       console.error(`[automações] ${automation.name} falhou`, runError);
+      failures.push(automation.id);
     }
-    await admin
-      .from("whatsapp_automations")
-      .update({ last_run_at: now.toISOString() })
-      .eq("id", automation.id);
   }
+  if (failures.length)
+    throw new Error(
+      `Falha em ${failures.length} automação(ões); cursores preservados para recuperação.`,
+    );
   return queued;
 }
 
@@ -76,7 +84,7 @@ class Context {
   private since(a: any) {
     const enabledAt = Date.parse(a.enabled_at ?? a.updated_at ?? a.created_at);
     const lastRun = a.last_run_at ? Date.parse(a.last_run_at) - OVERLAP_MS : enabledAt;
-    const floor = this.now.getTime() - MAX_EVENT_LOOKBACK_MS;
+    const floor = a.last_run_at ? enabledAt : this.now.getTime() - MAX_EVENT_LOOKBACK_MS;
     return new Date(Math.max(enabledAt, lastRun, floor)).toISOString();
   }
 
@@ -225,6 +233,7 @@ class Context {
       .from("meetings")
       .select("title, scheduled_at, mentor_name")
       .eq("kind", "grupo")
+      .eq("audience", "all")
       .gte("scheduled_at", range.start.toISOString())
       .lt("scheduled_at", range.end.toISOString());
     const vars = {
@@ -280,7 +289,9 @@ class Context {
       };
       const key = `${meeting.id}:${meeting.scheduled_at}`;
       const ref: [string, string] = ["meeting", meeting.id];
-      if (a.audience === "group") queued += await this.toGroup(a, vars, ref, key);
+      if (a.audience === "group" && meeting.audience === "all")
+        queued += await this.toGroup(a, vars, ref, key);
+      else if (a.audience === "group") continue;
       else if (a.audience === "mentor") {
         const mentor = await this.profile(meeting.mentor_id ?? meeting.created_by);
         queued += await this.toPerson(a, mentor, "mentor", vars, ref, key);
@@ -381,18 +392,37 @@ class Context {
     const { data: offerings } = await this.admin
       .from("booking_offerings")
       .select(
-        "id, title, mentor_id, audience, updated_at, cohorts:booking_offering_cohorts(cohort_id)",
-      )
-      .eq("status", "active")
-      .gt("updated_at", this.since(a));
-    if (!offerings?.length) return 0;
+        "*, cohorts:booking_offering_cohorts(cohort_id), rules:booking_availability_rules(*)",
+      );
     const { data: enrollments } = await this.admin
       .from("enrollments")
       .select("id, mentee_id, cohort_id")
       .eq("status", "ativa");
-    const day = saoPauloParts(this.now).isoDate;
+    const startsAt = this.now.toISOString();
+    const endsAt = new Date(+this.now + 45 * 86400000).toISOString();
+    const { googleBusy } = googleCalendarClient(this.admin);
     let queued = 0;
-    for (const offering of offerings) {
+    for (const offering of offerings ?? []) {
+      const [{ data: reservations }, { data: exceptions }] = await Promise.all([
+        this.admin
+          .from("booking_reservations")
+          .select("starts_at, ends_at, enrollment_id, mentor_id")
+          .in("status", ["pending", "confirmed"])
+          .lt("starts_at", endsAt)
+          .gt("ends_at", startsAt),
+        this.admin
+          .from("booking_availability_exceptions")
+          .select("starts_at, ends_at, is_available")
+          .eq("offering_id", offering.id)
+          .lt("starts_at", endsAt)
+          .gt("ends_at", startsAt),
+      ]);
+      const mentorGoogle =
+        offering.status === "active"
+          ? await googleBusy(offering.mentor_id, startsAt, endsAt)
+          : { connected: false, busy: [] };
+      // Desconexão não é ausência de vaga: não muda o estado, nem avisa sem confirmar.
+      if (offering.status === "active" && !mentorGoogle.connected) continue;
       const mentor = await this.profile(offering.mentor_id);
       const cohorts = new Set((offering.cohorts ?? []).map((row: any) => row.cohort_id));
       const vars = {
@@ -401,15 +431,57 @@ class Context {
         link: appLink({ view: "agenda" }),
       };
       for (const enrollment of enrollments ?? []) {
-        if (offering.audience !== "all" && !cohorts.has(enrollment.cohort_id)) continue;
-        queued += await this.toPerson(
+        const eligible =
+          offering.status === "active" &&
+          (offering.audience === "all" || cohorts.has(enrollment.cohort_id));
+        const busy = [
+          ...mentorGoogle.busy,
+          ...(reservations ?? [])
+            .filter(
+              (r: any) => r.mentor_id === offering.mentor_id || r.enrollment_id === enrollment.id,
+            )
+            .map((r: any) => ({ startsAt: r.starts_at, endsAt: r.ends_at })),
+          ...(exceptions ?? [])
+            .filter((r: any) => !r.is_available)
+            .map((r: any) => ({ startsAt: r.starts_at, endsAt: r.ends_at })),
+        ];
+        const available =
+          eligible && computeBookingSlots(offering, startsAt, endsAt, busy, +this.now).length > 0;
+        const { data: revision } = await this.admin.rpc("set_booking_availability", {
+          p_automation_id: a.id,
+          p_offering_id: offering.id,
+          p_enrollment_id: enrollment.id,
+          p_available: available,
+        });
+        if (!revision) continue;
+        const added = await this.toPerson(
           a,
           await this.profile(enrollment.mentee_id),
           "mentee",
           vars,
           ["booking_offering", offering.id],
-          `${offering.id}:${day}`,
+          offering.id + ":" + revision,
         );
+        if (!added) {
+          const existing = await this.admin
+            .from("whatsapp_notifications")
+            .select("id")
+            .eq(
+              "idempotency_key",
+              `auto:${a.id}:${offering.id}:${revision}:${enrollment.mentee_id}`,
+            )
+            .maybeSingle();
+          if (!existing.data) continue;
+        }
+        // A revisão fica idempotente mesmo se a gravação abaixo falhar.
+        await this.admin
+          .from("whatsapp_booking_availability")
+          .update({ notified_revision: revision })
+          .eq("automation_id", a.id)
+          .eq("offering_id", offering.id)
+          .eq("enrollment_id", enrollment.id)
+          .eq("revision", revision);
+        queued += added;
       }
     }
     return queued;

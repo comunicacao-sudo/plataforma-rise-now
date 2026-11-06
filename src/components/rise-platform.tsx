@@ -1,3 +1,4 @@
+import { deferredView } from "@/components/deferred-view";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -54,7 +55,15 @@ import {
   StaffArea,
   type StaffView,
 } from "@/components/rise-ops";
-import { MenteeBookingAgenda, RiseCalendar } from "@/components/rise-calendar";
+const MenteeBookingAgenda = deferredView<
+  import("react").ComponentProps<typeof import("@/components/rise-calendar").MenteeBookingAgenda> &
+    object
+>(() =>
+  import("@/components/rise-calendar").then((module) => ({ default: module.MenteeBookingAgenda })),
+);
+const RiseCalendar = deferredView<
+  import("react").ComponentProps<typeof import("@/components/rise-calendar").RiseCalendar> & object
+>(() => import("@/components/rise-calendar").then((module) => ({ default: module.RiseCalendar })));
 import { NextStepHero } from "@/components/journey-next-step";
 import { RecordedLessonPage } from "@/components/recorded-lessons";
 import {
@@ -73,11 +82,36 @@ import {
   isJourneyTimelineItemDisabled,
   resolveJourneyTimelineTarget,
 } from "@/lib/journey-navigation";
-import {
-  AssessmentProfileModal,
-  AssessmentVisualPreview,
-  AssessmentVisualQuestionPreview,
-} from "@/components/rise-assessment";
+const AssessmentProfileModal = deferredView<
+  import("react").ComponentProps<
+    typeof import("@/components/rise-assessment").AssessmentProfileModal
+  > &
+    object
+>(() =>
+  import("@/components/rise-assessment").then((module) => ({
+    default: module.AssessmentProfileModal,
+  })),
+);
+const AssessmentVisualPreview = deferredView<
+  import("react").ComponentProps<
+    typeof import("@/components/rise-assessment").AssessmentVisualPreview
+  > &
+    object
+>(() =>
+  import("@/components/rise-assessment").then((module) => ({
+    default: module.AssessmentVisualPreview,
+  })),
+);
+const AssessmentVisualQuestionPreview = deferredView<
+  import("react").ComponentProps<
+    typeof import("@/components/rise-assessment").AssessmentVisualQuestionPreview
+  > &
+    object
+>(() =>
+  import("@/components/rise-assessment").then((module) => ({
+    default: module.AssessmentVisualQuestionPreview,
+  })),
+);
 import {
   getNextJourneyStep,
   startJourneyStep,

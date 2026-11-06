@@ -48,7 +48,7 @@ export type WhatsAppAdminState = {
     automation: string | null;
     recipientRole: string;
     phone: string | null;
-    status: "pending" | "sent" | "failed" | "delivered" | "read";
+    status: "pending" | "processing" | "sent" | "failed" | "delivered" | "read";
     error: string | null;
     at: string;
   }>;

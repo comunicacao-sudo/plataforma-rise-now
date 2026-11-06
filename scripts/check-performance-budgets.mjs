@@ -68,7 +68,7 @@ if (bundleMode) {
       errors.push("O JavaScript de entrada pública não foi encontrado no bundle.");
     } else {
       const publicEntryGzip = gzipSync(readFileSync(join(assetsPath, publicEntry))).length;
-      const maximumPublicEntryGzip = 120_000;
+      const maximumPublicEntryGzip = 110_000;
       const isDevelopmentBuild = process.env.npm_lifecycle_event?.includes(":dev") ?? false;
       if (publicEntryGzip > maximumPublicEntryGzip) {
         const message = `A entrada pública tem ${publicEntryGzip} bytes gzip; limite: ${maximumPublicEntryGzip}.`;
@@ -81,6 +81,14 @@ if (bundleMode) {
           `Entrada pública: ${publicEntryGzip} bytes gzip (limite ${maximumPublicEntryGzip}).`,
         );
       }
+    }
+    const platformEntry = files.find((name) => /^rise-platform-[\w-]+\.js$/.test(name));
+    if (platformEntry) {
+      const size = gzipSync(readFileSync(join(assetsPath, platformEntry))).length;
+      const maximum = 55_000;
+      if (size > maximum && !process.env.npm_lifecycle_event?.includes(":dev"))
+        errors.push(`A entrada autenticada tem ${size} bytes gzip; limite: ${maximum}.`);
+      else console.log(`Entrada autenticada: ${size} bytes gzip (limite ${maximum}).`);
     }
   }
 }

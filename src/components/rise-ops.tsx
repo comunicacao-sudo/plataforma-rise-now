@@ -1,3 +1,4 @@
+import { deferredView } from "@/components/deferred-view";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -47,14 +48,49 @@ import {
   MaterialsManager,
   Rise90StaffContent,
 } from "@/components/rise-extras";
-import { JourneyAdmin } from "@/components/journey-admin";
-import { JourneyContentAdmin } from "@/components/journey-content-admin";
-import {
-  AssessmentMentorContent,
-  type AssessmentMentorSection,
-} from "@/components/rise-assessment";
-import { WhatsAppAdmin } from "@/components/whatsapp-admin";
-import { RiseCalendar, StaffBookingOfferings } from "@/components/rise-calendar";
+const JourneyAdmin = deferredView<
+  import("react").ComponentProps<typeof import("@/components/journey-admin").JourneyAdmin> & object
+>(() => import("@/components/journey-admin").then((module) => ({ default: module.JourneyAdmin })));
+const JourneyContentAdmin = deferredView<
+  import("react").ComponentProps<
+    typeof import("@/components/journey-content-admin").JourneyContentAdmin
+  > &
+    object
+>(() =>
+  import("@/components/journey-content-admin").then((module) => ({
+    default: module.JourneyContentAdmin,
+  })),
+);
+import { type AssessmentMentorSection } from "@/components/rise-assessment";
+const AssessmentMentorContent = deferredView<
+  import("react").ComponentProps<
+    typeof import("@/components/rise-assessment").AssessmentMentorContent
+  > &
+    object
+>(() =>
+  import("@/components/rise-assessment").then((module) => ({
+    default: module.AssessmentMentorContent,
+  })),
+);
+const WhatsAppAdmin = deferredView<
+  import("react").ComponentProps<typeof import("@/components/whatsapp-admin").WhatsAppAdmin> &
+    object
+>(() =>
+  import("@/components/whatsapp-admin").then((module) => ({ default: module.WhatsAppAdmin })),
+);
+const RiseCalendar = deferredView<
+  import("react").ComponentProps<typeof import("@/components/rise-calendar").RiseCalendar> & object
+>(() => import("@/components/rise-calendar").then((module) => ({ default: module.RiseCalendar })));
+const StaffBookingOfferings = deferredView<
+  import("react").ComponentProps<
+    typeof import("@/components/rise-calendar").StaffBookingOfferings
+  > &
+    object
+>(() =>
+  import("@/components/rise-calendar").then((module) => ({
+    default: module.StaffBookingOfferings,
+  })),
+);
 
 /* ---------- shared ---------- */
 

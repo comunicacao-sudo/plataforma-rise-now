@@ -5,7 +5,7 @@ import type { JourneyDraftStep } from "@/lib/journey.functions";
 export const JOURNEY_SYNC_INTERVAL_MS = 15_000;
 
 export const liveJourneyQueryOptions = {
-  staleTime: 0,
+  staleTime: 10_000,
   refetchInterval: JOURNEY_SYNC_INTERVAL_MS,
   refetchIntervalInBackground: false,
   refetchOnWindowFocus: true,

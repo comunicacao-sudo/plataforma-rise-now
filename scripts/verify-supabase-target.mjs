@@ -9,10 +9,6 @@ const FORBIDDEN_PROJECT_REF = ["vfkv", "dkqj", "wnmh", "xhlf", "rqba"].join("");
 const ROOT = process.cwd();
 const CHECK_BUNDLE = process.argv.includes("--bundle");
 const failures = [];
-const warnings = [];
-const warn = (condition, message) => {
-  if (!condition) warnings.push(message);
-};
 
 const textExtensions = new Set([
   ".cjs",
@@ -88,7 +84,7 @@ requireCondition(
   new RegExp(`project_id\\s*=\\s*"${OFFICIAL_PROJECT_REF}"`).test(supabaseConfig),
   "supabase/config.toml must target the official project.",
 );
-warn(
+requireCondition(
   drizzleConfig.includes("SUPABASE_DB_URL") && !drizzleConfig.includes("LOVABLE_DB_MIGRATION_URL"),
   "Migration tooling must use only the guarded SUPABASE_DB_URL.",
 );
@@ -118,7 +114,7 @@ if (databaseUrl) {
   } catch {
     failures.push("SUPABASE_DB_URL is not a valid URL.");
   }
-  warn(officialDatabaseTarget, `SUPABASE_DB_URL must target ${OFFICIAL_PROJECT_REF}.`);
+  requireCondition(officialDatabaseTarget, `SUPABASE_DB_URL must target ${OFFICIAL_PROJECT_REF}.`);
 }
 
 const sourceFiles = [
@@ -177,8 +173,6 @@ if (CHECK_BUNDLE) {
     "Production bundle does not contain the official Supabase project reference.",
   );
 }
-
-for (const w of warnings) console.warn(`Warning (local tooling only): ${w}`);
 
 if (failures.length) {
   console.error("Supabase target verification failed:");
