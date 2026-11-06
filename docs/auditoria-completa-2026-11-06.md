@@ -59,7 +59,17 @@ O app continua guardando no cache próprio somente a tela pública sem conexão 
 - Os eventos simultâneos de foco e visibilidade passaram de duas verificações completas de acesso para uma no teste de navegador. Cada verificação reúne as mesmas três consultas de perfil, papel e convite; a checagem não foi removida.
 - O cache da mesma identidade continua válido nas renovações de token. Ele é limpo quando muda a conta, sem reaproveitar dados privados entre pessoas.
 
-Amostras anteriores à otimização, no mesmo domínio público, com contexto novo, viewport 390 × 844, CPU limitada em quatro vezes, latência de 60 ms e download de 250.000 bytes/s: LCP de **4.360, 4.376 e 3.996 ms**, mediana **4.360 ms**; CLS em torno de **0,006**. Os resultados posteriores à publicação serão registrados na conferência final desta revisão. Comparações com o servidor local não são usadas como ganho de tempo.
+A comparação usou o mesmo domínio público, contexto novo por visita, viewport 390 × 844, CPU limitada em quatro vezes, latência de 60 ms e download de 250.000 bytes/s. O LCP mede quando o maior elemento visível aparece:
+
+| Medição | Antes (`4530f41`) | Depois (`93130f1`) |
+| --- | --- | --- |
+| LCP das três visitas | 4.360 / 4.376 / 3.996 ms | 3.008 / 4.636 / 3.500 ms |
+| Mediana do LCP | 4.360 ms | 3.500 ms |
+| CLS | Aproximadamente 0,006 | 0,0493 / 0,0061 / 0,0061 |
+
+A mediana observada caiu **860 ms, cerca de 20%**. A melhora não foi uniforme: uma visita posterior levou 4.636 ms. São apenas três amostras por versão, insuficientes para atribuir todo o ganho à mudança ou prometer o mesmo tempo a todos. Comparações com o servidor local não são usadas como ganho de tempo. A abertura pública ainda tem espaço para melhorar; as amostras não atingiram um LCP de 2,5 segundos nessa conexão limitada.
+
+Na carga publicada, o navegador baixou apenas a marca do tema ativo, confirmando a remoção do download duplicado. A compilação passou nos orçamentos existentes: entrada pública com 106.925 bytes gzip, entrada autenticada com 48.065 bytes gzip e conjunto JS/CSS com 324.813 bytes gzip.
 
 Essas são medições de laboratório, não percentis de todos os usuários nem uma medição de INP em uso real. Variações de rede, aparelho e hospedagem afetam os números. A redução anterior de cerca de 95% no peso das capas permanece publicada, com os originais preservados.
 
@@ -68,12 +78,20 @@ Essas são medições de laboratório, não percentis de todos os usuários nem 
 - 104 testes automatizados passaram, incluindo concorrência, idempotência, cancelamento e recuperação, consentimento, bloqueio de conteúdo futuro e isolamento de cache.
 - Tipos, lint e compilação passaram. Os doze avisos de Fast Refresh já existentes não são falhas de lint.
 - 72 estados internos foram exercitados com dados simulados, nos perfis de administração e mentorado, em desktop/celular e nos dois temas. A rodada final não apresentou falhas nas regras de contraste examinadas, rolagem horizontal indevida ou erros de execução da página.
-- 28 cenários públicos foram conferidos no endereço oficial, incluindo recuperação de senha simulada e o tutorial.
-- 14 cenários do PWA e quatro combinações de tema/largura do tutorial passaram. O Chromium aceitou o manifesto sem erro de instalabilidade, e a queda/retorno da conexão funcionou.
+- 28 cenários públicos foram conferidos novamente no endereço oficial após a publicação, incluindo recuperação de senha simulada e o tutorial, sem falhas de contraste nas regras examinadas ou erros de execução.
+- 14 cenários do PWA e quatro combinações de tema/largura do tutorial passaram. Os 14 cenários foram repetidos na versão publicada. O Chromium aceitou o manifesto sem erro de instalabilidade, e a queda/retorno da conexão funcionou.
 - O teste de troca de conta reproduziu o problema anterior e confirmou a correção. Também confirmou nova tentativa após indisponibilidade inicial e preservação da sessão em falha posterior.
 - Migrações foram aplicadas no banco oficial e verificadas por consultas. Não houve alteração permanente de contas ou conteúdo de clientes nos testes.
 - A consulta de integridade encontrou zero reservas confirmadas sem encontro, zero materiais sem fonte e zero referências de capa sem arquivo.
 - A verificação dos 490 nomes de pacotes do lockfile no registro npm não retornou avisos aplicáveis. A varredura do artefato público não encontrou os padrões de chaves secretas ou JWT de `service_role` examinados; ela não substitui todos os tipos possíveis de análise de segredos.
+
+## Conferência da publicação
+
+O commit de código `93130f18693d85621a310879b8880b292be539f2` foi enviado à `main`, sincronizado no Lovable e identificado no HTML do domínio oficial antes das medições posteriores. A [verificação automática do GitHub](https://github.com/comunicacao-sudo/plataforma-rise-now/actions/runs/42251072126) terminou com sucesso.
+
+O backend publicado foi conferido na versão 53, com JWT obrigatório; o cron permaneceu na versão 22, com seu segredo próprio. Uma chamada sem autenticação ao backend retornou HTTP 401. As três migrações desta revisão constam no banco e no repositório, nas versões `20261106151501`, `20261106154706` e `20261106160246`.
+
+Na última conferência operacional, os quatro ciclos do cron entre 16h00 e 16h15 UTC retornaram HTTP 200, sem timeout. A fila manteve uma única notificação com estado `sent`, sem novos envios provocados pelos testes. A consulta final confirmou 39 políticas adicionais de acesso ativo, zero grants de tabela para `anon`, zero privilégios de tabela excessivos para os papéis de navegador e os 150 grants CRUD autenticados preservados.
 
 ## Avisos e limites
 
