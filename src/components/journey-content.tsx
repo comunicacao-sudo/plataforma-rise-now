@@ -258,7 +258,7 @@ function ContentCard({
 export function ContinueJourneySection({ onOpen }: { onOpen: (item: JourneyContentItem) => void }) {
   const query = useJourneyContentLibrary(true);
   const items = query.data?.items.slice(0, 4) ?? [];
-  if (query.isError || (!query.isLoading && !items.length)) return null;
+  if (!query.isLoading && !query.isError && !items.length) return null;
   return (
     <section
       className="content-section page-width continue-journey"
@@ -270,7 +270,18 @@ export function ContinueJourneySection({ onOpen }: { onOpen: (item: JourneyConte
           <p>Encontros, conteúdos e descobertas da sua jornada.</p>
         </div>
       </div>
-      {query.isLoading ? (
+      {query.isError && !items.length ? (
+        <div className="ops-empty" role="status">
+          <p>Não foi possível carregar os conteúdos da sua jornada.</p>
+          <button
+            className="button button--primary"
+            type="button"
+            onClick={() => void query.refetch()}
+          >
+            Tentar novamente
+          </button>
+        </div>
+      ) : query.isLoading ? (
         <div className="journey-content-loading">Carregando suas próximas etapas…</div>
       ) : (
         <div className="continue-journey__grid">
@@ -296,7 +307,7 @@ export function NextMovementSection({
     .filter((item) => item.monthNumber === nextMonth)
     .slice(0, 4);
 
-  if (nextMonth > 6 || query.isError || (!query.isLoading && !items.length)) return null;
+  if (nextMonth > 6 || (!query.isLoading && !items.length)) return null;
 
   return (
     <section className="content-section page-width" aria-labelledby="next-movement-title">

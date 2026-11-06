@@ -85,13 +85,15 @@ export type Trail = {
 async function loadTrail(): Promise<Trail> {
   const { data: auth } = await supabase.auth.getSession();
   const uid = auth.session?.user.id;
-  const { data: enrollment } = await supabase
+  if (!uid) return { enrollmentId: null, currentMonth: 1, progressPct: 0, phases: [] };
+  const { data: enrollment, error: enrollmentError } = await supabase
     .from("enrollments")
     .select("id, program_id, current_month, progress_pct")
     .eq("mentee_id", uid ?? "")
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
+  if (enrollmentError) throw enrollmentError;
 
   const programId = enrollment?.program_id;
   if (!programId) return { enrollmentId: null, currentMonth: 1, progressPct: 0, phases: [] };
@@ -118,6 +120,8 @@ async function loadTrail(): Promise<Trail> {
       : Promise.resolve({ data: [] as never[] }),
   ]);
   if ("error" in phasesRes && phasesRes.error) throw phasesRes.error;
+  if ("error" in progressRes && progressRes.error) throw progressRes.error;
+  if ("error" in subsRes && subsRes.error) throw subsRes.error;
 
   const done = new Set((progressRes.data ?? []).filter((r) => r.completed).map((r) => r.lesson_id));
   const subs = new Map(

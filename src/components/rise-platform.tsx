@@ -1145,7 +1145,7 @@ function MenteeArea({
   onView: (v: View) => void;
   userId: string;
 }) {
-  const { data: trail, isLoading } = useTrail();
+  const { data: trail, isLoading, isError: trailFailed, refetch: retryTrail } = useTrail();
   const journeyLibrary = useJourneyContentLibrary(true, true);
   const loadNext = useServerFn(getNextJourneyStep);
   const nextStepQuery = useQuery({
@@ -1188,6 +1188,19 @@ function MenteeArea({
     }
   }, [view]);
   if (view === "mentoras") return <MentorsView />;
+  if (trailFailed)
+    return (
+      <main className="inner-page">
+        <PageIntro
+          eyebrow="RISE NOW"
+          title="Não foi possível carregar sua jornada."
+          copy="Verifique sua conexão e tente novamente. Seu progresso continua salvo."
+        />
+        <button className="button button--primary" type="button" onClick={() => void retryTrail()}>
+          Tentar novamente
+        </button>
+      </main>
+    );
   if (isLoading)
     return (
       <main className="inner-page page-loading" aria-live="polite">
@@ -1292,6 +1305,8 @@ export function RisePlatform() {
   const [name, setName] = useState("Participante RISE");
   const [activeView, setActiveView] = useState<View>("inicio");
   const resolvedUserId = useRef<string | null>(null);
+  const [accessError, setAccessError] = useState(false);
+  const [accessRetry, setAccessRetry] = useState(0);
   const [assessmentPreview, setAssessmentPreview] = useState<"report" | "questionnaire" | null>(
     null,
   );
@@ -1319,8 +1334,11 @@ export function RisePlatform() {
 
   useEffect(() => {
     let mounted = true;
+    let checking = false;
 
     async function resolveSession() {
+      if (checking || !mounted) return;
+      checking = true;
       try {
         const { data } = await supabase.auth.getSession();
         if (!mounted) return;
@@ -1356,10 +1374,9 @@ export function RisePlatform() {
         if (!mounted) return;
 
         const storedRole = resolveAppRole((rolesResult.data ?? []).map((item) => item.role));
+        if (profileResult.error || rolesResult.error || accessResult.error)
+          throw new Error("Não foi possível verificar o acesso agora.");
         if (
-          profileResult.error ||
-          rolesResult.error ||
-          accessResult.error ||
           !profileResult.data ||
           !accessResult.data ||
           accessResult.data.status !== "approved" ||
@@ -1373,6 +1390,7 @@ export function RisePlatform() {
         }
 
         resolvedUserId.current = userId;
+        setAccessError(false);
         setName(
           profileResult.data.display_name ||
             profileResult.data.full_name ||
@@ -1398,7 +1416,9 @@ export function RisePlatform() {
         }
         setAuthMode("authenticated");
       } catch {
-        if (mounted) setAuthMode("login");
+        if (mounted && !resolvedUserId.current) setAccessError(true);
+      } finally {
+        checking = false;
       }
     }
 
@@ -1437,7 +1457,7 @@ export function RisePlatform() {
       window.removeEventListener("focus", refreshAccessWhenVisible);
       document.removeEventListener("visibilitychange", refreshAccessWhenVisible);
     };
-  }, []);
+  }, [accessRetry]);
 
   function navigateToView(view: View) {
     const allowedViews = allowedViewsForRole(role);
@@ -1507,7 +1527,30 @@ export function RisePlatform() {
       </div>
     );
 
-  if (authMode === "checking") return <LoadingScreen />;
+  if (authMode === "checking")
+    return accessError ? (
+      <div className="platform-shell" data-theme={theme}>
+        <main className="inner-page">
+          <PageIntro
+            eyebrow="RISE NOW"
+            title="Não foi possível verificar seu acesso."
+            copy="Verifique sua conexão e tente novamente."
+          />
+          <button
+            className="button button--primary"
+            type="button"
+            onClick={() => {
+              setAccessError(false);
+              setAccessRetry((value) => value + 1);
+            }}
+          >
+            Tentar novamente
+          </button>
+        </main>
+      </div>
+    ) : (
+      <LoadingScreen />
+    );
   if (authMode === "change-password") return <NewPasswordScreen />;
   if (authMode === "login") return <LoginScreen />;
 

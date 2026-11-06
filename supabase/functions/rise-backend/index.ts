@@ -1,5 +1,10 @@
 // @ts-nocheck
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { requireApprovedAccount } from "../_shared/approved-access.ts";
+import {
+  isJourneyContentLocked,
+  visibleStageQuestionnaire,
+} from "../_shared/content-visibility.ts";
 import { reconcileGoogleCancellations } from "../_shared/google-cancellations.ts";
 import { googleCalendarClient } from "../_shared/google-calendar.ts";
 import { computeBookingSlots } from "../_shared/booking-slots.ts";
@@ -89,6 +94,7 @@ async function context(request: Request): Promise<Context> {
   });
   const { data, error } = await db.auth.getUser(authorization.slice(7));
   if (error || !data.user) throw new Error("Sessão inválida ou expirada.");
+  await requireApprovedAccount(db);
   return { userId: data.user.id, user: data.user, db, admin, request };
 }
 
@@ -1014,10 +1020,9 @@ const videoFormats = new Set([
 ]);
 async function signed(path: string | null) {
   if (!path) return null;
-  return (
-    (await admin.storage.from("journey-content").createSignedUrl(path, 3600)).data?.signedUrl ??
-    null
-  );
+  const { data, error } = await admin.storage.from("journey-content").createSignedUrl(path, 3600);
+  if (error) throw new Error("Não foi possível preparar o acesso ao arquivo. Tente novamente.");
+  return data?.signedUrl ?? null;
 }
 
 async function signedBatch(paths: Array<string | null | undefined>) {
@@ -1030,7 +1035,7 @@ async function signedBatch(paths: Array<string | null | undefined>) {
   const { data, error } = await admin.storage
     .from("journey-content")
     .createSignedUrls(unique, 3600);
-  if (error || !data) return urls;
+  if (error || !data) throw new Error("Não foi possível carregar as capas. Tente novamente.");
 
   data.forEach((item: any, index: number) => {
     const path = typeof item.path === "string" ? item.path : unique[index];
@@ -1049,7 +1054,7 @@ async function loadLibrary(userId: string) {
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!enrollment) return null;
-  const [{ data: pillars }, { data: assignments }, { data: progress }] = await Promise.all([
+  const [pillarsResult, assignmentsResult, progressResult] = await Promise.all([
     admin
       .from("journey_pillars")
       .select("id, name, position, current_published_version_id")
@@ -1065,6 +1070,11 @@ async function loadLibrary(userId: string) {
       .eq("enrollment_id", enrollment.id)
       .eq("user_id", userId),
   ]);
+  for (const result of [pillarsResult, assignmentsResult, progressResult])
+    if (result.error) throw new Error(result.error.message);
+  const pillars = pillarsResult.data;
+  const assignments = assignmentsResult.data;
+  const progress = progressResult.data;
   const assigned = new Map((assignments ?? []).map((x: any) => [x.pillar_id, x.version_id]));
   const versions = new Map<string, any>();
   for (const p of pillars ?? []) {
@@ -1131,9 +1141,7 @@ async function loadLibrary(userId: string) {
       assetPaths.push(s.cover_path_light);
     if (typeof s.cover_path_dark === "string" && s.cover_path_dark)
       assetPaths.push(s.cover_path_dark);
-    const locked =
-      s.month_number > enrollment.current_month ||
-      (!!s.release_at && Date.parse(s.release_at) > now);
+    const locked = isJourneyContentLocked(s, enrollment.current_month, now);
     const stageMediaPath =
       typeof stageVideo?.media_path === "string" ? stageVideo.media_path : null;
     if (!locked && stageMediaPath && !stageMediaPath.startsWith("r2:"))
@@ -1150,9 +1158,7 @@ async function loadLibrary(userId: string) {
 
   const items = allowed.map((s: any) => {
     const p = versions.get(s.version_id) ?? { name: "Jornada", position: 999 };
-    const locked =
-      s.month_number > enrollment.current_month ||
-      (!!s.release_at && Date.parse(s.release_at) > now);
+    const locked = isJourneyContentLocked(s, enrollment.current_month, now);
     const stageRows = stageByStep.get(s.stable_key) ?? [];
     const stageVideo = chooseStage(stageRows, "video");
     const stageQuestionnaire = chooseStage(stageRows, "questionnaire");
@@ -1229,11 +1235,7 @@ async function loadLibrary(userId: string) {
             : null,
       mediaUrl: !locked ? mediaUrl : null,
       questionnaireUrl,
-      questionnaireId: stageQuestionnaire?.id ?? null,
-      questionnaire:
-        stageQuestionnaire?.questionnaire && typeof stageQuestionnaire.questionnaire === "object"
-          ? stageQuestionnaire.questionnaire
-          : null,
+      ...visibleStageQuestionnaire(locked, stageQuestionnaire),
       scheduledAt: s.scheduled_at,
       releaseAt: s.release_at,
       topics: Array.isArray(s.topics) ? s.topics : [],
@@ -2629,40 +2631,12 @@ async function assessmentAction(c: Context, action: string, d: any) {
     return { ok: true };
   }
   if (action === "saveAssessmentDevelopmentPlan") {
-    const { data: attempt } = await c.admin
-      .from("assessment_attempts")
-      .select("id")
-      .eq("id", d.attemptId)
-      .eq("enrollment_id", d.enrollmentId)
-      .maybeSingle();
-    if (!attempt) throw new Error("Aplicação não encontrada.");
-    const { data: plan, error } = await c.admin
-      .from("assessment_development_plans")
-      .insert({
-        attempt_id: d.attemptId,
-        enrollment_id: d.enrollmentId,
-        created_by: c.userId,
-        priority_focus: d.priorityFocus,
-        objective: d.objective,
-        action: d.action,
-        progress_evidence: d.progressEvidence || null,
-        due_date: d.dueDate ?? null,
-        review_date: d.reviewDate ?? null,
-        observations: d.observations || null,
-        status: d.status,
-        responsible: d.responsible || null,
-        shared_with_mentee: !!d.sharedWithMentee,
-      })
-      .select("id")
-      .single();
+    const { data: id, error } = await c.admin.rpc("create_assessment_development_plan", {
+      p_actor: c.userId,
+      p_input: d,
+    });
     if (error) throw new Error(error.message);
-    if (d.internalNotes) {
-      const { error: ne } = await c.admin
-        .from("assessment_development_private_notes")
-        .insert({ plan_id: plan.id, author_id: c.userId, content: d.internalNotes });
-      if (ne) throw new Error(ne.message);
-    }
-    return { ok: true, id: plan.id };
+    return { ok: true, id };
   }
   throw new Error("Ação de avaliação inválida.");
 }

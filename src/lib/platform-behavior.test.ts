@@ -12,13 +12,12 @@ test("onboarding content opens before progress registration can fail", () => {
   assert.match(source, /catch \(error\) \{\s+console\.error\("Não foi possível registrar/);
 });
 
-test("public login loads the authenticated application only after a valid session", () => {
+test("public entry defers the authenticated application bundle", () => {
   const route = readFileSync("src/routes/index.tsx", "utf8");
   const entry = readFileSync("src/components/rise-entry.tsx", "utf8");
   assert.match(route, /RiseEntry/);
   assert.doesNotMatch(route, /RisePlatform/);
   assert.match(entry, /lazy\(\(\) =>\s*import\("@\/components\/rise-platform"\)/);
-  assert.match(entry, /data\.session \? "authenticated" : "public"/);
 });
 
 test("RISE brand uses valid image semantics", () => {

@@ -1,5 +1,7 @@
 import { ArrowRight, Check, Eye, EyeOff, LockKeyhole, Mail } from "lucide-react";
 import { lazy, Suspense, useEffect, useState, type FormEvent } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { syncSessionCache } from "@/lib/session-cache";
 
 import { LegalFooterLinks } from "@/components/rise-legal";
 import { PwaInstallButton } from "@/components/pwa-install-button";
@@ -13,16 +15,7 @@ function PublicRiseMark() {
   return (
     <div className="rise-mark" role="img" aria-label="RISE NOW">
       <span className="rise-mark__brand" aria-hidden="true">
-        <img
-          src="/brand/rise-logo-white-app.webp"
-          alt=""
-          className="rise-mark__logo rise-mark__logo--dark"
-        />
-        <img
-          src="/brand/rise-logo-light-app.webp"
-          alt=""
-          className="rise-mark__logo rise-mark__logo--light"
-        />
+        <span className="rise-entry-theme-logo" />
       </span>
       <span className="rise-mark__pillars">Reflexão · Identidade · Segurança · Evolução</span>
     </div>
@@ -184,28 +177,43 @@ function PublicLoginScreen({ onSignedIn }: { onSignedIn: () => void }) {
 }
 
 export function RiseEntry() {
+  const queryClient = useQueryClient();
+  const [accountId, setAccountId] = useState<string | null>(null);
   const [state, setState] = useState<"checking" | "public" | "authenticated">("checking");
 
   useEffect(() => {
     let active = true;
-    void supabase.auth.getSession().then(({ data }) => {
-      if (active) setState(data.session ? "authenticated" : "public");
-    });
+    let revision = 0;
+    const observeSession = (userId: string | null) => {
+      if (!active) return;
+      syncSessionCache(queryClient, userId);
+      setAccountId(userId);
+      setState(userId ? "authenticated" : "public");
+    };
+    void supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        if (revision === 0) observeSession(data.session?.user.id ?? null);
+      })
+      .catch(() => {
+        if (revision === 0) observeSession(null);
+      });
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
       if (!active || event === "TOKEN_REFRESHED" || event === "INITIAL_SESSION") return;
-      setState(session ? "authenticated" : "public");
+      revision++;
+      observeSession(session?.user.id ?? null);
     });
     return () => {
       active = false;
       listener.subscription.unsubscribe();
     };
-  }, []);
+  }, [queryClient]);
 
   if (state === "checking") return <PublicLoadingScreen />;
   if (state === "public") return <PublicLoginScreen onSignedIn={() => setState("authenticated")} />;
   return (
     <Suspense fallback={<PublicLoadingScreen />}>
-      <AuthenticatedPlatform />
+      <AuthenticatedPlatform key={accountId} />
     </Suspense>
   );
 }

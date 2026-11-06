@@ -103,7 +103,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         type: "font/woff2",
         crossOrigin: "anonymous",
       },
-      { rel: "preload", href: "/brand/rise-logo-white-app.webp", as: "image", type: "image/webp" },
       {
         rel: "preconnect",
         href: "https://riakceytqrlvdcgcwfdx.supabase.co",

@@ -26,6 +26,17 @@ export function PwaProvider({ children }: { children: ReactNode }) {
     window.addEventListener("beforeinstallprompt", beforeInstall);
     window.addEventListener("appinstalled", installed);
 
+    let registrationTimer: ReturnType<typeof setTimeout> | undefined;
+    const scheduleRegistration = () => {
+      registrationTimer = setTimeout(() => {
+        void navigator.serviceWorker
+          .register("/sw.js", { scope: "/", updateViaCache: "none" })
+          .catch(() => {
+            /* Acesso online e instalação pelo navegador permanecem disponíveis. */
+          });
+      }, 1500);
+    };
+
     // Registro em segundo plano: não bloqueia a abertura e não recarrega formulários.
     if (
       import.meta.env.PROD &&
@@ -33,16 +44,15 @@ export function PwaProvider({ children }: { children: ReactNode }) {
       "serviceWorker" in navigator &&
       window.self === window.top
     ) {
-      void navigator.serviceWorker
-        .register("/sw.js", { scope: "/", updateViaCache: "none" })
-        .catch(() => {
-          // Instalação pelo navegador e acesso online continuam disponíveis.
-        });
+      if (document.readyState === "complete") scheduleRegistration();
+      else window.addEventListener("load", scheduleRegistration, { once: true });
     }
     return () => {
       mode.removeEventListener("change", detectMode);
       window.removeEventListener("beforeinstallprompt", beforeInstall);
       window.removeEventListener("appinstalled", installed);
+      window.removeEventListener("load", scheduleRegistration);
+      clearTimeout(registrationTimer);
     };
   }, []);
 

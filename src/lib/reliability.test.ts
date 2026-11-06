@@ -6,6 +6,10 @@ import {
 } from "../../supabase/functions/_shared/whatsapp-gateway.ts";
 import { checkedDb } from "../../supabase/functions/_shared/checked-db.ts";
 import {
+  isJourneyContentLocked,
+  visibleStageQuestionnaire,
+} from "../../supabase/functions/_shared/content-visibility.ts";
+import {
   notificationInvalidReason,
   reminderDeadline,
 } from "../../supabase/functions/_shared/notification-validity.ts";
@@ -45,6 +49,37 @@ function memoryDb(initial: Record<string, unknown>) {
   };
   return { db, snapshot: () => ({ ...row }) };
 }
+
+test("etapa futura não expõe perguntas nem identificação do questionário", () => {
+  const future = { month_number: 2, release_at: null };
+  const row = {
+    id: "questionario",
+    questionnaire: { questions: [{ prompt: "Conteúdo protegido" }] },
+  };
+  const locked = isJourneyContentLocked(future, 1, Date.parse("2026-11-06T12:00:00Z"));
+  assert.equal(locked, true);
+  assert.deepEqual(visibleStageQuestionnaire(locked, row), {
+    questionnaireId: null,
+    questionnaire: null,
+  });
+});
+
+test("data de liberação e mês são respeitados e a etapa liberada conserva seu questionário", () => {
+  const now = Date.parse("2026-11-06T12:00:00Z");
+  assert.equal(
+    isJourneyContentLocked({ month_number: 1, release_at: "2026-11-07T12:00:00Z" }, 1, now),
+    true,
+  );
+  const row = { id: "questionario", questionnaire: { questions: [] } };
+  assert.equal(
+    isJourneyContentLocked({ month_number: 1, release_at: "2026-11-06T12:00:00Z" }, 1, now),
+    false,
+  );
+  assert.deepEqual(visibleStageQuestionnaire(false, row), {
+    questionnaireId: row.id,
+    questionnaire: row.questionnaire,
+  });
+});
 
 test("aviso já registrado é ignorado sem interromper a automação com banco verificado", async () => {
   const rows = new Map<string, Record<string, unknown>>();

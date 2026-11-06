@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { isSessionCacheOwner } from "@/lib/session-cache";
 import {
   Bell,
   CalendarPlus,
@@ -1539,6 +1540,7 @@ export function ProfileModal({
         throw new Error("A foto foi processada, mas o perfil não pôde ser atualizado.");
       }
 
+      if (!isSessionCacheOwner(qc, currentProfile.id)) return;
       qc.setQueryData<MyProfile | null>(["my-profile"], (current) =>
         current ? { ...current, avatar_url: url } : current,
       );
@@ -1571,6 +1573,7 @@ export function ProfileModal({
       setMsg("O tema foi aplicado neste dispositivo, mas não foi possível sincronizá-lo.");
       return;
     }
+    if (!isSessionCacheOwner(qc, currentProfile.id)) return;
     qc.setQueryData<MyProfile | null>(["my-profile"], (current) =>
       current ? { ...current, theme_preference: theme } : current,
     );
@@ -1603,6 +1606,7 @@ export function ProfileModal({
       .eq("id", currentProfile.id);
     setBusy(false);
     if (error) return setMsg("Não foi possível salvar.");
+    if (!isSessionCacheOwner(qc, currentProfile.id)) return;
     qc.setQueryData<MyProfile | null>(["my-profile"], (current) =>
       current ? { ...current, ...form, theme_preference: form.theme_preference } : current,
     );
@@ -1639,7 +1643,6 @@ export function ProfileModal({
                 onClick={() => void selectTheme("dark")}
               >
                 <Moon size={17} /> Escuro
-                <span>#26312F</span>
               </button>
               <button
                 type="button"
@@ -1648,7 +1651,6 @@ export function ProfileModal({
                 onClick={() => void selectTheme("light")}
               >
                 <Sun size={17} /> Claro
-                <span>#FFFFFF</span>
               </button>
             </div>
           </fieldset>
