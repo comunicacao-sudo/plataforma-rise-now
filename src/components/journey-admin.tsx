@@ -20,6 +20,7 @@ import { useMemo, useRef, useState } from "react";
 import { NextStepHero } from "@/components/journey-next-step";
 import { supabase } from "@/integrations/supabase/client";
 import { createJourneyUpload } from "@/lib/content.functions";
+import { prepareJourneyCover } from "@/lib/prepare-journey-cover";
 import {
   confirmJourneyStep,
   getJourneyEditor,
@@ -130,6 +131,7 @@ function StepForm({
     setUploading(kind);
     setUploadError("");
     try {
+      file = await prepareJourneyCover(file);
       const signed = await createUpload({
         data: {
           kind: "cover",
@@ -141,7 +143,10 @@ function StepForm({
 
       const { error } = await supabase.storage
         .from("journey-content")
-        .uploadToSignedUrl(signed.path, signed.token, file, { contentType: file.type });
+        .uploadToSignedUrl(signed.path, signed.token, file, {
+          contentType: file.type,
+          cacheControl: "31536000",
+        });
       if (error) throw error;
 
       const theme = kind === "cover-light" ? "light" : "dark";

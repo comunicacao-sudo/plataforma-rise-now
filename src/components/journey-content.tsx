@@ -1,3 +1,5 @@
+import { JourneyCoverImage } from "@/components/journey-cover-image";
+import { retainJourneyCoverUrls } from "@/lib/journey-asset-cache";
 import { deferredView } from "@/components/deferred-view";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -7,7 +9,7 @@ import {
   CheckCircle2,
   Clock3,
   Download,
-  FileQuestion,
+  ClipboardList,
   FileText,
   LockKeyhole,
   NotebookPen,
@@ -39,6 +41,7 @@ import {
   getStageQuestionnaireResponse,
   submitStageQuestionnaire,
   type JourneyContentItem,
+  type JourneyContentLibrary,
   type StageQuestion,
 } from "@/lib/content.functions";
 import { liveJourneyQueryOptions, resolveJourneyThemeCovers } from "@/lib/journey-sync";
@@ -126,7 +129,7 @@ function StageQuestionnaire({
   return (
     <section className="lesson-summary">
       <h2>
-        <FileQuestion size={22} /> Questionário
+        <ClipboardList size={22} /> Questionário
       </h2>
       <div className="ops-form">
         {questions.map((question, index) => (
@@ -181,7 +184,7 @@ function StageQuestionnaire({
   );
 }
 
-export function useJourneyContentLibrary(enabled = true) {
+export function useJourneyContentLibrary(enabled = true, poll = false) {
   const load = useServerFn(getJourneyContentLibrary);
   return useQuery({
     queryKey: ["journey-content-library"],
@@ -189,6 +192,12 @@ export function useJourneyContentLibrary(enabled = true) {
     enabled,
     retry: false,
     ...liveJourneyQueryOptions,
+    refetchInterval: poll ? liveJourneyQueryOptions.refetchInterval : false,
+    structuralSharing: (previous, next) =>
+      retainJourneyCoverUrls(
+        previous as JourneyContentLibrary | null | undefined,
+        next as JourneyContentLibrary | null,
+      ),
   });
 }
 
@@ -199,26 +208,12 @@ function ContentCover({ item }: { item: JourneyContentItem }) {
   return (
     <div className="journey-content-cover">
       {hasCover ? (
-        <>
-          {lightCoverUrl ? (
-            <img
-              className="journey-content-cover__image journey-content-cover__image--light"
-              src={lightCoverUrl}
-              alt=""
-              loading="lazy"
-              decoding="async"
-            />
-          ) : null}
-          {darkCoverUrl ? (
-            <img
-              className="journey-content-cover__image journey-content-cover__image--dark"
-              src={darkCoverUrl}
-              alt=""
-              loading="lazy"
-              decoding="async"
-            />
-          ) : null}
-        </>
+        <JourneyCoverImage
+          item={item}
+          className="journey-content-cover__image"
+          alt=""
+          loading="lazy"
+        />
       ) : (
         <div aria-hidden="true" />
       )}
@@ -227,7 +222,7 @@ function ContentCover({ item }: { item: JourneyContentItem }) {
       ) : item.resourceType === "r2" || item.mediaUrl ? (
         <Play size={25} fill="currentColor" aria-hidden="true" />
       ) : item.questionnaireId || item.format === "questionnaire" || item.format === "form" ? (
-        <FileQuestion size={25} aria-hidden="true" />
+        <ClipboardList size={25} aria-hidden="true" />
       ) : !hasCover && item.materials.length ? (
         <FileText size={25} aria-hidden="true" />
       ) : null}

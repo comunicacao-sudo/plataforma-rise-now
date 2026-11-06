@@ -9766,7 +9766,7 @@ hr,
   color: #d7b07a;
 }
 
-/* MENTEE START — exact approved composition, dynamic content over approved artwork */
+/* MENTEE START — conteúdo dinâmico sobre a arte da RISE. */
 .platform-shell .next-step-hero {
   min-height: clamp(700px, 56.28vw, 941px);
   background: #26312f;
@@ -11214,5 +11214,61 @@ html[data-theme="light"]
   }
   .profile-dropdown {
     width: min(260px, calc(100vw - 2rem));
+  }
+}
+
+/* O primeiro bloco acompanha a altura útil do desktop. Conteúdo maior e zoom
+   continuam expandindo a seção, sem cortar texto nem prender a rolagem. */
+@media (min-width: 901px) {
+  .platform-shell--mentee .mentee-home-view .next-step-hero {
+    min-height: 100svh;
+  }
+  .platform-shell--mentee .mentee-home-view .next-step-hero__content {
+    min-height: inherit;
+    align-items: center;
+    padding-top: calc(78px + clamp(20px, 4svh, 48px));
+    padding-bottom: clamp(24px, 4svh, 48px);
+  }
+  .platform-shell--mentee .mentee-home-view .next-step-hero__copy {
+    width: min(760px, 58vw);
+  }
+  .platform-shell--mentee .mentee-home-view .next-step-hero h1 {
+    font-size: clamp(2rem, min(4vw, 6.3svh), 4rem);
+    line-height: 1.05;
+    letter-spacing: -0.04em;
+  }
+  .platform-shell--mentee .mentee-home-view .next-step-hero__copy > p {
+    margin-top: clamp(14px, 2.5svh, 24px);
+    font-size: clamp(1rem, min(1.4vw, 2.8svh), 1.25rem);
+    line-height: 1.4;
+  }
+  .platform-shell--mentee .mentee-home-view .next-step-hero__meta {
+    width: auto;
+    max-width: 100%;
+    margin-top: clamp(16px, 3svh, 28px);
+    row-gap: 12px;
+  }
+  .platform-shell--mentee .mentee-home-view .next-step-hero__meta span {
+    min-height: 28px;
+    gap: 10px;
+    padding-right: 18px;
+    font-size: 1rem;
+  }
+  .platform-shell--mentee .mentee-home-view .next-step-hero__meta span + span {
+    margin-left: 0;
+    padding-left: 18px;
+  }
+  .platform-shell--mentee .mentee-home-view .next-step-hero__meta svg {
+    width: 23px;
+    height: 23px;
+  }
+  .platform-shell--mentee .mentee-home-view .next-step-hero__button {
+    width: min(360px, 100%);
+    min-height: clamp(50px, 8svh, 58px);
+    margin-top: 18px;
+    font-size: 1rem;
+  }
+  .platform-shell--mentee .mentee-home-view .next-step-hero__waiting {
+    margin-top: 20px;
   }
 }

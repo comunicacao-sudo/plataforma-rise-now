@@ -1,0 +1,548 @@
+{
+  "maxDimension": 1280,
+  "format": "webp",
+  "quality": 88,
+  "originalsPreserved": true,
+  "files": [
+    {
+      "original": "covers/f2e28e10-1cf7-42b6-806a-bbc031ee52b7/0e547d09-1887-4ecd-9075-d1ced42380f6.png",
+      "optimized": "covers/optimized-v1/7ab82d57b95bc8f908b070ee.webp",
+      "originalBytes": 823925,
+      "optimizedBytes": 91440,
+      "width": 1672,
+      "height": 941,
+      "optimizedWidth": 1280,
+      "optimizedHeight": 720
+    },
+    {
+      "original": "covers/f2e28e10-1cf7-42b6-806a-bbc031ee52b7/1e43522e-2b5d-4078-929e-9b1c3cb31224.png",
+      "optimized": "covers/optimized-v1/1a8e9f597438aae65cd54529.webp",
+      "originalBytes": 1821117,
+      "optimizedBytes": 134774,
+      "width": 1672,
+      "height": 941,
+      "optimizedWidth": 1280,
+      "optimizedHeight": 720
+    },
+    {
+      "original": "covers/f2e28e10-1cf7-42b6-806a-bbc031ee52b7/28307246-6d80-49e3-bcc1-d3cf52fd12c8.png",
+      "optimized": "covers/optimized-v1/7ab82d57b95bc8f908b070ee.webp",
+      "originalBytes": 823925,
+      "optimizedBytes": 91440,
+      "width": 1672,
+      "height": 941,
+      "optimizedWidth": 1280,
+      "optimizedHeight": 720
+    },
+    {
+      "original": "covers/f2e28e10-1cf7-42b6-806a-bbc031ee52b7/39f96a25-6ec5-466f-a6d2-803f0eba0624.png",
+      "optimized": "covers/optimized-v1/2ece8e85fce074556a6df316.webp",
+      "originalBytes": 1819005,
+      "optimizedBytes": 122940,
+      "width": 1672,
+      "height": 941,
+      "optimizedWidth": 1280,
+      "optimizedHeight": 720
+    },
+    {
+      "original": "covers/f2e28e10-1cf7-42b6-806a-bbc031ee52b7/3b3a0f0d-7df8-4bf5-8895-bd6a127ee135.png",
+      "optimized": "covers/optimized-v1/7ab82d57b95bc8f908b070ee.webp",
+      "originalBytes": 823925,
+      "optimizedBytes": 91440,
+      "width": 1672,
+      "height": 941,
+      "optimizedWidth": 1280,
+      "optimizedHeight": 720
+    },
+    {
+      "original": "covers/f2e28e10-1cf7-42b6-806a-bbc031ee52b7/496e90cc-6028-4ec3-9808-f484b40e6619.png",
+      "optimized": "covers/optimized-v1/674262b22d52a6f249d400ad.webp",
+      "originalBytes": 1645991,
+      "optimizedBytes": 104202,
+      "width": 1672,
+      "height": 941,
+      "optimizedWidth": 1280,
+      "optimizedHeight": 720
+    },
+    {
+      "original": "covers/f2e28e10-1cf7-42b6-806a-bbc031ee52b7/5722b7b0-2a88-458a-be63-cb7cfd76cf2c.png",
+      "optimized": "covers/optimized-v1/622ca51dcdb8c029b23f55a3.webp",
+      "originalBytes": 1643771,
+      "optimizedBytes": 101260,
+      "width": 1672,
+      "height": 941,
+      "optimizedWidth": 1280,
+      "optimizedHeight": 720
+    },
+    {
+      "original": "covers/f2e28e10-1cf7-42b6-806a-bbc031ee52b7/5d8ada38-bd6a-4ef2-899c-944a04f0a536.png",
+      "optimized": "covers/optimized-v1/daafb101096aa7eb63cc670d.webp",
+      "originalBytes": 1823955,
+      "optimizedBytes": 137112,
+      "width": 1672,
+      "height": 941,
+      "optimizedWidth": 1280,
+      "optimizedHeight": 720
+    },
+    {
+      "original": "covers/f2e28e10-1cf7-42b6-806a-bbc031ee52b7/5d9ce96c-ef9d-4e62-900d-ac954ee3edbd.png",
+      "optimized": "covers/optimized-v1/7ab82d57b95bc8f908b070ee.webp",
+      "originalBytes": 823925,
+      "optimizedBytes": 91440,
+      "width": 1672,
+      "height": 941,
+      "optimizedWidth": 1280,
+      "optimizedHeight": 720
+    },
+    {
+      "original": "covers/f2e28e10-1cf7-42b6-806a-bbc031ee52b7/6784d7df-3f11-4d9f-8cb8-649fa10d3b92.png",
+      "optimized": "covers/optimized-v1/df8853a86e8fb2965b48f542.webp",
+      "originalBytes": 1815228,
+      "optimizedBytes": 125712,
+      "width": 1672,
+      "height": 941,
+      "optimizedWidth": 1280,
+      "optimizedHeight": 720
+    },
+    {
+      "original": "covers/f2e28e10-1cf7-42b6-806a-bbc031ee52b7/6bbe0141-ef20-4263-8340-52340609dd59.png",
+      "optimized": "covers/optimized-v1/1a4f1d563609674806080575.webp",
+      "originalBytes": 1637381,
+      "optimizedBytes": 95540,
+      "width": 1672,
+      "height": 941,
+      "optimizedWidth": 1280,
+      "optimizedHeight": 720
+    },
+    {
+      "original": "covers/f2e28e10-1cf7-42b6-806a-bbc031ee52b7/6ecc14cb-3086-43a4-a54c-1f866aaf5d9b.png",
+      "optimized": "covers/optimized-v1/19efba6c23056dc24f9ebdf6.webp",
+      "originalBytes": 1816103,
+      "optimizedBytes": 130232,
+      "width": 1672,
+      "height": 941,
+      "optimizedWidth": 1280,
+      "optimizedHeight": 720
+    },
+    {
+      "original": "covers/f2e28e10-1cf7-42b6-806a-bbc031ee52b7/7a06820b-6f0b-467c-86c6-36aaebcfa117.png",
+      "optimized": "covers/optimized-v1/2ece8e85fce074556a6df316.webp",
+      "originalBytes": 1819005,
+      "optimizedBytes": 122940,
+      "width": 1672,
+      "height": 941,
+      "optimizedWidth": 1280,
+      "optimizedHeight": 720
+    },
+    {
+      "original": "covers/f2e28e10-1cf7-42b6-806a-bbc031ee52b7/7f8a3181-fa5a-405b-aaaf-0b410244c203.png",
+      "optimized": "covers/optimized-v1/7ab82d57b95bc8f908b070ee.webp",
+      "originalBytes": 823925,
+      "optimizedBytes": 91440,
+      "width": 1672,
+      "height": 941,
+      "optimizedWidth": 1280,
+      "optimizedHeight": 720
+    },
+    {
+      "original": "covers/f2e28e10-1cf7-42b6-806a-bbc031ee52b7/849bd81d-23ee-46b9-b27b-9833a147c783.png",
+      "optimized": "covers/optimized-v1/86a8451d1d069c0a510fd42a.webp",
+      "originalBytes": 1815017,
+      "optimizedBytes": 126386,
+      "width": 1672,
+      "height": 941,
+      "optimizedWidth": 1280,
+      "optimizedHeight": 720
+    },
+    {
+      "original": "covers/f2e28e10-1cf7-42b6-806a-bbc031ee52b7/87d9927f-659b-457f-9946-89f77c9fd92c.png",
+      "optimized": "covers/optimized-v1/2ece8e85fce074556a6df316.webp",
+      "originalBytes": 1819005,
+      "optimizedBytes": 122940,
+      "width": 1672,
+      "height": 941,
+      "optimizedWidth": 1280,
+      "optimizedHeight": 720
+    },
+    {
+      "original": "covers/f2e28e10-1cf7-42b6-806a-bbc031ee52b7/94458163-0b9f-42aa-9070-03d46bc4e700.png",
+      "optimized": "covers/optimized-v1/daafb101096aa7eb63cc670d.webp",
+      "originalBytes": 1823955,
+      "optimizedBytes": 137112,
+      "width": 1672,
+      "height": 941,
+      "optimizedWidth": 1280,
+      "optimizedHeight": 720
+    },
+    {
+      "original": "covers/f2e28e10-1cf7-42b6-806a-bbc031ee52b7/95a60192-38df-4371-8982-ad6acf860d0b.png",
+      "optimized": "covers/optimized-v1/5560f9d812dbeaeb85836950.webp",
+      "originalBytes": 1640985,
+      "optimizedBytes": 97776,
+      "width": 1672,
+      "height": 941,
+      "optimizedWidth": 1280,
+      "optimizedHeight": 720
+    },
+    {
+      "original": "covers/f2e28e10-1cf7-42b6-806a-bbc031ee52b7/a1314607-4e6c-4a0f-aef1-ac9218419ef3.png",
+      "optimized": "covers/optimized-v1/2ece8e85fce074556a6df316.webp",
+      "originalBytes": 1819005,
+      "optimizedBytes": 122940,
+      "width": 1672,
+      "height": 941,
+      "optimizedWidth": 1280,
+      "optimizedHeight": 720
+    },
+    {
+      "original": "covers/f2e28e10-1cf7-42b6-806a-bbc031ee52b7/a55c0e71-0b0b-43e0-9d98-d87c1e4db9b3.png",
+      "optimized": "covers/optimized-v1/1a8e9f597438aae65cd54529.webp",
+      "originalBytes": 1821117,
+      "optimizedBytes": 134774,
+      "width": 1672,
+      "height": 941,
+      "optimizedWidth": 1280,
+      "optimizedHeight": 720
+    },
+    {
+      "original": "covers/f2e28e10-1cf7-42b6-806a-bbc031ee52b7/bece7165-6d65-4f30-a663-88588768cd9a.png",
+      "optimized": "covers/optimized-v1/2ece8e85fce074556a6df316.webp",
+      "originalBytes": 1819005,
+      "optimizedBytes": 122940,
+      "width": 1672,
+      "height": 941,
+      "optimizedWidth": 1280,
+      "optimizedHeight": 720
+    },
+    {
+      "original": "covers/f2e28e10-1cf7-42b6-806a-bbc031ee52b7/c6b998e9-2a5c-4e87-ad4e-7be4d4cdedd4.png",
+      "optimized": "covers/optimized-v1/1a4f1d563609674806080575.webp",
+      "originalBytes": 1637381,
+      "optimizedBytes": 95540,
+      "width": 1672,
+      "height": 941,
+      "optimizedWidth": 1280,
+      "optimizedHeight": 720
+    },
+    {
+      "original": "covers/f2e28e10-1cf7-42b6-806a-bbc031ee52b7/cc10783c-602a-46df-833f-6df89fb9c84e.png",
+      "optimized": "covers/optimized-v1/622ca51dcdb8c029b23f55a3.webp",
+      "originalBytes": 1643771,
+      "optimizedBytes": 101260,
+      "width": 1672,
+      "height": 941,
+      "optimizedWidth": 1280,
+      "optimizedHeight": 720
+    },
+    {
+      "original": "covers/f2e28e10-1cf7-42b6-806a-bbc031ee52b7/d45c3e34-0e27-46a8-a3c6-b392c67f54cf.png",
+      "optimized": "covers/optimized-v1/86a8451d1d069c0a510fd42a.webp",
+      "originalBytes": 1815017,
+      "optimizedBytes": 126386,
+      "width": 1672,
+      "height": 941,
+      "optimizedWidth": 1280,
+      "optimizedHeight": 720
+    },
+    {
+      "original": "covers/f2e28e10-1cf7-42b6-806a-bbc031ee52b7/d87cd94b-9f1e-48d8-93eb-b03cffd6c80f.png",
+      "optimized": "covers/optimized-v1/245dbfd97ef47a88213542c8.webp",
+      "originalBytes": 1637424,
+      "optimizedBytes": 94744,
+      "width": 1672,
+      "height": 941,
+      "optimizedWidth": 1280,
+      "optimizedHeight": 720
+    },
+    {
+      "original": "covers/f2e28e10-1cf7-42b6-806a-bbc031ee52b7/d9e7a973-d0dd-4115-addb-0fa372927d06.png",
+      "optimized": "covers/optimized-v1/2ece8e85fce074556a6df316.webp",
+      "originalBytes": 1819005,
+      "optimizedBytes": 122940,
+      "width": 1672,
+      "height": 941,
+      "optimizedWidth": 1280,
+      "optimizedHeight": 720
+    },
+    {
+      "original": "covers/f2e28e10-1cf7-42b6-806a-bbc031ee52b7/e3ae1b18-2e7a-40e5-bbf3-0213f40e348c.png",
+      "optimized": "covers/optimized-v1/7ab82d57b95bc8f908b070ee.webp",
+      "originalBytes": 823925,
+      "optimizedBytes": 91440,
+      "width": 1672,
+      "height": 941,
+      "optimizedWidth": 1280,
+      "optimizedHeight": 720
+    },
+    {
+      "original": "covers/f2e28e10-1cf7-42b6-806a-bbc031ee52b7/e3f6783d-6a19-461c-b2d1-c500461de36c.png",
+      "optimized": "covers/optimized-v1/674262b22d52a6f249d400ad.webp",
+      "originalBytes": 1645991,
+      "optimizedBytes": 104202,
+      "width": 1672,
+      "height": 941,
+      "optimizedWidth": 1280,
+      "optimizedHeight": 720
+    },
+    {
+      "original": "covers/f2e28e10-1cf7-42b6-806a-bbc031ee52b7/e7495782-3cb1-47f7-894f-38dc8e1a8244.png",
+      "optimized": "covers/optimized-v1/19efba6c23056dc24f9ebdf6.webp",
+      "originalBytes": 1816103,
+      "optimizedBytes": 130232,
+      "width": 1672,
+      "height": 941,
+      "optimizedWidth": 1280,
+      "optimizedHeight": 720
+    },
+    {
+      "original": "covers/f2e28e10-1cf7-42b6-806a-bbc031ee52b7/fb3327eb-fd32-4c7b-b55e-6ce0f75a5263.png",
+      "optimized": "covers/optimized-v1/2ece8e85fce074556a6df316.webp",
+      "originalBytes": 1819005,
+      "optimizedBytes": 122940,
+      "width": 1672,
+      "height": 941,
+      "optimizedWidth": 1280,
+      "optimizedHeight": 720
+    },
+    {
+      "original": "covers/f2e28e10-1cf7-42b6-806a-bbc031ee52b7/ff148e2f-acbb-46d3-9bfc-f2f8d2d4dc31.png",
+      "optimized": "covers/optimized-v1/5560f9d812dbeaeb85836950.webp",
+      "originalBytes": 1640985,
+      "optimizedBytes": 97776,
+      "width": 1672,
+      "height": 941,
+      "optimizedWidth": 1280,
+      "optimizedHeight": 720
+    },
+    {
+      "original": "covers/import-20261021/082bec40-6fa6-44c7-ab71-1dcb7465c6a4.png",
+      "optimized": "covers/optimized-v1/9e06a5ca19f4288e506ec965.webp",
+      "originalBytes": 1229989,
+      "optimizedBytes": 30456,
+      "width": 1672,
+      "height": 941,
+      "optimizedWidth": 1280,
+      "optimizedHeight": 720
+    },
+    {
+      "original": "covers/import-20261021/28d27c89-4eda-466b-993a-7ca0497a9334.png",
+      "optimized": "covers/optimized-v1/94bf0219dc22abd7da97fa60.webp",
+      "originalBytes": 1224193,
+      "optimizedBytes": 27070,
+      "width": 1672,
+      "height": 941,
+      "optimizedWidth": 1280,
+      "optimizedHeight": 720
+    },
+    {
+      "original": "covers/import-20261021/2e3a7727-80bd-44a3-bc3f-7744114007a2.png",
+      "optimized": "covers/optimized-v1/e394260c49ba41b702eaf855.webp",
+      "originalBytes": 1225584,
+      "optimizedBytes": 26992,
+      "width": 1672,
+      "height": 941,
+      "optimizedWidth": 1280,
+      "optimizedHeight": 720
+    },
+    {
+      "original": "covers/import-20261021/33e6e4ea-f693-4910-aaba-cb6850a9ea23.png",
+      "optimized": "covers/optimized-v1/9f6e4fbe04fea7dd51685322.webp",
+      "originalBytes": 1243671,
+      "optimizedBytes": 37064,
+      "width": 1672,
+      "height": 941,
+      "optimizedWidth": 1280,
+      "optimizedHeight": 720
+    },
+    {
+      "original": "covers/import-20261021/40767b08-908b-4d26-ac04-1f708d886192.png",
+      "optimized": "covers/optimized-v1/a685dd5f496b7145db5b5382.webp",
+      "originalBytes": 1242265,
+      "optimizedBytes": 35660,
+      "width": 1672,
+      "height": 941,
+      "optimizedWidth": 1280,
+      "optimizedHeight": 720
+    },
+    {
+      "original": "covers/import-20261021/43ece0b4-f574-41ad-a34e-5d1a4b82d022.png",
+      "optimized": "covers/optimized-v1/ec5bc1d629e7b274e94cb2df.webp",
+      "originalBytes": 1231218,
+      "optimizedBytes": 30476,
+      "width": 1672,
+      "height": 941,
+      "optimizedWidth": 1280,
+      "optimizedHeight": 720
+    },
+    {
+      "original": "covers/import-20261021/4e452b75-7093-49a1-8f7b-1c2ddcbbfed8.png",
+      "optimized": "covers/optimized-v1/62c9e4e6060c2693f934072a.webp",
+      "originalBytes": 1226256,
+      "optimizedBytes": 27702,
+      "width": 1672,
+      "height": 941,
+      "optimizedWidth": 1280,
+      "optimizedHeight": 720
+    },
+    {
+      "original": "covers/import-20261021/54658f92-5bc8-4cbc-9364-f2944fc34a25.png",
+      "optimized": "covers/optimized-v1/4331bf5a552a62026dcf8f0f.webp",
+      "originalBytes": 1230648,
+      "optimizedBytes": 29802,
+      "width": 1672,
+      "height": 941,
+      "optimizedWidth": 1280,
+      "optimizedHeight": 720
+    },
+    {
+      "original": "covers/import-20261021/5e5a541d-6a11-4d07-905f-ba2e55aa8fa4.png",
+      "optimized": "covers/optimized-v1/7b4a2266be9ea6256c89a884.webp",
+      "originalBytes": 1228116,
+      "optimizedBytes": 29110,
+      "width": 1672,
+      "height": 941,
+      "optimizedWidth": 1280,
+      "optimizedHeight": 720
+    },
+    {
+      "original": "covers/import-20261021/633d88d2-3b16-4da8-8126-66fba4c3f084.png",
+      "optimized": "covers/optimized-v1/016bf4f2c934ffd3dd060262.webp",
+      "originalBytes": 1242359,
+      "optimizedBytes": 34456,
+      "width": 1672,
+      "height": 941,
+      "optimizedWidth": 1280,
+      "optimizedHeight": 720
+    },
+    {
+      "original": "covers/import-20261021/83a57309-55f2-4cdb-a2fa-695df7b5cb00.png",
+      "optimized": "covers/optimized-v1/96dea032cfe622a9b04a6285.webp",
+      "originalBytes": 1242703,
+      "optimizedBytes": 34098,
+      "width": 1672,
+      "height": 941,
+      "optimizedWidth": 1280,
+      "optimizedHeight": 720
+    },
+    {
+      "original": "covers/import-20261021/87f24adf-922f-4a37-bd43-fb799c586815.png",
+      "optimized": "covers/optimized-v1/53ec83b47029fa54fc374493.webp",
+      "originalBytes": 1222677,
+      "optimizedBytes": 25632,
+      "width": 1672,
+      "height": 941,
+      "optimizedWidth": 1280,
+      "optimizedHeight": 720
+    },
+    {
+      "original": "covers/import-20261021/91206845-c7a8-4913-95c6-e3b79e70ebc4.png",
+      "optimized": "covers/optimized-v1/3d702205fe55f258472dc22e.webp",
+      "originalBytes": 1229574,
+      "optimizedBytes": 28234,
+      "width": 1672,
+      "height": 941,
+      "optimizedWidth": 1280,
+      "optimizedHeight": 720
+    },
+    {
+      "original": "covers/import-20261021/9861abbb-d96a-47c0-9bfa-908a391dabd0.png",
+      "optimized": "covers/optimized-v1/44a158ecbae583fd6316fc06.webp",
+      "originalBytes": 1237808,
+      "optimizedBytes": 32166,
+      "width": 1672,
+      "height": 941,
+      "optimizedWidth": 1280,
+      "optimizedHeight": 720
+    },
+    {
+      "original": "covers/import-20261021/9dad6ee0-d76f-4c59-95a1-4054e7e83335.png",
+      "optimized": "covers/optimized-v1/a39acb9d100b8270ccfaf748.webp",
+      "originalBytes": 1231436,
+      "optimizedBytes": 29092,
+      "width": 1672,
+      "height": 941,
+      "optimizedWidth": 1280,
+      "optimizedHeight": 720
+    },
+    {
+      "original": "covers/import-20261021/a1c6b06f-d0c1-49ce-96ae-06bfd91f3420.png",
+      "optimized": "covers/optimized-v1/3d4c2a6e136659aa25370c3f.webp",
+      "originalBytes": 1231471,
+      "optimizedBytes": 29730,
+      "width": 1672,
+      "height": 941,
+      "optimizedWidth": 1280,
+      "optimizedHeight": 720
+    },
+    {
+      "original": "covers/import-20261021/abe3a098-ed83-471f-80a6-66f7e0080226.png",
+      "optimized": "covers/optimized-v1/62dfd6978f525c95c745c275.webp",
+      "originalBytes": 1240007,
+      "optimizedBytes": 33410,
+      "width": 1672,
+      "height": 941,
+      "optimizedWidth": 1280,
+      "optimizedHeight": 720
+    },
+    {
+      "original": "covers/import-20261021/b47a56f8-c059-456d-8ac0-ec919735732d.png",
+      "optimized": "covers/optimized-v1/f4ba1bb338280915dc25e9db.webp",
+      "originalBytes": 1223956,
+      "optimizedBytes": 26836,
+      "width": 1672,
+      "height": 941,
+      "optimizedWidth": 1280,
+      "optimizedHeight": 720
+    },
+    {
+      "original": "covers/import-20261021/c22d076d-6244-4069-91a1-07577b6a93eb.png",
+      "optimized": "covers/optimized-v1/1446abd9c887d08db676bac6.webp",
+      "originalBytes": 1226810,
+      "optimizedBytes": 28660,
+      "width": 1672,
+      "height": 941,
+      "optimizedWidth": 1280,
+      "optimizedHeight": 720
+    },
+    {
+      "original": "covers/import-20261021/d0198946-a54f-4ff0-9acc-c5abe73c33e2.png",
+      "optimized": "covers/optimized-v1/410a8b367a99f001c6993181.webp",
+      "originalBytes": 1240585,
+      "optimizedBytes": 34832,
+      "width": 1672,
+      "height": 941,
+      "optimizedWidth": 1280,
+      "optimizedHeight": 720
+    },
+    {
+      "original": "covers/import-20261021/d84294b5-aaec-4547-8bc1-48f656cb1af9.png",
+      "optimized": "covers/optimized-v1/0b3e00b3a2f760eb51d99fb7.webp",
+      "originalBytes": 1221241,
+      "optimizedBytes": 25392,
+      "width": 1672,
+      "height": 941,
+      "optimizedWidth": 1280,
+      "optimizedHeight": 720
+    },
+    {
+      "original": "covers/import-20261021/e3dc914e-78ab-4490-a147-fc73ea8a4b39.png",
+      "optimized": "covers/optimized-v1/f1dbd47a0cec7ed45ce58942.webp",
+      "originalBytes": 1236350,
+      "optimizedBytes": 30416,
+      "width": 1672,
+      "height": 941,
+      "optimizedWidth": 1280,
+      "optimizedHeight": 720
+    },
+    {
+      "original": "covers/import-20261021/eb4d185c-b5c3-4cc0-92df-d79df8234af0.png",
+      "optimized": "covers/optimized-v1/440f3c600bbdb737139109cc.webp",
+      "originalBytes": 1231787,
+      "optimizedBytes": 27658,
+      "width": 1672,
+      "height": 941,
+      "optimizedWidth": 1280,
+      "optimizedHeight": 720
+    }
+  ]
+}

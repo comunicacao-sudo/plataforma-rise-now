@@ -1,3 +1,4 @@
+import { JourneyCoverImage } from "@/components/journey-cover-image";
 import { deferredView } from "@/components/deferred-view";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -789,30 +790,12 @@ function JourneyRail({
                 }
               }}
             >
-              {themeCovers?.light ? (
-                <img
-                  className="journey-card__cover journey-card__cover--light"
-                  src={themeCovers.light}
-                  alt={`${item.title}, mês ${item.month}`}
-                  loading={item.month > 2 ? "lazy" : "eager"}
-                />
-              ) : null}
-              {themeCovers?.dark ? (
-                <img
-                  className="journey-card__cover journey-card__cover--dark"
-                  src={themeCovers.dark}
-                  alt={`${item.title}, mês ${item.month}`}
-                  loading={item.month > 2 ? "lazy" : "eager"}
-                />
-              ) : null}
-              {!themeCovers?.light && !themeCovers?.dark && fallbackCover ? (
-                <img
-                  className="journey-card__cover"
-                  src={fallbackCover}
-                  alt={`${item.title}, mês ${item.month}`}
-                  loading={item.month > 2 ? "lazy" : "eager"}
-                />
-              ) : null}
+              <JourneyCoverImage
+                item={dynamicCover ?? { coverUrl: fallbackCover ?? null }}
+                className="journey-card__cover"
+                alt={item.title + ", mês " + item.month}
+                loading="lazy"
+              />
               <div className="journey-card__top">
                 <span>MÊS {item.month}</span>
                 {status === "completed" ? <CheckCircle2 size={19} /> : null}
@@ -841,22 +824,17 @@ function HomeView({
   onView,
   onOpen,
   onOpenContent,
+  nextStepQuery,
 }: {
+  nextStepQuery: { data: NextJourneyStep | undefined; isError: boolean; isPending: boolean };
   trail: Trail;
   onView: (view: View) => void;
   onOpen: (l: TrailLesson) => void;
   onOpenContent: (stepKey: string) => void;
 }) {
-  const loadNext = useServerFn(getNextJourneyStep);
   const startNext = useServerFn(startJourneyStep);
   const queryClient = useQueryClient();
   const journeyLibrary = useJourneyContentLibrary(true);
-  const nextStepQuery = useQuery({
-    queryKey: ["next-journey-step", trail.enrollmentId],
-    queryFn: () => loadNext(),
-    enabled: Boolean(trail.enrollmentId),
-    ...liveJourneyQueryOptions,
-  });
   const coversByMonth = useMemo(() => {
     const covers = new Map<number, JourneyContentItem>();
     for (const item of journeyLibrary.data?.items ?? []) {
@@ -939,11 +917,21 @@ function HomeView({
   }
   return (
     <div className="mentee-home-view">
-      <NextStepHero
-        step={highlightedStep}
-        onAction={() => void openHighlightedStep()}
-        busy={nextStepQuery.isPending}
-      />
+      {nextStepQuery.isPending ? (
+        <section className="next-step-hero next-step-hero--message" role="status">
+          <div className="next-step-hero__content page-width">
+            <div className="next-step-hero__copy">
+              <p>Carregando seu próximo passo…</p>
+            </div>
+          </div>
+        </section>
+      ) : (
+        <NextStepHero
+          step={highlightedStep}
+          onAction={() => void openHighlightedStep()}
+          busy={nextStepQuery.isPending}
+        />
+      )}
       <div className="dashboard-body">
         <ContinueJourneySection onOpen={(item) => onOpenContent(item.stepKey)} />
         <JourneyRail trail={trail} coversByMonth={coversByMonth} onView={() => onView("jornada")} />
@@ -1145,9 +1133,24 @@ function DeliverablesView({ trail }: { trail: Trail }) {
   );
 }
 
-function MenteeArea({ view, onView }: { view: View; onView: (v: View) => void }) {
+function MenteeArea({
+  view,
+  onView,
+  userId,
+}: {
+  view: View;
+  onView: (v: View) => void;
+  userId: string;
+}) {
   const { data: trail, isLoading } = useTrail();
-  const journeyLibrary = useJourneyContentLibrary(true);
+  const journeyLibrary = useJourneyContentLibrary(true, true);
+  const loadNext = useServerFn(getNextJourneyStep);
+  const nextStepQuery = useQuery({
+    queryKey: ["next-journey-step", userId],
+    queryFn: () => loadNext(),
+    enabled: view === "inicio",
+    ...liveJourneyQueryOptions,
+  });
   const [lesson, setLesson] = useState<TrailLesson | null>(null);
   const [contentStepKey, setContentStepKey] = useState<string | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
@@ -1222,6 +1225,7 @@ function MenteeArea({ view, onView }: { view: View; onView: (v: View) => void })
       ) : view === "inicio" ? (
         <HomeView
           trail={trail}
+          nextStepQuery={nextStepQuery}
           onView={onView}
           onOpen={openTrailLesson}
           onOpenContent={openJourneyContent}
@@ -1532,7 +1536,11 @@ export function RisePlatform() {
           onView={navigateToView}
         />
       ) : (
-        <MenteeArea view={activeView} onView={navigateToView} />
+        <MenteeArea
+          view={activeView}
+          onView={navigateToView}
+          userId={resolvedUserId.current ?? ""}
+        />
       )}
       <AppFooter role={role} onView={navigateToView} />
     </div>
