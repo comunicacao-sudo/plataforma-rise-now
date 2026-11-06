@@ -340,20 +340,32 @@ Deno.serve(async (request: Request) => {
     if (settings.enabled_stage_released) queued += await queueStageReleases(settings, now);
     if (settings.enabled_meeting_reminder || settings.enabled_meeting_reminder_mentor)
       queued += await queueMeetingReminders(settings, now);
-    queued += await runAutomations(admin, settings, now);
+    let automationsFailed = false;
+    try {
+      queued += await runAutomations(admin, settings, now);
+    } catch (error) {
+      automationsFailed = true;
+      console.error("[rise-cron] automações com falha; entregando os demais avisos válidos", error);
+    }
 
     // Confere a conexão antes de enviar: se o número caiu, as mensagens ficam pendentes.
     const session = await getGatewaySession().catch(() => null);
     if (session?.status !== "ready")
-      return Response.json({
-        ok: true,
-        queued,
-        sent: 0,
-        sessionStatus: session?.status ?? "unreachable",
-        message: "WhatsApp desconectado; mensagens mantidas na fila.",
-      });
+      return Response.json(
+        {
+          ok: !automationsFailed,
+          queued,
+          sent: 0,
+          sessionStatus: session?.status ?? "unreachable",
+          message: "WhatsApp desconectado; mensagens mantidas na fila.",
+        },
+        { status: automationsFailed ? 500 : 200 },
+      );
     const { sent, failed } = await deliverPending(now);
-    return Response.json({ ok: true, queued, sent, failed, sessionStatus: session.status });
+    return Response.json(
+      { ok: !automationsFailed, queued, sent, failed, sessionStatus: session.status },
+      { status: automationsFailed ? 500 : 200 },
+    );
   } catch (error) {
     console.error(error);
     return Response.json({ ok: false, error: "Falha ao processar notificações." }, { status: 500 });

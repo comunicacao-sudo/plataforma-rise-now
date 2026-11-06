@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { deliverNotification } from "../../supabase/functions/_shared/whatsapp-gateway.ts";
-import { notificationInvalidReason } from "../../supabase/functions/_shared/notification-validity.ts";
+import {
+  notificationInvalidReason,
+  reminderDeadline,
+} from "../../supabase/functions/_shared/notification-validity.ts";
 import { runAutomations } from "../../supabase/functions/rise-cron/automations.ts";
 import { computeBookingSlots } from "../../supabase/functions/_shared/booking-slots.ts";
 import { queueNoteSave } from "./note-save-queue";
@@ -317,4 +320,19 @@ test("automação desligada bloqueia avisos já enfileirados", async () => {
     (await notificationInvalidReason(sourceDb({ enabled: false }), { automation_id: "auto" }))!,
     /desligada/,
   );
+});
+
+test("lembretes de um dia não saem horas atrasados e o link na hora tem tolerância curta", () => {
+  const meeting = "2026-11-06T18:00:00Z";
+  const now = Date.parse("2026-11-05T18:00:00Z");
+  assert.equal(reminderDeadline(meeting, 1440, now), "2026-11-05T18:30:00.000Z");
+  assert.equal(
+    reminderDeadline(meeting, 120, Date.parse("2026-11-06T16:00:00Z")),
+    "2026-11-06T16:30:00.000Z",
+  );
+  assert.equal(
+    reminderDeadline(meeting, 15, Date.parse("2026-11-06T17:45:00Z")),
+    "2026-11-06T18:00:00.000Z",
+  );
+  assert.equal(reminderDeadline(meeting, 0, Date.parse(meeting)), "2026-11-06T18:05:00.000Z");
 });

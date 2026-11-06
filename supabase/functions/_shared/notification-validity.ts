@@ -1,4 +1,11 @@
 // @ts-nocheck
+export function reminderDeadline(scheduledAt: string, offsetMinutes: number, now = Date.now()) {
+  const starts = Date.parse(scheduledAt);
+  const offset = Math.max(0, Number(offsetMinutes) || 0);
+  const due = starts - offset * 60_000;
+  const latest = offset === 0 ? starts + 5 * 60_000 : Math.min(starts, due + 30 * 60_000);
+  return new Date(Math.min(now + 24 * 3_600_000, latest)).toISOString();
+}
 /** Revalida o evento de origem na fila; indisponibilidade do banco bloqueia o envio. */
 export async function notificationInvalidReason(admin: any, row: any, now = Date.now()) {
   if (row.expires_at && Date.parse(row.expires_at) <= now) return "O prazo deste aviso encerrou.";

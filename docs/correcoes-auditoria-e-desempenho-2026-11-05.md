@@ -31,7 +31,7 @@ A construção local encontrou um defeito do adaptador de caminhos no Windows. U
 
 Textos claros fixos ganharam tokens com contraste adequado no tema claro, mantendo os fallbacks do tema escuro. Foram revisados menu do perfil, ícones, formulários, rótulos, mensagens, cartões, agenda, navegação, caderno, modais e áreas de mapeamento. A cor de destaque do tema claro ficou mais escura para manter a leitura sobre branco e areia. O menu do perfil tem ações legíveis, área de toque maior e largura limitada à tela.
 
-Os testes com dados simulados cobrem 36 combinações de tela e estado, incluindo perfis de administração e mentorada, em 1366 × 900 e 390 × 844. A última execução de contraste não encontrou violações automáticas nem rolagem horizontal. Isso cobre os estados exercitados; não substitui a inspeção de todos os conteúdos reais cadastrados.
+Os testes com dados simulados cobrem 36 combinações de tela e estado, incluindo perfis de administração e mentorada, em 1366 × 900 e 390 × 844. A última execução de contraste não encontrou violações automáticas nem rolagem horizontal. Outros 24 cenários de páginas públicas, login e recuperação de senha simulada foram conferidos no endereço publicado, nos dois temas e tamanhos, sem violações de contraste ou erros de renderização. Isso cobre os estados exercitados; não substitui a inspeção de todos os conteúdos reais cadastrados.
 
 O primeiro servidor estático de testes servia apenas `_shell.html`, provocando um aviso de hidratação que não representava a hospedagem. A verificação foi adaptada para chamar o servidor realmente gerado pelo build.
 
@@ -43,6 +43,10 @@ As tabelas de operação são exclusivas do servidor, com RLS habilitado e sem g
 
 A usuária ativou a proteção de senhas vazadas no painel. O advisor foi consultado novamente e o alerta deixou de aparecer.
 
-As funções `rise-backend` e `rise-cron` foram publicadas no projeto oficial, com validação Deno concluída. As execuções recentes examinadas do cron retornaram HTTP 200 e sessão WhatsApp pronta, sem mensagens de teste. Os testes automatizados passaram a 84, incluindo concorrência, resposta perdida, preservação do cursor, validade de lembretes, filas de gravação e recuperação de cancelamento Google.
+As funções `rise-backend` e `rise-cron` foram publicadas no projeto oficial, com validação Deno concluída. As execuções recentes examinadas do cron retornaram HTTP 200 e sessão WhatsApp pronta, sem mensagens de teste. Os testes automatizados passaram a 85, incluindo concorrência, resposta perdida, preservação do cursor, validade de lembretes, filas de gravação e recuperação de cancelamento Google. O lembrete de um dia expira até trinta minutos depois do momento previsto, em vez de poder sair muitas horas atrasado; o link na hora tem tolerância de cinco minutos. Falha de uma automação preserva seu cursor e permite entregar os demais avisos válidos.
+
+O commit principal `f976108` foi enviado à main, passou na verificação automática do GitHub e foi publicado. Na conferência do endereço oficial, as dependências externas de fonte deixaram de aparecer no HTML. A hospedagem não aplicava os cabeçalhos de `_headers` ao HTML dinâmico; a proteção foi acrescentada também à configuração nativa do servidor, preservando a incorporação pelo editor Lovable.
+
+Na simulação de carregamento pelo mesmo endereço público, com viewport 390 × 844, CPU limitada em quatro vezes, latência de 60 ms e download de 250.000 bytes/s, duas leituras anteriores registraram LCP de 8.244 e 9.088 ms. Três leituras depois da publicação registraram 3.428, 3.504 e 3.768 ms. São amostras de laboratório, com contexto de navegador novo em cada visita; não representam medições de todos os usuários. A comparação com um servidor local foi excluída dessa conclusão.
 
 Não foram feitos novos diagnósticos reais de IA nem testes de entrega com destinatários reais. Resultados de laboratório e de build não garantem o mesmo tempo de carregamento em todas as conexões e aparelhos.

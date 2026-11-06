@@ -14,7 +14,7 @@
  */
 
 import { authorizedWhatsAppPhone } from "./whatsapp-consent.ts";
-import { notificationInvalidReason } from "./notification-validity.ts";
+import { notificationInvalidReason, reminderDeadline } from "./notification-validity.ts";
 
 export const WHATSAPP_ENGINE = "pamaris_gateway";
 
@@ -280,7 +280,7 @@ export async function enqueueNotification(admin: any, input: NotificationInput) 
     if (!source.data || (booking && source.data.status !== "confirmed")) return null;
     if (group && source.data.audience !== "all") return null;
     sourceScheduledAt = booking ? source.data.starts_at : source.data.scheduled_at;
-    let tolerance = 0;
+    let deadline = Date.parse(sourceScheduledAt);
     if (input.automationId) {
       const automation = await admin
         .from("whatsapp_automations")
@@ -288,15 +288,11 @@ export async function enqueueNotification(admin: any, input: NotificationInput) 
         .eq("id", input.automationId)
         .single();
       if (automation.error) throw new Error(automation.error.message);
-      if (
-        automation.data.trigger === "group_meeting_before" &&
-        Number(automation.data.offset_minutes) === 0
-      )
-        tolerance = 5 * 60_000;
-    }
-    expiresAt = new Date(
-      Math.min(Date.parse(expiresAt), Date.parse(sourceScheduledAt) + tolerance),
-    ).toISOString();
+      if (["group_meeting_before", "booking_before"].includes(automation.data.trigger))
+        deadline = Date.parse(reminderDeadline(sourceScheduledAt, automation.data.offset_minutes));
+    } else if (["meeting_reminder", "meeting_reminder_mentor"].includes(input.eventType))
+      deadline = Math.min(deadline, Date.now() + 30 * 60_000);
+    expiresAt = new Date(Math.min(Date.parse(expiresAt), deadline)).toISOString();
     if (Date.parse(expiresAt) <= Date.now()) return null;
   }
   const { data, error } = await admin
