@@ -11,6 +11,7 @@ import {
 import { type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
+import { PwaProvider } from "@/components/pwa-provider";
 
 function NotFoundComponent() {
   return (
@@ -77,6 +78,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { title: "RISE NOW | Plataforma da Mentoria" },
       { name: "description", content: "Ambiente privado da jornada executiva RISE NOW." },
       { name: "author", content: "RISE NOW" },
+      { name: "theme-color", content: "#082a24" },
+      { name: "mobile-web-app-capable", content: "yes" },
+      { name: "apple-mobile-web-app-capable", content: "yes" },
+      { name: "apple-mobile-web-app-title", content: "RISE NOW" },
+      { name: "apple-mobile-web-app-status-bar-style", content: "default" },
       { property: "og:title", content: "RISE NOW" },
       { property: "og:description", content: "Reflexão, identidade, segurança e evolução." },
       { property: "og:type", content: "website" },
@@ -88,6 +94,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         href: appCss,
       },
       { rel: "icon", href: "/favicon.png", type: "image/png" },
+      { rel: "manifest", href: "/manifest.webmanifest" },
+      { rel: "apple-touch-icon", href: "/app-icons/apple-touch-icon.png", sizes: "180x180" },
       {
         rel: "preload",
         href: "/fonts/Montserrat-VariableFont_wght.woff2",
@@ -131,7 +139,9 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-      <Outlet />
+      <PwaProvider>
+        <Outlet />
+      </PwaProvider>
     </QueryClientProvider>
   );
 }

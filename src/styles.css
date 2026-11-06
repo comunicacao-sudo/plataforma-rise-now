@@ -11217,6 +11217,116 @@ html[data-theme="light"]
   }
 }
 
+/* Instalação: acesso discreto e instruções legíveis nos dois temas. */
+.rise-install-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 14px;
+  border: 1px solid currentColor;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.rise-install-button:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 4px;
+}
+.login-panel__legal > .rise-install-button {
+  margin-bottom: 12px;
+  color: #e4c397;
+}
+html[data-theme="light"] .login-panel__legal > .rise-install-button {
+  color: #754534;
+}
+.rise-install-dialog {
+  position: fixed;
+  inset: 0;
+  width: min(480px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  margin: auto;
+  padding: 28px;
+  overflow: auto;
+  border: 1px solid #a48c68;
+  border-radius: 18px;
+  background: #123a31;
+  color: #fff9ef;
+  box-shadow: 0 24px 80px #0008;
+  font-family: Montserrat, sans-serif;
+}
+.rise-install-dialog::backdrop {
+  background: #000a;
+}
+.rise-install-dialog h2 {
+  margin: 18px 0 12px;
+  font-size: 1.45rem;
+  line-height: 1.25;
+}
+.rise-install-dialog p,
+.rise-install-dialog li {
+  font-size: 0.94rem;
+  line-height: 1.65;
+}
+.rise-install-dialog ol {
+  list-style: decimal;
+  padding-left: 22px;
+}
+.rise-install-dialog li + li {
+  margin-top: 12px;
+}
+.rise-install-dialog img {
+  border-radius: 14px;
+}
+.rise-install-dialog__close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.rise-install-dialog__done {
+  min-height: 44px;
+  margin-top: 12px;
+  padding: 10px 24px;
+  border: 0;
+  border-radius: 24px;
+  background: #d7b07a;
+  color: #082a24;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.rise-install-dialog button:focus-visible {
+  outline: 3px solid #d7b07a;
+  outline-offset: 3px;
+}
+.rise-install-dialog__note {
+  color: #e6d6bd;
+}
+html[data-theme="light"] .rise-install-dialog {
+  background: #faf7f1;
+  color: #26312f;
+  border-color: #9b8b76;
+}
+html[data-theme="light"] .rise-install-dialog__note {
+  color: #4b5853;
+}
+html[data-theme="light"] .rise-install-dialog button:focus-visible {
+  outline-color: #754534;
+}
+
 /* O primeiro bloco acompanha a altura útil do desktop. Conteúdo maior e zoom
    continuam expandindo a seção, sem cortar texto nem prender a rolagem. */
 @media (min-width: 901px) {

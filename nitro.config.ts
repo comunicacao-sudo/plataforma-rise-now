@@ -3,6 +3,19 @@ import { defineConfig } from "nitro";
 // O HTML é servido pelo worker; _headers sozinho cobre apenas arquivos estáticos.
 export default defineConfig({
   routeRules: {
+    "/sw.js": {
+      headers: {
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        "Service-Worker-Allowed": "/",
+        "Content-Type": "text/javascript; charset=utf-8",
+      },
+    },
+    "/manifest.webmanifest": {
+      headers: {
+        "Cache-Control": "no-cache",
+        "Content-Type": "application/manifest+json; charset=utf-8",
+      },
+    },
     "/**": {
       headers: {
         "X-Frame-Options": "SAMEORIGIN",

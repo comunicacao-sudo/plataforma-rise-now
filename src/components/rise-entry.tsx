@@ -2,6 +2,7 @@ import { ArrowRight, Check, Eye, EyeOff, LockKeyhole, Mail } from "lucide-react"
 import { lazy, Suspense, useEffect, useState, type FormEvent } from "react";
 
 import { LegalFooterLinks } from "@/components/rise-legal";
+import { PwaInstallButton } from "@/components/pwa-install-button";
 import { supabase } from "@/integrations/supabase/client";
 
 const AuthenticatedPlatform = lazy(() =>
@@ -173,6 +174,7 @@ function PublicLoginScreen({ onSignedIn }: { onSignedIn: () => void }) {
             </form>
           )}
           <div className="login-panel__legal">
+            <PwaInstallButton />
             <LegalFooterLinks />
           </div>
         </div>

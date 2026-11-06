@@ -1,4 +1,5 @@
 import { JourneyCoverImage } from "@/components/journey-cover-image";
+import { PwaInstallButton } from "@/components/pwa-install-button";
 import { deferredView } from "@/components/deferred-view";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -356,6 +357,7 @@ function LoginScreen() {
             </form>
           )}
           <div className="login-panel__legal">
+            <PwaInstallButton />
             <LegalFooterLinks />
           </div>
         </div>
@@ -589,6 +591,7 @@ function Header({
                   <BrainCircuit size={16} /> Meu mapeamento
                 </button>
               ) : null}
+              <PwaInstallButton />
               <button type="button" onClick={onExit}>
                 <LogOut size={16} /> Sair
               </button>
