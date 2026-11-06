@@ -8,6 +8,8 @@ export function LegalFooterLinks() {
       <a href="/politica-de-privacidade">Política de Privacidade</a>
       <span aria-hidden="true">·</span>
       <a href="/termos-de-uso">Termos de Uso</a>
+      <span aria-hidden="true">·</span>
+      <a href="/instalar">Instalar aplicativo</a>
     </nav>
   );
 }

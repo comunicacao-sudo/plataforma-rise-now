@@ -115,6 +115,9 @@ export function PwaInstallButton({ className = "rise-install-button" }: { classN
                 Aulas, agenda e atividades precisam de internet. As atualizações chegam pelo próprio
                 site.
               </p>
+              <a className="rise-install-dialog__tutorial" href="/instalar">
+                Ver tutorial completo de instalação
+              </a>
               <button
                 type="button"
                 className="rise-install-dialog__done"

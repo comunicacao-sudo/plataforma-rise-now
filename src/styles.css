@@ -11327,6 +11327,109 @@ html[data-theme="light"] .rise-install-dialog button:focus-visible {
   outline-color: #754534;
 }
 
+.rise-install-dialog__tutorial {
+  display: block;
+  margin-top: 16px;
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.rise-install-page__main {
+  width: min(100% - 40px, 700px);
+  margin: 32px auto 64px;
+}
+.rise-install-page__icon {
+  display: block;
+  border-radius: 20px;
+  margin-bottom: 24px;
+}
+.rise-install-page h1 {
+  margin: 14px 0 20px;
+  color: var(--rise-cream, #fff9ef);
+  font-family: Georgia, serif;
+  font-size: clamp(2.3rem, 7vw, 3.5rem);
+  line-height: 1.1;
+}
+.rise-install-page p,
+.rise-install-page li {
+  font-size: 1rem;
+  line-height: 1.7;
+}
+.rise-install-page__intro {
+  margin-bottom: 24px;
+}
+.rise-install-page__notice {
+  padding: 16px 18px;
+  margin: 24px 0;
+  border: 1px solid #9d8867;
+  border-radius: 12px;
+}
+.rise-install-page__devices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 26px 0;
+}
+.rise-install-page__devices a {
+  padding: 10px 16px;
+  border: 1px solid currentColor;
+  border-radius: 24px;
+  color: inherit;
+  text-decoration: none;
+}
+.rise-install-page__section {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid #9d8867;
+  scroll-margin-top: 24px;
+}
+.rise-install-page h2 {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  font-size: 1.35rem;
+  font-weight: 650;
+}
+.rise-install-page ol {
+  list-style: decimal;
+  padding-left: 24px;
+}
+.rise-install-page li + li {
+  margin-top: 12px;
+}
+.rise-install-page__notes {
+  margin: 32px 0;
+  padding-top: 20px;
+  border-top: 1px solid #9d8867;
+}
+.rise-install-page__notes p + p {
+  margin-top: 14px;
+}
+.rise-install-page__access {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 12px 22px;
+  border-radius: 24px;
+  color: #082a24;
+  background: #d7b07a;
+  font-weight: 700;
+  text-decoration: none;
+}
+.rise-install-page :where(a, button):focus-visible {
+  outline: 3px solid #d7b07a;
+  outline-offset: 4px;
+}
+html[data-theme="light"] .rise-install-page h1 {
+  color: #26312f;
+}
+html[data-theme="light"] .rise-install-page :where(a, button):focus-visible {
+  outline-color: #754534;
+}
+
 /* O primeiro bloco acompanha a altura útil do desktop. Conteúdo maior e zoom
    continuam expandindo a seção, sem cortar texto nem prender a rolagem. */
 @media (min-width: 901px) {

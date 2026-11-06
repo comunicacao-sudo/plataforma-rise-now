@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { deliverNotification } from "../../supabase/functions/_shared/whatsapp-gateway.ts";
+import {
+  deliverNotification,
+  enqueueNotification,
+} from "../../supabase/functions/_shared/whatsapp-gateway.ts";
+import { checkedDb } from "../../supabase/functions/_shared/checked-db.ts";
 import {
   notificationInvalidReason,
   reminderDeadline,
@@ -41,6 +45,54 @@ function memoryDb(initial: Record<string, unknown>) {
   };
   return { db, snapshot: () => ({ ...row }) };
 }
+
+test("aviso já registrado é ignorado sem interromper a automação com banco verificado", async () => {
+  const rows = new Map<string, Record<string, unknown>>();
+  const raw = {
+    from() {
+      let row: Record<string, unknown> = {};
+      let ignore = false;
+      const chain = {
+        upsert(
+          value: Record<string, unknown>,
+          options: { onConflict: string; ignoreDuplicates: boolean },
+        ) {
+          row = value;
+          ignore = options.ignoreDuplicates && options.onConflict === "idempotency_key";
+          return chain;
+        },
+        select: () => chain,
+        maybeSingle: async () => {
+          const key = String(row["idempotency_key"]);
+          if (rows.has(key))
+            return ignore
+              ? { data: null, error: null }
+              : { data: null, error: { code: "23505", message: "Duplicado" } };
+          rows.set(key, row);
+          return { data: { ...row, id: "aviso" }, error: null };
+        },
+      };
+      return chain;
+    },
+  };
+  const db = checkedDb(raw);
+  const input = {
+    eventType: "automation",
+    recipientId: null,
+    recipientRole: "group" as const,
+    phone: null,
+    groupChatId: "123@g.us",
+    referenceType: "weekly",
+    referenceId: "semana",
+    idempotencyKey: "cronograma-semanal",
+    message: "Cronograma original",
+    targetUrl: "https://example.invalid",
+  };
+  assert.ok(await enqueueNotification(db, input));
+  assert.equal(await enqueueNotification(db, { ...input, message: "Tentativa repetida" }), null);
+  assert.equal(rows.size, 1);
+  assert.equal(rows.get(input.idempotencyKey)?.["message"], "Cronograma original");
+});
 
 test("execuções concorrentes reservam uma notificação uma única vez", async () => {
   const original = globalThis.fetch;

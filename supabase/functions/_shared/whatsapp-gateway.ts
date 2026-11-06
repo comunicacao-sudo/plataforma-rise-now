@@ -297,25 +297,27 @@ export async function enqueueNotification(admin: any, input: NotificationInput) 
   }
   const { data, error } = await admin
     .from("whatsapp_notifications")
-    .insert({
-      event_type: input.eventType,
-      recipient_user_id: input.recipientId,
-      recipient_role: input.recipientRole,
-      phone: target?.digits ?? null,
-      chat_id: group,
-      automation_id: input.automationId ?? null,
-      message: input.message,
-      target_url: input.targetUrl,
-      reference_type: input.referenceType,
-      reference_id: input.referenceId,
-      idempotency_key: input.idempotencyKey,
-      status: "pending",
-      source_scheduled_at: sourceScheduledAt,
-      expires_at: expiresAt,
-    })
+    .upsert(
+      {
+        event_type: input.eventType,
+        recipient_user_id: input.recipientId,
+        recipient_role: input.recipientRole,
+        phone: target?.digits ?? null,
+        chat_id: group,
+        automation_id: input.automationId ?? null,
+        message: input.message,
+        target_url: input.targetUrl,
+        reference_type: input.referenceType,
+        reference_id: input.referenceId,
+        idempotency_key: input.idempotencyKey,
+        status: "pending",
+        source_scheduled_at: sourceScheduledAt,
+        expires_at: expiresAt,
+      },
+      { onConflict: "idempotency_key", ignoreDuplicates: true },
+    )
     .select("id, phone, chat_id, message, updated_at")
-    .single();
-  if (error?.code === "23505") return null;
+    .maybeSingle();
   if (error) throw new Error(error.message);
   return data;
 }
