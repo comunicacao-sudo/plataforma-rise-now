@@ -52,6 +52,14 @@ A revisão visual encontrou baixo contraste nos códigos de cor do seletor de te
 
 O app continua guardando no cache próprio somente a tela pública sem conexão e dois ícones. Páginas autenticadas, respostas, APIs, capas privadas e vídeos não foram incluídos nesse cache. Os endpoints antigos de WhatsApp e de importação foram conferidos: ambos permanecem desativados com resposta 410.
 
+### Ajuste posterior: fundo sólido no celular
+
+O fundo da página inicial tinha uma regra que ajustava a imagem à altura inteira da página (`auto 100%`), ampliando e recortando a arte conforme o conteúdo crescia. Em telas de até 900 pixels, o fundo passou a verde sólido (`#082a24`) no tema escuro e branco no claro, incluindo entrada, plataforma e páginas públicas. As imagens de cenário deixam de ser requisitadas nessas larguras; as capas dos conteúdos continuam disponíveis. O desktop conserva suas artes.
+
+A remoção das imagens tornou mensurável um contraste insuficiente em descrições, links de seção, rodapé e rótulos da entrada. As cores desses textos foram ajustadas na versão mobile. Nenhuma arte nova foi necessária.
+
+A compilação passou e 38 verificações adicionais de fundo, contraste e largura foram aprovadas, com autenticação simulada, nos dois temas. Foram conferidas larguras de 320, 375, 390, 430, 820, 900, 1.024 e 1.366 pixels; a imagem de cenário não foi requisitada nas larguras mobile. A página inicial, a administração, a entrada e o tutorial foram contemplados.
+
 ## Carregamento
 
 - A entrada usa uma única marca selecionada pelo tema no CSS, evitando baixar a imagem do tema oculto. No tema escuro, a imagem evitada tem 25.506 bytes; no claro, 14.432 bytes. As artes originais foram mantidas.
