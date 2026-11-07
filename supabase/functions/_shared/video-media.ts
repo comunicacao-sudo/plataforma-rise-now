@@ -70,7 +70,7 @@ export async function driveFailure(response: Response) {
   if (response.status === 401 || response.status === 403 || response.status === 404)
     return new DriveVideoError(
       "drive_file_access",
-      "O Google Drive não liberou este vídeo para a integração da RISE. Confira a autorização do arquivo; não é necessário tornar a gravação pública.",
+      "O Google Drive não liberou este vídeo para a integração da RISE. A equipe precisa conectar o Drive e autorizar a gravação em Conteúdos; não é necessário torná-la pública.",
     );
   return new DriveVideoError(
     "drive_unavailable",
@@ -83,18 +83,22 @@ export async function readDriveVideo(
   key: string | null,
   referrer: string,
   fetcher: typeof fetch = fetch,
+  accessToken?: string | null,
 ) {
   const id = driveFileId(source);
   if (!id) throw new Error("Informe o link de um arquivo de vídeo do Google Drive.");
-  if (!key)
+  if (!key && !accessToken)
     throw new Error("A integração do Google Drive ainda precisa ser configurada pela equipe.");
   const query = new URLSearchParams({
-    key,
+    ...(accessToken ? {} : { key: key! }),
     supportsAllDrives: "true",
     fields: "mimeType,size,videoMediaMetadata(durationMillis),capabilities(canDownload)",
   });
   const response = await fetcher(`https://www.googleapis.com/drive/v3/files/${id}?${query}`, {
-    headers: { Referer: new URL(referrer).origin + "/" },
+    headers: {
+      Referer: new URL(referrer).origin + "/",
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    },
     signal: AbortSignal.timeout(15000),
   });
   if (!response.ok) throw await driveFailure(response);

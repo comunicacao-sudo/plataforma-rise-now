@@ -4,7 +4,10 @@ const bytes = (value: string) => new TextEncoder().encode(value);
 const b64 = (value: Uint8Array) => btoa(String.fromCharCode(...value));
 const unb64 = (value: string) => Uint8Array.from(atob(value), (c) => c.charCodeAt(0));
 const googleFreeBusyScope = "https://www.googleapis.com/auth/calendar.events.freebusy";
-export function googleCalendarClient(admin: any) {
+export function googleCalendarClient(
+  admin: any,
+  connectorId: "google_calendar" | "google_drive" = "google_calendar",
+) {
   async function encryptionKey() {
     const raw = env("APP_USER_CONNECTION_KEY_SECRET");
     if (!raw) throw new Error("Segredo de conexão Google não configurado.");
@@ -37,7 +40,7 @@ export function googleCalendarClient(admin: any) {
     const { error } = await admin.from("app_user_connections").upsert(
       {
         user_id: userId,
-        connector_id: "google_calendar",
+        connector_id: connectorId,
         connection_key_ciphertext: await encrypt(tokens),
         updated_at: new Date().toISOString(),
       },
@@ -50,7 +53,7 @@ export function googleCalendarClient(admin: any) {
       .from("app_user_connections")
       .select("connection_key_ciphertext")
       .eq("user_id", userId)
-      .eq("connector_id", "google_calendar")
+      .eq("connector_id", connectorId)
       .maybeSingle();
     if (error) throw new Error(error.message);
     if (!data) return null;

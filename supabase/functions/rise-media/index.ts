@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.117.2";
+import { authorizedDriveAccess } from "../_shared/google-drive.ts";
 import {
   driveFileId,
   driveFailure,
@@ -57,8 +58,13 @@ Deno.serve(async (request) => {
     const id = driveFileId(source.externalUrl || "");
     const key = Deno.env.get("GOOGLE_DRIVE_API_KEY")?.trim();
     if (!id) return deny(404);
-    if (!key) return deny(503, "drive_key_missing");
-    const params = new URLSearchParams({ alt: "media", supportsAllDrives: "true", key });
+    const token = await authorizedDriveAccess(db, ticket.contentId, ticket.revision);
+    if (!key && !token) return deny(503, "drive_key_missing");
+    const params = new URLSearchParams({
+      alt: "media",
+      supportsAllDrives: "true",
+      ...(token ? {} : { key: key! }),
+    });
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 20000);
     let upstream: Response;
@@ -67,6 +73,7 @@ Deno.serve(async (request) => {
         method: request.method,
         headers: {
           Referer: new URL(site).origin + "/",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
           ...(range ? { Range: mediaRequestRange(range)! } : {}),
         },
         signal: controller.signal,

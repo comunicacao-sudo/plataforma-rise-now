@@ -5050,6 +5050,40 @@ hr,
 }
 
 /* ---------- Gerenciamento de conteúdos da jornada ---------- */
+.drive-connection {
+  min-height: 0 !important;
+  margin-bottom: 1.25rem;
+}
+.drive-connection summary {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: .5rem 1rem;
+  cursor: pointer;
+  color: var(--text);
+}
+.drive-connection summary:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 5px;
+}
+.drive-connection summary > span { display: inline-flex; align-items: center; gap: .5rem; }
+.drive-connection[open] summary svg { transform: rotate(180deg); }
+.drive-connection__body { padding-top: 1rem; }
+.drive-connection__body p { margin-bottom: 1rem; }
+.drive-connection__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; }
+.drive-connection__videos { padding: 0; margin: 1.25rem 0 0; list-style: none; }
+.drive-connection__videos li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  border-top: 1px solid currentColor;
+  padding: 1rem 0;
+}
+.drive-connection__videos li > div { display: grid; gap: .25rem; flex: 1 1 14rem; min-width: 0; }
+.drive-connection__videos strong { overflow-wrap: anywhere; }
+.drive-connection .button { max-width: 100%; white-space: normal; }
 .sr-only {
   position: absolute;
   width: 1px;

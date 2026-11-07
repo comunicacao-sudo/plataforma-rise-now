@@ -13,6 +13,12 @@ import {
   type MediaTicket,
 } from "../../supabase/functions/_shared/video-media.ts";
 import { videoDurationLabel } from "./video-duration";
+import {
+  authorizedDriveAccess,
+  googleDriveScope,
+  hasDriveScope,
+} from "../../supabase/functions/_shared/google-drive.ts";
+import { oauthConnector } from "./google-oauth";
 
 const id = "1234567890abcdefghij";
 const source = `https://drive.google.com/file/d/${id}/view`;
@@ -24,6 +30,87 @@ const ticket: MediaTicket = {
   revision: 1,
   expiresAt: now + 3600_000,
 };
+
+test("Drive privado usa OAuth somente no servidor e não põe token ou chave no endereço", async () => {
+  const metadata = await readDriveVideo(
+    source,
+    "chave-que-nao-deve-ser-usada",
+    "https://board.mentoriarisenow.com.br",
+    async (url, init) => {
+      assert.equal(new URL(String(url)).searchParams.has("key"), false);
+      assert.equal(String(url).includes("token-servidor"), false);
+      assert.equal(new Headers(init?.headers).get("Authorization"), "Bearer token-servidor");
+      return Response.json({
+        mimeType: "video/mp4",
+        videoMediaMetadata: { durationMillis: "900000" },
+        capabilities: { canDownload: true },
+      });
+    },
+    "token-servidor",
+  );
+  assert.equal(metadata.durationSeconds, 900);
+  assert.deepEqual(Object.keys(metadata).sort(), ["durationSeconds", "mimeType"]);
+});
+
+test("OAuth não contorna proibição de download nem disfarça recusa do provedor", async () => {
+  await assert.rejects(
+    readDriveVideo(
+      source,
+      null,
+      "https://example.invalid",
+      async () => Response.json({ mimeType: "video/mp4", capabilities: { canDownload: false } }),
+      "token-servidor",
+    ),
+    /não permite/,
+  );
+  await assert.rejects(
+    readDriveVideo(
+      source,
+      null,
+      "https://example.invalid",
+      async () => new Response(null, { status: 403 }),
+      "token-servidor",
+    ),
+    /não liberou/,
+  );
+});
+
+test("sem vínculo da revisão exata o servidor não consulta credenciais de outra mentora", async () => {
+  const db = {
+    async rpc(name: string, args: unknown) {
+      assert.equal(name, "resolve_drive_video_authorizer");
+      assert.deepEqual(args, { p_content_id: ticket.contentId, p_revision: 2 });
+      return { data: null, error: null };
+    },
+    from() {
+      assert.fail("Não pode procurar um token global quando não há autorização.");
+    },
+  };
+  assert.equal(await authorizedDriveAccess(db, ticket.contentId, 2), null);
+  await assert.rejects(
+    authorizedDriveAccess(
+      {
+        rpc: async () => ({ data: null, error: { message: "interno" } }),
+      },
+      ticket.contentId,
+      2,
+    ),
+    /verificar a autorização/,
+  );
+});
+
+test("Drive exige o escopo de leitura e separa a janela OAuth da Agenda", () => {
+  assert.equal(hasDriveScope({ scope: googleDriveScope }), true);
+  assert.equal(
+    hasDriveScope({ scope: "openid email https://www.googleapis.com/auth/calendar.events" }),
+    false,
+  );
+  assert.equal(hasDriveScope(null), false);
+  const state =
+    btoa(JSON.stringify({ connectorId: "google_drive" })).replaceAll("=", "") + ".assinatura";
+  assert.equal(oauthConnector(state), "google_drive");
+  assert.equal(oauthConnector("invalido"), "google_calendar");
+});
 
 test("identifica arquivos do Drive somente nos hosts e caminhos permitidos", () => {
   assert.equal(driveFileId(source), id);

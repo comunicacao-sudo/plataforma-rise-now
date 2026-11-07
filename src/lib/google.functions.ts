@@ -10,6 +10,28 @@ export const startGoogleConnect = createEdgeFunction<undefined, { authorizationU
 );
 export const completeGoogleConnect: any = createEdgeFunction("completeGoogleConnect");
 export const disconnectGoogle: any = createEdgeFunction("disconnectGoogle");
+export const googleDriveStatus = createEdgeFunction<
+  undefined,
+  {
+    connected: boolean;
+    reconnectRequired: boolean;
+    email: string | null;
+    videos: Array<{ id: string; title: string; audience: string | null; authorized: boolean }>;
+  }
+>("googleDriveStatus");
+export const startGoogleDriveConnect = createEdgeFunction<undefined, { authorizationUrl: string }>(
+  "startGoogleDriveConnect",
+);
+export const authorizeDriveVideo = createEdgeFunction<
+  { contentId: string },
+  {
+    ok: boolean;
+    durationSeconds: number | null;
+  }
+>("authorizeDriveVideo");
+export const disconnectGoogleDrive = createEdgeFunction<undefined, { ok: boolean }>(
+  "disconnectGoogleDrive",
+);
 export const createMeeting: any = createEdgeFunction("createMeeting");
 export const updateMeeting: any = createEdgeFunction("updateMeeting");
 export const cancelMeeting: any = createEdgeFunction("cancelMeeting");

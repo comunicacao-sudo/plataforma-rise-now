@@ -61,9 +61,24 @@ A chave `GOOGLE_DRIVE_API_KEY` foi cadastrada no Supabase pela administradora e 
 - O serviço de mídia recebeu HTTP 403 ao buscar uma gravação do Drive. A validação de metadados também recebeu uma recusa do provedor. O acesso da mentora à RISE e a validação de sua sessão no banco estavam corretos.
 - O tratamento de erros agora diferencia chave inválida, API desativada, restrições de API/aplicativo, quota e recusa de acesso ao arquivo. Só códigos e mensagens seguros são devolvidos; a chave e a resposta original do Google não são expostas.
 - A consulta autenticada aos metadados confirmou a existência do arquivo, mas não retornou uma lista de permissões que permitisse verificar autorização de reprodução para a integração. Nenhum compartilhamento foi alterado e nenhuma gravação do Drive foi baixada ou transferida durante essa conferência.
-- A reprodução das gravações do Drive permanece pendente. Foi solicitada autorização específica para copiar as três gravações 1:1 para o R2 privado, preservando os originais e o público de cada aula.
+- A administradora confirmou que gravações com mais de dez minutos devem permanecer no Drive. A proposta de copiar essas gravações para o R2 não será executada.
 
 Após o ajuste dos diagnósticos, os 118 testes automatizados passaram.
+
+### Conexão privada do Drive — 07/11/2026
+
+- Implementada conexão OAuth separada do Google Agenda, usando o mesmo cliente Google já configurado na RISE e credenciais criptografadas no servidor.
+- O consentimento solicitado é `drive.readonly`: o Google permite ler/baixar todos os arquivos acessíveis à conta. Essa abrangência aparece na configuração antes de conectar. No aplicativo, o token é usado apenas para vídeos cadastrados ou explicitamente autorizados pela dona da conexão.
+- Painel recolhível em Conteúdos, exclusivo das mentoras, com conexão, autorização de cada gravação e desconexão. A consulta ao Google é adiada até a abertura do painel.
+- A autorização pertence ao conteúdo e à sua revisão exata. Trocar o link invalida o vínculo; trocar a conta Google remove as autorizações da conta anterior. Uma mentora sem acesso ao arquivo não pode vinculá-lo usando o token de outra.
+- A transmissão ainda exige ticket assinado, sessão ativa e acesso à aula; os destinatários de cada vídeo 1:1 não foram alterados. Nenhum token ou chave Google é devolvido ao player.
+- A conexão não altera compartilhamentos, não exclui arquivos e não transfere gravações para outro armazenamento. A desconexão do Drive remove a ligação local sem revogar a Agenda por engano.
+- Verificados 122 testes automatizados; verificação de tipos; lint sem erros, com 12 avisos preexistentes; Deno; compilação e limites de tamanho dos arquivos.
+- Oito verificações de interface com serviços simulados cobriram celular/desktop, temas claro/escuro, retorno OAuth, autorização e desconexão: sem falha de contraste, rolagem horizontal ou erro de página.
+- Testes no banco real com rollback confirmaram isolamento entre vídeos/revisões, rejeição de credencial de mentorado e bloqueio de leitura/execução pelos papéis públicos.
+- **Pendente de ação da administradora:** concluir o novo consentimento Google em Conteúdos e autorizar as três gravações. A reprodução real pelo Drive só pode ser considerada aprovada depois desse consentimento e de um novo teste do vídeo.
+
+Referências: [escopos de autorização do Drive](https://developers.google.com/workspace/drive/api/guides/api-specific-auth) e [leitura de arquivos e permissão canDownload](https://developers.google.com/workspace/drive/api/guides/manage-downloads).
 
 O player próprio não oferece DRM. Acompanhamento registra eventos de reprodução e a maior posição alcançada; não comprova atenção contínua. A integração não altera as permissões de compartilhamento do arquivo original no Drive. Conteúdos removidos são desativados e seus registros anteriores são preservados.
 

@@ -14,6 +14,7 @@ import {
 } from "../_shared/content-visibility.ts";
 import { reconcileGoogleCancellations } from "../_shared/google-cancellations.ts";
 import { googleCalendarClient } from "../_shared/google-calendar.ts";
+import { authorizedDriveAccess, googleDriveScope, hasDriveScope } from "../_shared/google-drive.ts";
 import { computeBookingSlots } from "../_shared/booking-slots.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.117.2";
 import {
@@ -1683,6 +1684,8 @@ async function contentAction(c: Context, action: string, d: any) {
       source,
       env("GOOGLE_DRIVE_API_KEY"),
       env("APP_BASE_URL") ?? "https://board.mentoriarisenow.com.br",
+      fetch,
+      await ownDriveAccess(c.userId),
     );
   }
   if (action === "getStageVideoEngagement") {
@@ -1742,12 +1745,12 @@ async function contentAction(c: Context, action: string, d: any) {
     if (source.mediaPath?.startsWith("r2:"))
       return { r2: true, contentId, url: null, revision: source.revision };
     if (driveFileId(source.externalUrl ?? "")) {
-      if (!env("GOOGLE_DRIVE_API_KEY"))
-        throw new Error("Falta configurar a integração do Google Drive na RISE.");
       const metadata = await readDriveVideo(
         source.externalUrl,
         env("GOOGLE_DRIVE_API_KEY"),
         env("APP_BASE_URL") ?? "https://board.mentoriarisenow.com.br",
+        fetch,
+        await authorizedDriveAccess(c.admin, contentId, source.revision),
       );
       if (metadata.durationSeconds && metadata.durationSeconds !== source.durationSeconds) {
         const updated = await c.admin
@@ -1860,14 +1863,31 @@ async function contentAction(c: Context, action: string, d: any) {
       }
       if (parsed.protocol !== "https:") throw new Error("O link precisa começar com https://");
     }
-    const remoteVideo =
-      env("GOOGLE_DRIVE_API_KEY") && driveFileId(externalVideo)
-        ? await readDriveVideo(
-            externalVideo,
-            env("GOOGLE_DRIVE_API_KEY"),
-            env("APP_BASE_URL") ?? "https://board.mentoriarisenow.com.br",
-          )
-        : null;
+    const ownDriveToken = driveFileId(externalVideo) ? await ownDriveAccess(c.userId) : null;
+    let sourceDriveToken = ownDriveToken;
+    if (!sourceDriveToken && d.id && driveFileId(externalVideo)) {
+      const existing = await c.admin
+        .from("journey_stage_contents")
+        .select("external_url,source_revision")
+        .eq("id", d.id)
+        .maybeSingle();
+      if (existing.error) throw new Error("Não foi possível verificar o vídeo existente.");
+      if (existing.data?.external_url === externalVideo)
+        sourceDriveToken = await authorizedDriveAccess(
+          c.admin,
+          d.id,
+          existing.data.source_revision,
+        );
+    }
+    const remoteVideo = driveFileId(externalVideo)
+      ? await readDriveVideo(
+          externalVideo,
+          env("GOOGLE_DRIVE_API_KEY"),
+          env("APP_BASE_URL") ?? "https://board.mentoriarisenow.com.br",
+          fetch,
+          sourceDriveToken,
+        )
+      : null;
     const detectedDuration =
       contentType === "video"
         ? (remoteVideo?.durationSeconds ?? validVideoDuration(d.durationSeconds))
@@ -1943,6 +1963,7 @@ async function contentAction(c: Context, action: string, d: any) {
       : c.admin.from("journey_stage_contents").insert(payload).select("*").single();
     const { data, error } = await query;
     if (error || !data) throw new Error(error?.message ?? "Não foi possível salvar o conteúdo.");
+    if (ownDriveToken && remoteVideo) await bindDriveVideo(c, data);
     return { item: stageContentShape(data) };
   }
 
@@ -3090,6 +3111,24 @@ async function hmac(value: string) {
 }
 const { googleTokens, googleAccess, googleFetch, googleBusy, saveGoogle, hasGoogleFreeBusyScope } =
   googleCalendarClient(admin);
+const driveGoogle = googleCalendarClient(admin, "google_drive");
+async function ownDriveAccess(userId: string) {
+  if (!hasDriveScope(await driveGoogle.googleTokens(userId))) return null;
+  return driveGoogle.googleAccess(userId);
+}
+async function bindDriveVideo(c: Context, source: any) {
+  const { error } = await c.admin.from("journey_drive_authorizations").upsert(
+    {
+      content_id: source.id,
+      source_revision: source.source_revision,
+      authorized_by: c.userId,
+      authorized_at: new Date().toISOString(),
+    },
+    { onConflict: "content_id" },
+  );
+  if (error)
+    throw new Error("Não foi possível salvar a autorização do vídeo. Autorize-o em Conteúdos.");
+}
 
 function overlaps(startsAt: string, endsAt: string, busy: any[]) {
   const start = Date.parse(startsAt);
@@ -3193,12 +3232,120 @@ async function availableBookingSlots(
 }
 
 async function googleAction(c: Context, action: string, d: any) {
-  if (action === "startGoogleConnect") {
+  if (["googleDriveStatus", "authorizeDriveVideo", "disconnectGoogleDrive"].includes(action)) {
+    await requireStaff(c);
+    if (action === "authorizeDriveVideo") {
+      const token = await ownDriveAccess(c.userId);
+      if (!token) throw new Error("Conecte seu Google Drive em Conteúdos primeiro.");
+      const { data: source, error } = await c.admin
+        .from("journey_stage_contents")
+        .select("id,external_url,source_revision")
+        .eq("id", String(d.contentId ?? ""))
+        .eq("active", true)
+        .eq("content_type", "video")
+        .single();
+      if (error || !source || !driveFileId(source.external_url ?? ""))
+        throw new Error("Este conteúdo não é um vídeo ativo do Drive.");
+      const metadata = await readDriveVideo(
+        source.external_url,
+        null,
+        env("APP_BASE_URL") ?? defaultAppBaseUrl,
+        fetch,
+        token,
+      );
+      await bindDriveVideo(c, source);
+      const updated = await c.admin
+        .from("journey_stage_contents")
+        .update({
+          ...(metadata.durationSeconds
+            ? {
+                duration_seconds: metadata.durationSeconds,
+                duration_minutes: Math.ceil(metadata.durationSeconds / 60),
+              }
+            : {}),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", source.id)
+        .eq("source_revision", source.source_revision)
+        .select("id");
+      if (updated.error || !updated.data?.length)
+        throw new Error(
+          "A gravação mudou durante a autorização. Atualize a página e autorize novamente.",
+        );
+      return { ok: true, durationSeconds: metadata.durationSeconds };
+    }
+    if (action === "disconnectGoogleDrive") {
+      // Revogar no Google afeta todos os escopos do mesmo app, inclusive a Agenda.
+      const unbind = await c.admin
+        .from("journey_drive_authorizations")
+        .delete()
+        .eq("authorized_by", c.userId);
+      if (unbind.error) throw new Error("Não foi possível remover as autorizações dos vídeos.");
+      const disconnected = await c.admin
+        .from("app_user_connections")
+        .delete()
+        .eq("user_id", c.userId)
+        .eq("connector_id", "google_drive");
+      if (disconnected.error) throw new Error("Não foi possível desconectar o Google Drive.");
+      return { ok: true };
+    }
+    const tokens = await driveGoogle.googleTokens(c.userId);
+    const token = hasDriveScope(tokens) ? await driveGoogle.googleAccess(c.userId) : null;
+    const profileResponse = token
+      ? await driveGoogle.googleFetch(c.userId, "/oauth2/v2/userinfo")
+      : null;
+    const profile = profileResponse?.ok ? await profileResponse.json() : null;
+    const [contents, bindings] = await Promise.all([
+      c.admin
+        .from("journey_stage_contents")
+        .select("id,title,external_url,source_revision,mentee_id")
+        .eq("active", true)
+        .eq("content_type", "video")
+        .not("external_url", "is", null)
+        .order("created_at"),
+      c.admin
+        .from("journey_drive_authorizations")
+        .select("content_id,source_revision,authorized_by"),
+    ]);
+    if (contents.error || bindings.error)
+      throw new Error("Não foi possível verificar os vídeos do Drive.");
+    const videos = (contents.data ?? []).filter((item: any) => driveFileId(item.external_url));
+    const menteeIds = [...new Set(videos.map((item: any) => item.mentee_id).filter(Boolean))];
+    const names = menteeIds.length
+      ? await c.admin.from("profiles").select("id,full_name").in("id", menteeIds)
+      : { data: [] };
+    if (names.error) throw new Error("Não foi possível identificar os destinatários dos vídeos.");
+    return {
+      connected: !!token && !!profileResponse?.ok,
+      reconnectRequired: !!tokens && (!token || !profileResponse?.ok),
+      email: profile?.email ?? null,
+      videos: videos.map((item: any) => ({
+        id: item.id,
+        title: item.title,
+        audience:
+          names.data?.find((person: any) => person.id === item.mentee_id)?.full_name ?? null,
+        authorized:
+          bindings.data?.some(
+            (binding: any) =>
+              binding.content_id === item.id && binding.source_revision === item.source_revision,
+          ) ?? false,
+      })),
+    };
+  }
+  if (action === "startGoogleConnect" || action === "startGoogleDriveConnect") {
+    const isDrive = action === "startGoogleDriveConnect";
+    if (isDrive) await requireStaff(c);
     const { clientId, redirectUri } = googleOAuthConfig();
     if (!clientId)
       throw new Error("Google Agenda ainda não configurado: GOOGLE_CLIENT_ID ausente.");
     const payload = b64(
-      bytes(JSON.stringify({ userId: c.userId, expires: Date.now() + 10 * 60_000 })),
+      bytes(
+        JSON.stringify({
+          userId: c.userId,
+          expires: Date.now() + 10 * 60_000,
+          connectorId: isDrive ? "google_drive" : "google_calendar",
+        }),
+      ),
     )
       .replaceAll("+", "-")
       .replaceAll("/", "_")
@@ -3210,9 +3357,9 @@ async function googleAction(c: Context, action: string, d: any) {
       response_type: "code",
       access_type: "offline",
       prompt: "consent",
-      scope: googleScopes.join(" "),
+      scope: (isDrive ? ["openid", "email", googleDriveScope] : googleScopes).join(" "),
       state,
-      include_granted_scopes: "true",
+      include_granted_scopes: isDrive ? "false" : "true",
     });
     return { authorizationUrl: `https://accounts.google.com/o/oauth2/v2/auth?${params}` };
   }
@@ -3223,6 +3370,10 @@ async function googleAction(c: Context, action: string, d: any) {
     const [payload, signature] = String(d.state ?? "").split(".");
     if (!payload || signature !== (await hmac(payload))) throw new Error("Estado OAuth inválido.");
     const state = JSON.parse(new TextDecoder().decode(unb64url(payload)));
+    const connectorId = state.connectorId ?? "google_calendar";
+    if (!["google_calendar", "google_drive"].includes(connectorId))
+      throw new Error("Conexão Google inválida.");
+    if (connectorId === "google_drive") await requireStaff(c);
     if (state.userId !== c.userId || state.expires < Date.now())
       throw new Error("Autorização OAuth expirada.");
     const response = await fetch("https://oauth2.googleapis.com/token", {
@@ -3252,11 +3403,45 @@ async function googleAction(c: Context, action: string, d: any) {
       );
     }
     const tokens = await response.json();
-    await saveGoogle(c.userId, {
+    if (connectorId === "google_drive" && !hasDriveScope(tokens))
+      throw new Error("O acesso de leitura do Drive não foi autorizado. Tente conectar novamente.");
+    const connector = connectorId === "google_drive" ? driveGoogle : { saveGoogle, googleTokens };
+    const previous = await connector.googleTokens(c.userId);
+    let refreshToken = tokens.refresh_token ?? previous?.refresh_token;
+    let accountId = previous?.account_id;
+    if (connectorId === "google_drive") {
+      const identityResponse = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
+        headers: { Authorization: `Bearer ${tokens.access_token}` },
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (!identityResponse.ok)
+        throw new Error("Não foi possível confirmar a conta do Google Drive.");
+      const identity = await identityResponse.json();
+      accountId = identity.id;
+      refreshToken =
+        tokens.refresh_token ??
+        (accountId && accountId === previous?.account_id ? previous?.refresh_token : null);
+      if (!refreshToken)
+        throw new Error(
+          "O Google não liberou acesso contínuo. Reconecte o Drive e autorize novamente.",
+        );
+      // Uma troca de conta exige autorizar novamente cada arquivo.
+      if (previous && previous.account_id !== accountId) {
+        const removed = await c.admin
+          .from("journey_drive_authorizations")
+          .delete()
+          .eq("authorized_by", c.userId);
+        if (removed.error)
+          throw new Error("Não foi possível atualizar as autorizações da conta anterior.");
+      }
+    }
+    await connector.saveGoogle(c.userId, {
       ...tokens,
+      refresh_token: refreshToken,
+      account_id: accountId,
       expires_at: Date.now() + Number(tokens.expires_in ?? 3600) * 1000,
     });
-    return { ok: true };
+    return { ok: true, connectorId };
   }
   if (action === "googleStatus") {
     const tokens = await googleTokens(c.userId);
@@ -3269,7 +3454,7 @@ async function googleAction(c: Context, action: string, d: any) {
   }
   if (action === "disconnectGoogle") {
     const token = await googleAccess(c.userId);
-    if (token)
+    if (token && !(await driveGoogle.googleTokens(c.userId)))
       await fetch(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(token)}`, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -4308,6 +4493,10 @@ const groups = {
     "saveAssessmentDevelopmentPlan",
   ]),
   google: new Set([
+    "googleDriveStatus",
+    "startGoogleDriveConnect",
+    "authorizeDriveVideo",
+    "disconnectGoogleDrive",
     "googleStatus",
     "startGoogleConnect",
     "completeGoogleConnect",

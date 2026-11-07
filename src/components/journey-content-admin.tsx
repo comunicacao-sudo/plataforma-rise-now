@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { RecordedPlayer } from "@/components/recorded-lessons";
+import { GoogleDriveCard } from "@/components/google-drive-card";
 import { readLocalVideoDuration, videoDurationLabel } from "@/lib/video-duration";
 import { driveFileId } from "../../supabase/functions/_shared/video-media";
 
@@ -1361,6 +1362,9 @@ export function JourneyContentAdmin() {
           Organize aulas e materiais para cada etapa, turma ou mentorado. Datas e etapas se editam
           em Jornada.
         </p>
+      </div>
+      <div className="page-width">
+        <GoogleDriveCard />
       </div>
       <section className="page-width content-admin-filters">
         <label className="content-admin-search">

@@ -1,14 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { completeGoogleConnect } from "@/lib/google.functions";
+import { oauthConnector } from "@/lib/google-oauth";
 
 export const Route = createFileRoute("/oauth/google/return")({
   head: () => ({
     meta: [
-      { title: "Conectando Google Agenda · RISE NOW" },
-      { name: "description", content: "Finalizando a conexão com o Google Agenda." },
-      { property: "og:title", content: "Conectando Google Agenda · RISE NOW" },
-      { property: "og:description", content: "Finalizando a conexão com o Google Agenda." },
+      { title: "Conectando Google · RISE NOW" },
+      { name: "description", content: "Finalizando a conexão com o Google." },
+      { property: "og:title", content: "Conectando Google · RISE NOW" },
+      { property: "og:description", content: "Finalizando a conexão com o Google." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -18,14 +19,18 @@ export const Route = createFileRoute("/oauth/google/return")({
 
 function OAuthReturn() {
   const [message, setMessage] = useState("Finalizando a conexão…");
+  const started = useRef(false);
   useEffect(() => {
+    if (started.current) return;
+    started.current = true;
     const params = new URLSearchParams(window.location.search);
+    const connectorId = oauthConnector(params.get("state"));
     const notify = (
       type: "riseGoogleOAuthComplete" | "riseGoogleOAuthFailed",
       failureMessage?: string,
     ) => {
       window.opener?.postMessage(
-        { type, connectorId: "google_calendar", message: failureMessage },
+        { type, connectorId, message: failureMessage },
         window.location.origin,
       );
       window.close();
@@ -38,7 +43,10 @@ function OAuthReturn() {
       return;
     }
     void completeGoogleConnect({ data: { code, state } })
-      .then(() => notify("riseGoogleOAuthComplete"))
+      .then(() => {
+        setMessage("Conexão concluída. Você pode fechar esta janela.");
+        notify("riseGoogleOAuthComplete");
+      })
       .catch((error: unknown) => {
         const failureMessage =
           error instanceof Error ? error.message : "A conexão não foi concluída. Tente de novo.";
