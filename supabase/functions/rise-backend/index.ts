@@ -1744,6 +1744,22 @@ async function contentAction(c: Context, action: string, d: any) {
     if (driveFileId(source.externalUrl ?? "")) {
       if (!env("GOOGLE_DRIVE_API_KEY"))
         throw new Error("Falta configurar a integração do Google Drive na RISE.");
+      const metadata = await readDriveVideo(
+        source.externalUrl,
+        env("GOOGLE_DRIVE_API_KEY"),
+        env("APP_BASE_URL") ?? "https://board.mentoriarisenow.com.br",
+      );
+      if (metadata.durationSeconds && metadata.durationSeconds !== source.durationSeconds) {
+        const updated = await c.admin
+          .from("journey_stage_contents")
+          .update({
+            duration_seconds: metadata.durationSeconds,
+            duration_minutes: Math.ceil(metadata.durationSeconds / 60),
+          })
+          .eq("id", contentId)
+          .eq("source_revision", source.revision);
+        if (updated.error) throw new Error("Não foi possível atualizar a duração deste vídeo.");
+      }
       return {
         r2: false,
         contentId,

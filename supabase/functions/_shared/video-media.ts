@@ -21,6 +21,63 @@ export function validVideoDuration(value: unknown): number | null {
     : null;
 }
 
+export class DriveVideoError extends Error {
+  constructor(
+    public readonly code: string,
+    message: string,
+  ) {
+    super(message);
+    this.name = "DriveVideoError";
+  }
+}
+
+/** Só devolve códigos e mensagens nossos; a resposta do Google pode conter a chave. */
+export async function driveFailure(response: Response) {
+  const body = await response.json().catch(() => null);
+  const reasons: string[] = [
+    ...(body?.error?.errors ?? []).map((item: { reason?: string }) => item.reason),
+    ...(body?.error?.details ?? []).map((item: { reason?: string }) => item.reason),
+  ].filter((value): value is string => typeof value === "string");
+  const has = (...values: string[]) => values.some((value) => reasons.includes(value));
+  if (has("API_KEY_INVALID") || /api key not valid/i.test(String(body?.error?.message ?? "")))
+    return new DriveVideoError(
+      "drive_key_invalid",
+      "A chave do Google Drive cadastrada na RISE não é válida. Confira GOOGLE_DRIVE_API_KEY no Supabase.",
+    );
+  if (has("SERVICE_DISABLED", "accessNotConfigured"))
+    return new DriveVideoError(
+      "drive_api_disabled",
+      "Ative a API Google Drive no mesmo projeto do Google Cloud em que a chave foi criada.",
+    );
+  if (has("API_KEY_SERVICE_BLOCKED"))
+    return new DriveVideoError(
+      "drive_api_restricted",
+      "A chave está bloqueada para a API Google Drive. Confira as restrições de API no Google Cloud.",
+    );
+  if (has("API_KEY_HTTP_REFERRER_BLOCKED", "API_KEY_IP_ADDRESS_BLOCKED", "ipRefererBlocked"))
+    return new DriveVideoError(
+      "drive_application_restricted",
+      "As restrições de aplicativo da chave impedem o acesso pelo servidor da RISE. Confira a configuração no Google Cloud.",
+    );
+  if (
+    response.status === 429 ||
+    has("rateLimitExceeded", "userRateLimitExceeded", "dailyLimitExceeded", "downloadQuotaExceeded")
+  )
+    return new DriveVideoError(
+      "drive_quota",
+      "O Google Drive atingiu um limite temporário de acesso. Aguarde antes de tentar novamente.",
+    );
+  if (response.status === 401 || response.status === 403 || response.status === 404)
+    return new DriveVideoError(
+      "drive_file_access",
+      "O Google Drive não liberou este vídeo para a integração da RISE. Confira a autorização do arquivo; não é necessário tornar a gravação pública.",
+    );
+  return new DriveVideoError(
+    "drive_unavailable",
+    "Não foi possível consultar o vídeo no Google Drive. Tente novamente.",
+  );
+}
+
 export async function readDriveVideo(
   source: string,
   key: string | null,
@@ -40,12 +97,7 @@ export async function readDriveVideo(
     headers: { Referer: new URL(referrer).origin + "/" },
     signal: AbortSignal.timeout(15000),
   });
-  if (response.status === 403 || response.status === 404)
-    throw new Error(
-      "O Google Drive não liberou este vídeo. Confira o compartilhamento do arquivo e a configuração da chave.",
-    );
-  if (!response.ok)
-    throw new Error("Não foi possível consultar o vídeo no Google Drive. Tente novamente.");
+  if (!response.ok) throw await driveFailure(response);
   const file = await response.json();
   if (typeof file.mimeType !== "string" || !file.mimeType.startsWith("video/"))
     throw new Error("O arquivo informado não é um vídeo.");

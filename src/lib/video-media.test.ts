@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   createMediaTicket,
+  driveFailure,
   driveFileId,
   mediaRequestRange,
   mediaSessionId,
@@ -118,6 +119,32 @@ test("consulta metadados e duração do Drive sem devolver a chave ao player", a
   assert.deepEqual(data, { durationSeconds: 5400, mimeType: "video/mp4" });
   assert.equal(JSON.stringify(data).includes("chave-so-do-teste"), false);
 });
+test("erros do Google informam a configuração necessária sem expor detalhes sensíveis", async () => {
+  const cases = [
+    ["API_KEY_INVALID", "drive_key_invalid"],
+    ["SERVICE_DISABLED", "drive_api_disabled"],
+    ["API_KEY_SERVICE_BLOCKED", "drive_api_restricted"],
+    ["API_KEY_HTTP_REFERRER_BLOCKED", "drive_application_restricted"],
+    ["API_KEY_IP_ADDRESS_BLOCKED", "drive_application_restricted"],
+    ["downloadQuotaExceeded", "drive_quota"],
+    ["insufficientFilePermissions", "drive_file_access"],
+  ];
+  for (const [reason, expected] of cases) {
+    const error = await driveFailure(
+      Response.json(
+        { error: { message: "dado-privado-do-provedor", details: [{ reason }] } },
+        { status: 403 },
+      ),
+    );
+    assert.equal(error.code, expected);
+    assert.equal(error.message.includes("dado-privado-do-provedor"), false);
+  }
+  assert.equal(
+    (await driveFailure(new Response("não é JSON", { status: 502 }))).code,
+    "drive_unavailable",
+  );
+});
+
 test("configuração ausente e arquivo inacessível falham sem simular duração", async () => {
   await assert.rejects(readDriveVideo(source, null, "https://example.invalid"), /configurada/);
   await assert.rejects(
