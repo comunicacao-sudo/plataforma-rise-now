@@ -32,7 +32,7 @@ export class DriveVideoError extends Error {
 }
 
 /** Só devolve códigos e mensagens nossos; a resposta do Google pode conter a chave. */
-export async function driveFailure(response: Response) {
+export async function driveFailure(response: Response, authorization: "key" | "oauth" = "key") {
   const body = await response.json().catch(() => null);
   const reasons: string[] = [
     ...(body?.error?.errors ?? []).map((item: { reason?: string }) => item.reason),
@@ -44,11 +44,20 @@ export async function driveFailure(response: Response) {
       "drive_key_invalid",
       "A chave do Google Drive cadastrada na RISE não é válida. Confira GOOGLE_DRIVE_API_KEY no Supabase.",
     );
-  if (has("SERVICE_DISABLED", "accessNotConfigured"))
+  if (has("SERVICE_DISABLED", "accessNotConfigured")) {
+    const project = (body?.error?.details ?? [])
+      .map(
+        (item: { metadata?: { consumer?: string } }) =>
+          /^projects\/(\d{1,30})$/.exec(String(item.metadata?.consumer ?? ""))?.[1],
+      )
+      .find(Boolean);
     return new DriveVideoError(
       "drive_api_disabled",
-      "Ative a API Google Drive no mesmo projeto do Google Cloud em que a chave foi criada.",
+      authorization === "oauth"
+        ? `Ative a API Google Drive no projeto da conexão Google${project ? ` (projeto ${project})` : ""}. A chave de API não precisa ser trocada.`
+        : `Ative a API Google Drive no mesmo projeto do Google Cloud em que a chave foi criada${project ? ` (projeto ${project})` : ""}.`,
     );
+  }
   if (has("API_KEY_SERVICE_BLOCKED"))
     return new DriveVideoError(
       "drive_api_restricted",
@@ -101,7 +110,7 @@ export async function readDriveVideo(
     },
     signal: AbortSignal.timeout(15000),
   });
-  if (!response.ok) throw await driveFailure(response);
+  if (!response.ok) throw await driveFailure(response, accessToken ? "oauth" : "key");
   const file = await response.json();
   if (typeof file.mimeType !== "string" || !file.mimeType.startsWith("video/"))
     throw new Error("O arquivo informado não é um vídeo.");

@@ -75,6 +75,43 @@ test("OAuth não contorna proibição de download nem disfarça recusa do proved
   );
 });
 
+test("API desativada identifica o projeto OAuth sem confundir com a chave nem expor a resposta original", async () => {
+  const response = () =>
+    Response.json(
+      {
+        error: {
+          message: "chave-ou-token-que-nao-pode-ser-exposto",
+          details: [
+            { reason: "SERVICE_DISABLED", metadata: { consumer: "projects/123456789012" } },
+          ],
+        },
+      },
+      { status: 403 },
+    );
+  const oauthError = await driveFailure(response(), "oauth");
+  assert.match(oauthError.message, /projeto da conexão Google.*123456789012/);
+  assert.doesNotMatch(oauthError.message, /chave-ou-token-que-nao-pode-ser-exposto/);
+  const keyError = await driveFailure(response());
+  assert.match(keyError.message, /chave foi criada.*123456789012/);
+  const invalid = await driveFailure(
+    Response.json(
+      {
+        error: {
+          details: [
+            {
+              reason: "SERVICE_DISABLED",
+              metadata: { consumer: "https://example.invalid/segredo" },
+            },
+          ],
+        },
+      },
+      { status: 403 },
+    ),
+    "oauth",
+  );
+  assert.doesNotMatch(invalid.message, /example|segredo/);
+});
+
 test("sem vínculo da revisão exata o servidor não consulta credenciais de outra mentora", async () => {
   const db = {
     async rpc(name: string, args: unknown) {

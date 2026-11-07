@@ -86,7 +86,7 @@ Deno.serve(async (request) => {
       return deny(416);
     }
     if (!upstream.ok) {
-      const failure = await driveFailure(upstream);
+      const failure = await driveFailure(upstream, token ? "oauth" : "key");
       return deny(upstream.status === 403 || upstream.status === 404 ? 403 : 502, failure.code);
     }
     const mime = upstream.headers.get("content-type") || "";

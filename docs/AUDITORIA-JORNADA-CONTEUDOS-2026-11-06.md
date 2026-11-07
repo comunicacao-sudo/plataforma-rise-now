@@ -76,7 +76,19 @@ Após o ajuste dos diagnósticos, os 118 testes automatizados passaram.
 - Verificados 122 testes automatizados; verificação de tipos; lint sem erros, com 12 avisos preexistentes; Deno; compilação e limites de tamanho dos arquivos.
 - Oito verificações de interface com serviços simulados cobriram celular/desktop, temas claro/escuro, retorno OAuth, autorização e desconexão: sem falha de contraste, rolagem horizontal ou erro de página.
 - Testes no banco real com rollback confirmaram isolamento entre vídeos/revisões, rejeição de credencial de mentorado e bloqueio de leitura/execução pelos papéis públicos.
-- **Pendente de ação da administradora:** concluir o novo consentimento Google em Conteúdos e autorizar as três gravações. A reprodução real pelo Drive só pode ser considerada aprovada depois desse consentimento e de um novo teste do vídeo.
+- **Concluído após o consentimento da administradora:** conexão Google confirmada e as três gravações autorizadas individualmente.
+
+### Validação final do Drive com vídeos reais — 07/11/2026
+
+- O teste inicial após o consentimento identificou `SERVICE_DISABLED` no projeto OAuth. A API Google Drive foi ativada no projeto Rise Now que atende essa conexão; nenhuma chave foi substituída.
+- Corrigido o diagnóstico para distinguir API desativada no projeto OAuth de API desativada no projeto da chave. O número do projeto é extraído apenas de metadados com formato validado; mensagens originais, tokens e chaves não são expostos.
+- As três gravações privadas reproduziram no player próprio: a primeira ultrapassou um minuto, com avanço pela linha de reprodução; as outras duas também avançaram sem erro, com `readyState=4`.
+- As durações foram identificadas automaticamente: 2.183, 6.294 e 5.356 segundos. Todos os arquivos permanecem no Drive e as revisões de origem foram preservadas.
+- Conferência de acesso no banco: três acessos ao próprio vídeo permitidos e os seis acessos cruzados bloqueados. Os conteúdos continuam individuais, com seus destinatários anteriores.
+- A prévia manteve `nodownload`, sem iframe nem link para abrir o Drive. A conferência não oferece garantia de DRM.
+- Progresso preservado após as três prévias: nenhum registro em `journey_video_progress`; os mesmos cinco registros, 263 segundos agregados e última atualização de 05/11 em `journey_content_progress`.
+- Google OAuth já está em produção; o status foi conferido sem alterar público-alvo, escopos ou publicação no Google.
+- Os 123 testes automatizados passaram, assim como Deno e a compilação com os limites de tamanho. O relatório não depende mais de novo consentimento da administradora nem de uma transferência para o R2.
 
 Referências: [escopos de autorização do Drive](https://developers.google.com/workspace/drive/api/guides/api-specific-auth) e [leitura de arquivos e permissão canDownload](https://developers.google.com/workspace/drive/api/guides/manage-downloads).
 
