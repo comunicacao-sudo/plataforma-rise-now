@@ -12004,3 +12004,15 @@ html[data-theme="light"] .rise-install-page :where(a, button):focus-visible {
   justify-content: center;
   gap: .5rem;
 }
+.platform-shell .trash-panel {
+  background: var(--platform-surface-strong);
+}
+.platform-shell .trash-panel .section-heading p,
+.platform-shell .trash-panel .ops-empty-row {
+  color: var(--platform-text);
+  opacity: 1;
+}
+.platform-shell .trash-panel .section-heading p {
+  font-size: .85rem;
+  line-height: 1.55;
+}
