@@ -207,6 +207,20 @@ function RiseMark({ compact = false, onActivate }: { compact?: boolean; onActiva
   );
 }
 
+const ACCESS_DENIED_KEY = "rise-access-denied";
+const ACCESS_DENIED_MESSAGE =
+  "Seu acesso ainda não foi liberado ou foi encerrado. Fale com a equipe RISE NOW para confirmar o e-mail aprovado.";
+
+/** Avisa a tela de login que a conta entrou, mas não tem acesso liberado. */
+function signalAccessDenied() {
+  try {
+    window.sessionStorage.setItem(ACCESS_DENIED_KEY, "1");
+  } catch {
+    /* sem armazenamento: o evento abaixo ainda avisa a tela aberta */
+  }
+  window.dispatchEvent(new Event(ACCESS_DENIED_KEY));
+}
+
 function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -214,6 +228,22 @@ function LoginScreen() {
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+
+  // Senha certa, mas sem acesso liberado: explica em vez de voltar em silêncio.
+  useEffect(() => {
+    const show = () => {
+      try {
+        if (window.sessionStorage.getItem(ACCESS_DENIED_KEY) !== "1") return;
+        window.sessionStorage.removeItem(ACCESS_DENIED_KEY);
+      } catch {
+        /* segue e mostra a mensagem */
+      }
+      setError(ACCESS_DENIED_MESSAGE);
+    };
+    show();
+    window.addEventListener(ACCESS_DENIED_KEY, show);
+    return () => window.removeEventListener(ACCESS_DENIED_KEY, show);
+  }, []);
 
   async function requestAccess(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1316,6 +1346,7 @@ export function RisePlatform() {
           !storedRole ||
           !(["mentee", "mentor", "admin"] as const).includes(storedRole)
         ) {
+          signalAccessDenied();
           await supabase.auth.signOut();
           if (mounted) setAuthMode("login");
           return;

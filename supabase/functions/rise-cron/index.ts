@@ -386,6 +386,10 @@ Deno.serve(async (request: Request) => {
   // Avança o mês da jornada de cada mentorada pela data de início (migration 0046).
   const months = await admin.rpc("refresh_journey_months");
   if (months.error) console.error("[rise-cron] mês da jornada", months.error.message);
+  // Etapas de encontro terminam sozinhas quando o encontro vinculado acaba.
+  const meetingSteps = await admin.rpc("complete_finished_meeting_steps");
+  if (meetingSteps.error)
+    console.error("[rise-cron] conclusão automática de encontros", meetingSteps.error.message);
   // A retenção roda mesmo quando o WhatsApp está desligado.
   let trashCleanup = null;
   try {

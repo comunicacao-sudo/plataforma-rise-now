@@ -20,6 +20,7 @@ import {
   Pencil,
   Plus,
   RefreshCw,
+  Route,
   Trash2,
   UsersRound,
   Video,
@@ -2405,16 +2406,14 @@ function MembersPanel({ mode }: { mode: "students" | "access" }) {
 
 function StaffOverview({ onView }: { onView: (v: StaffView) => void }) {
   const { data: dir } = useDirectory();
-  const { data: subs = [] } = useSubmissions();
   const { data: meetings = [] } = useMeetings();
-  const toReview = subs.filter((s) => s.status === "enviada" || s.status === "em_revisao").length;
   const upcoming = meetings.filter((m) => endOf(m) >= Date.now());
   return (
     <main className="inner-page">
       <Intro
         eyebrow="Mentoria e administração"
         title="Gestão da RISE NOW"
-        copy="Jornadas, agenda, entregas e acessos em um só lugar."
+        copy="Jornadas, agenda e acessos em um só lugar."
       />
       <section className="mentor-stats page-width">
         <article onClick={() => onView("alunas")}>
@@ -2429,10 +2428,10 @@ function StaffOverview({ onView }: { onView: (v: StaffView) => void }) {
           <span>Próximos encontros</span>
           <strong>{upcoming.length}</strong>
         </article>
-        <article onClick={() => onView("entregas")}>
-          <FileCheck2 size={23} />
-          <span>Entregas para revisar</span>
-          <strong>{toReview}</strong>
+        <article onClick={() => onView("gestao-jornada")}>
+          <Route size={23} />
+          <span>Jornada e conclusões</span>
+          <strong aria-hidden="true">→</strong>
         </article>
       </section>
       {upcoming[0] ? (

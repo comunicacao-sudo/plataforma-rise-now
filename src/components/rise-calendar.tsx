@@ -608,7 +608,15 @@ export function StaffBookingOfferings({ directory }: { directory: RiseDirectory 
   );
 }
 
-function SlotPicker({ offering, onClose }: { offering: BookingOffering; onClose: () => void }) {
+function SlotPicker({
+  offering,
+  onClose,
+  onBooked,
+}: {
+  offering: BookingOffering;
+  onClose: () => void;
+  onBooked?: (startsAt: string) => void;
+}) {
   const qc = useQueryClient();
   const load = useServerFn(getAvailableBookingSlots);
   const book = useServerFn(bookOneToOne);
@@ -642,7 +650,9 @@ function SlotPicker({ offering, onClose }: { offering: BookingOffering; onClose:
         qc.invalidateQueries({ queryKey: ["meetings"] }),
         qc.invalidateQueries({ queryKey: ["calendar-overview"] }),
         qc.invalidateQueries({ queryKey: ["booking-slots", offering.id] }),
+        qc.invalidateQueries({ queryKey: ["my-bookings"] }),
       ]);
+      onBooked?.(slot.startsAt);
       onClose();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Não foi possível reservar.");
@@ -669,10 +679,10 @@ function SlotPicker({ offering, onClose }: { offering: BookingOffering; onClose:
           <span className="eyebrow eyebrow--gold">{offering.mentorName}</span>
           <h2>{offering.title}</h2>
           <p>{offering.description || "Escolha um dia e horário livre para o seu encontro."}</p>
-          {!query.data?.googleConnected ? (
+          {query.data && !query.data.googleConnected ? (
             <p className="rise-calendar__notice">
-              Conecte seu Google Agenda antes de confirmar. Assim a plataforma impede que você
-              reserve sobre outro compromisso.
+              Antes de escolher, confira se o horário está livre na sua agenda. Se quiser, conecte
+              seu Google Agenda no topo da Agenda: assim os horários em conflito somem desta lista.
             </p>
           ) : null}
           {query.isLoading ? <p className="ops-muted">Comparando as duas agendas…</p> : null}
@@ -697,7 +707,7 @@ function SlotPicker({ offering, onClose }: { offering: BookingOffering; onClose:
                   {slots.map((slot) => (
                     <button
                       type="button"
-                      disabled={!!busy || !query.data?.googleConnected}
+                      disabled={!!busy}
                       onClick={() => void reserve(slot)}
                       key={slot.startsAt}
                     >
@@ -716,7 +726,11 @@ function SlotPicker({ offering, onClose }: { offering: BookingOffering; onClose:
               <p className="ops-empty">Nenhum horário livre nos próximos 30 dias.</p>
             ) : null}
           </div>
-          {message ? <p className="form-message">{message}</p> : null}
+          {message ? (
+            <p className="form-message" role="alert">
+              {message}
+            </p>
+          ) : null}
         </div>
       </section>
     </div>
@@ -818,8 +832,29 @@ export function MenteeBookingAgenda() {
           ))}
         </div>
       ) : null}
-      {message ? <p className="form-message">{message}</p> : null}
-      {selected ? <SlotPicker offering={selected} onClose={() => setSelected(null)} /> : null}
+      {message ? (
+        <p className="form-message" role="status">
+          {message}
+        </p>
+      ) : null}
+      {selected ? (
+        <SlotPicker
+          offering={selected}
+          onClose={() => setSelected(null)}
+          onBooked={(startsAt) =>
+            setMessage(
+              `Encontro reservado para ${new Date(startsAt).toLocaleDateString("pt-BR", {
+                weekday: "long",
+                day: "2-digit",
+                month: "long",
+              })} às ${new Date(startsAt).toLocaleTimeString("pt-BR", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}. O convite com o link chega no seu e-mail.`,
+            )
+          }
+        />
+      ) : null}
     </section>
   );
 }

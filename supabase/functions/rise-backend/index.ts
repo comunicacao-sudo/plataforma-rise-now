@@ -808,6 +808,29 @@ async function journeyAction(c: Context, action: string, d: any) {
       await notifyStageCompleted(d.enrollmentId, enrollment.mentee_id, d.stepKey);
     return { ok: true };
   }
+  if (action === "reopenJourneyStep") {
+    // A mentora desfaz uma conclusão (ex.: a mentorada faltou ao encontro). A marcação
+    // mentor_reopened impede que a conclusão automática do encontro refaça a conclusão.
+    await requireStaff(c);
+    const { data, error } = await c.admin
+      .from("journey_step_progress")
+      .update({
+        status: "not_started",
+        completed_at: null,
+        confirmed_by: c.userId,
+        confirmation_source: "mentor_reopened",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("enrollment_id", String(d.enrollmentId ?? ""))
+      .eq("step_key", String(d.stepKey ?? ""))
+      .eq("status", "completed")
+      .select("enrollment_id")
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!data) return { ok: false, error: "Esta etapa não está concluída para essa mentorada." };
+    await audit(c, "journey_step_reopened", `${d.enrollmentId}:${d.stepKey}`);
+    return { ok: true };
+  }
   if (action !== "getJourneyEditor") throw new Error("Ação de jornada inválida.");
   await requireStaff(c);
   const { data: pillars, error: pe } = await c.admin
@@ -915,7 +938,27 @@ async function journeyAction(c: Context, action: string, d: any) {
     .filter((s: any) => s.completion_rule === "mentor_confirmation")
     .map((s: any) => s.stable_key);
   let confirmations: any[] = [];
+  let autoCompleted: any[] = [];
   if (confirmableKeys.length) {
+    const { data: automatic, error: automaticError } = await c.admin
+      .from("journey_step_progress")
+      .select(
+        "enrollment_id, step_key, completed_at, enrollment:enrollments!inner(mentee:profiles!enrollments_mentee_id_fkey(full_name))",
+      )
+      .in("step_key", confirmableKeys)
+      .eq("status", "completed")
+      .in("confirmation_source", ["meeting_auto", "onboarding_backfill"])
+      .gt("completed_at", new Date(Date.now() - 30 * 86_400_000).toISOString())
+      .order("completed_at", { ascending: false });
+    if (automaticError) throw new Error(automaticError.message);
+    const stepTitles = new Map((steps ?? []).map((s: any) => [s.stable_key, s.title]));
+    autoCompleted = (automatic ?? []).map((x: any) => ({
+      enrollmentId: x.enrollment_id,
+      stepKey: x.step_key,
+      completedAt: x.completed_at,
+      menteeName: x.enrollment?.mentee?.full_name ?? "Mentorada",
+      stepTitle: stepTitles.get(x.step_key) ?? "Etapa",
+    }));
     const { data: pending } = await c.admin
       .from("journey_step_progress")
       .select(
@@ -997,6 +1040,7 @@ async function journeyAction(c: Context, action: string, d: any) {
     affectedActive: affectedActive ?? 0,
     publishedStepKeys,
     confirmations,
+    autoCompleted,
   };
 }
 
@@ -3616,10 +3660,8 @@ async function googleAction(c: Context, action: string, d: any) {
     const enrollment = await activeEnrollment(c);
     const offering = await offeringById(c, d.offeringId);
     const availability = await availableBookingSlots(c, offering, enrollment, d.startsAt, d.endsAt);
-    if (!availability.googleConnected)
-      throw new Error(
-        "Conecte seu Google Agenda antes de reservar para evitar conflito de horários.",
-      );
+    // O Google da mentorada é opcional: quando conectado, os horários em conflito já
+    // saem da lista; sem ele, a reserva segue e o convite chega pelo e-mail.
     const slot = availability.slots.find(
       (item) => item.startsAt === new Date(d.startsAt).toISOString(),
     );
@@ -4469,6 +4511,7 @@ const groups = {
     "getNextJourneyStep",
     "startJourneyStep",
     "confirmJourneyStep",
+    "reopenJourneyStep",
   ]),
   content: new Set([
     "getJourneyContentLibrary",

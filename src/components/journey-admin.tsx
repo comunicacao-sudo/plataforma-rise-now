@@ -26,6 +26,7 @@ import {
   confirmJourneyStep,
   getJourneyEditor,
   publishJourneyDraft,
+  reopenJourneyStep,
   saveJourneyDraft,
   updateJourneyPillar,
   type JourneyEditor,
@@ -689,6 +690,28 @@ function JourneyPillarPanel({
     }
   }
 
+  async function reopenNow(enrollmentId: string, stepKey: string, menteeName: string) {
+    if (
+      !window.confirm(
+        `Desfazer a conclusão para ${menteeName}? A etapa volta a ficar pendente e não será concluída automaticamente de novo.`,
+      )
+    )
+      return;
+    const operation = `reopen:${enrollmentId}:${stepKey}`;
+    setBusy(operation);
+    setMessage("");
+    try {
+      const result = await reopenJourneyStep({ data: { enrollmentId, stepKey } });
+      if (!result.ok) throw new Error(result.error || "Não foi possível desfazer a conclusão.");
+      await invalidateJourneyData(qc);
+      setMessage(`Conclusão desfeita para ${menteeName}.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Não foi possível desfazer a conclusão.");
+    } finally {
+      setBusy("");
+    }
+  }
+
   if (query.isLoading)
     return (
       <main className="inner-page">
@@ -937,6 +960,50 @@ function JourneyPillarPanel({
                     disabled={busy !== ""}
                   >
                     {busy === operation ? "Confirmando…" : "Confirmar conclusão"}
+                  </button>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
+
+      {(data?.autoCompleted?.length ?? 0) > 0 ? (
+        <section
+          className="journey-confirmations"
+          aria-labelledby={"journey-auto-completed-" + pillarId}
+        >
+          <div>
+            <span className="eyebrow eyebrow--gold">Concluídas automaticamente</span>
+            <h2 id={"journey-auto-completed-" + pillarId}>Encontros realizados</h2>
+            <p>
+              Etapas de encontro são concluídas sozinhas quando o encontro termina, para quem foi
+              convidada. Se alguém faltou, desfaça a conclusão dela.
+            </p>
+          </div>
+          <div className="journey-confirmations__list">
+            {(data?.autoCompleted ?? []).map((item) => {
+              const operation = `reopen:${item.enrollmentId}:${item.stepKey}`;
+              return (
+                <article key={operation}>
+                  <div>
+                    <strong>{item.menteeName}</strong>
+                    <span>{item.stepTitle}</span>
+                    <small>
+                      Concluída em{" "}
+                      {new Date(item.completedAt).toLocaleDateString("pt-BR", {
+                        day: "2-digit",
+                        month: "2-digit",
+                      })}
+                    </small>
+                  </div>
+                  <button
+                    className="button button--glass"
+                    type="button"
+                    onClick={() => void reopenNow(item.enrollmentId, item.stepKey, item.menteeName)}
+                    disabled={busy !== ""}
+                  >
+                    {busy === operation ? "Desfazendo…" : "Desfazer (faltou)"}
                   </button>
                 </article>
               );

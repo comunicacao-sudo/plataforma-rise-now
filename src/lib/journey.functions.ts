@@ -99,6 +99,14 @@ export type JourneyEditor = {
     menteeName: string;
     stepTitle: string;
   }>;
+  /** Etapas de encontro concluídas automaticamente nos últimos 30 dias (podem ser desfeitas). */
+  autoCompleted?: Array<{
+    enrollmentId: string;
+    stepKey: string;
+    completedAt: string;
+    menteeName: string;
+    stepTitle: string;
+  }>;
 };
 
 export const getJourneyEditor = createEdgeFunction<
@@ -116,3 +124,7 @@ export const getNextJourneyStep = createEdgeFunction<undefined, NextJourneyStep>
 );
 export const startJourneyStep: any = createEdgeFunction("startJourneyStep");
 export const confirmJourneyStep: any = createEdgeFunction("confirmJourneyStep");
+export const reopenJourneyStep = createEdgeFunction<
+  { enrollmentId: string; stepKey: string },
+  { ok: boolean; error?: string }
+>("reopenJourneyStep");
