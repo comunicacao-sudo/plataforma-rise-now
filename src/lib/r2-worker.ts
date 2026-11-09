@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { r2ConnectionError } from "@/lib/r2-errors";
 
 export const R2_WORKER_BASE = "https://rise-now-r2.rise-now-pamaris.workers.dev";
 
@@ -27,10 +28,12 @@ async function workerFetch(path: string, init: RequestInit = {}) {
   const headers = new Headers(init.headers);
   headers.set("Authorization", `Bearer ${token}`);
 
-  const response = await fetch(`${R2_WORKER_BASE}${path}`, {
-    ...init,
-    headers,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${R2_WORKER_BASE}${path}`, { ...init, headers });
+  } catch {
+    throw r2ConnectionError(path, navigator.onLine);
+  }
 
   if (!response.ok) {
     const payload = (await response.json().catch(() => null)) as { error?: unknown } | null;

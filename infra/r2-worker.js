@@ -4,8 +4,19 @@ const MAX_VIDEO_BYTES = 5 * 1024 * 1024 * 1024;
 const PART_SIZE = 16 * 1024 * 1024;
 const TICKET_TTL_MS = 6 * 60 * 60 * 1000;
 
-function corsHeaders(request, env) {
+const OFFICIAL_APP_ORIGINS = new Set([
+  "https://board.mentoriarisenow.com.br",
+  "https://plataforma-rise-now.lovable.app",
+]);
+
+function allowedOrigin(request, env) {
   const origin = request.headers.get("Origin");
+  if (!origin) return env.APP_ORIGIN;
+  return origin === env.APP_ORIGIN || OFFICIAL_APP_ORIGINS.has(origin) ? origin : null;
+}
+
+function corsHeaders(request, env) {
+  const origin = allowedOrigin(request, env);
   const headers = new Headers({
     "Access-Control-Allow-Methods": "GET,HEAD,POST,PUT,DELETE,OPTIONS",
     "Access-Control-Allow-Headers": "Authorization,Content-Type",
@@ -13,8 +24,7 @@ function corsHeaders(request, env) {
     "Access-Control-Max-Age": "86400",
     Vary: "Origin",
   });
-  if (!origin || origin === env.APP_ORIGIN)
-    headers.set("Access-Control-Allow-Origin", env.APP_ORIGIN);
+  if (origin) headers.set("Access-Control-Allow-Origin", origin);
   return headers;
 }
 function json(request, env, data, status = 200) {
@@ -23,8 +33,7 @@ function json(request, env, data, status = 200) {
   return new Response(JSON.stringify(data), { status, headers });
 }
 function originAllowed(request, env) {
-  const origin = request.headers.get("Origin");
-  return !origin || origin === env.APP_ORIGIN;
+  return !!allowedOrigin(request, env);
 }
 async function authUser(request, env) {
   const auth = request.headers.get("Authorization");
@@ -272,6 +281,8 @@ async function handleMedia(request, env, url) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    if (!originAllowed(request, env))
+      return json(request, env, { error: "Origem não permitida." }, 403);
     if (request.method === "OPTIONS")
       return new Response(null, { status: 204, headers: corsHeaders(request, env) });
     try {
@@ -283,25 +294,33 @@ export default {
       if (url.pathname === "/health" && request.method === "GET")
         return json(request, env, { ok: true, service: "rise-now-r2" });
       if (url.pathname === "/upload/start" && request.method === "POST")
-        return handleStart(request, env);
+        return await handleStart(request, env);
       if (url.pathname === "/upload/part" && request.method === "PUT")
-        return handlePart(request, env, url);
+        return await handlePart(request, env, url);
       if (url.pathname === "/upload/complete" && request.method === "POST")
-        return handleComplete(request, env);
+        return await handleComplete(request, env);
       if (url.pathname === "/upload/abort" && request.method === "POST")
-        return handleAbort(request, env);
+        return await handleAbort(request, env);
 
       if (url.pathname === "/ticket" && request.method === "POST")
-        return handleTicket(request, env);
+        return await handleTicket(request, env);
       if (url.pathname === "/media" && (request.method === "GET" || request.method === "HEAD"))
-        return handleMedia(request, env, url);
+        return await handleMedia(request, env, url);
       return json(request, env, { error: "Not found" }, 404);
     } catch (error) {
-      console.error(error);
+      console.error(
+        JSON.stringify({
+          event: "r2_request_failed",
+          path: url.pathname,
+          error: error instanceof Error ? error.message : "Erro interno.",
+        }),
+      );
       return json(
         request,
         env,
-        { error: error instanceof Error ? error.message : "Erro interno." },
+        {
+          error: "Não foi possível concluir esta operação de vídeo. Tente novamente em instantes.",
+        },
         500,
       );
     }
