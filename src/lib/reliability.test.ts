@@ -122,6 +122,8 @@ test("aviso já registrado é ignorado sem interromper a automação com banco v
     idempotencyKey: "cronograma-semanal",
     message: "Cronograma original",
     targetUrl: "https://example.invalid",
+    // Janela sempre aberta: este teste trata só da idempotência, não do horário comercial.
+    sendWindow: { start: "00:00", end: "23:59", days: [0, 1, 2, 3, 4, 5, 6] },
   };
   assert.ok(await enqueueNotification(db, input));
   assert.equal(await enqueueNotification(db, { ...input, message: "Tentativa repetida" }), null);

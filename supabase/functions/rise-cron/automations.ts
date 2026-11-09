@@ -19,8 +19,22 @@ import {
   weeklyIsDue,
 } from "../_shared/whatsapp-automations.ts";
 
+import {
+  reminderSendTime,
+  sendWindowFromSettings,
+  type SendWindow,
+} from "../_shared/send-window.ts";
+
 /** Lembretes "X antes" são enviados se o momento certo caiu nos últimos 30 min. */
 const DUE_WINDOW_MS = 30 * 60_000;
+/** Lembretes de "1 dia antes" podem sair até 4 dias antes (encontro de segunda → sexta). */
+const MAX_BUSINESS_SHIFT_MS = 4 * 86_400_000;
+
+type SendOptions = {
+  timeSensitive?: boolean;
+  expiresAt?: string | null;
+  digestLine?: string | null;
+};
 /** Eventos mais antigos que isso não geram aviso (evita enxurrada ao ligar). */
 const MAX_EVENT_LOOKBACK_MS = 6 * 3_600_000;
 /** Sobreposição entre execuções para não perder eventos na borda. */
@@ -75,12 +89,47 @@ export async function runAutomations(admin: any, settings: any, now: Date) {
 class Context {
   private profiles = new Map<string, any>();
   private staffCache: any[] | null = null;
+  private window: SendWindow;
 
   constructor(
     private admin: any,
     private settings: any,
     private now: Date,
-  ) {}
+  ) {
+    this.window = sendWindowFromSettings(settings);
+  }
+
+  /**
+   * Itens com lembrete devido agora: calcula o horário de envio de cada um dentro do
+   * horário comercial e mantém os que venceram nos últimos 30 minutos.
+   */
+  private dueReminders<T>(items: T[], startOf: (item: T) => string, offsetMinutes: number) {
+    const due: Array<{ item: T; expiresAt: string }> = [];
+    for (const item of items) {
+      const start = new Date(startOf(item));
+      const sendAt = reminderSendTime(start, offsetMinutes, this.window);
+      if (!sendAt) continue;
+      const age = this.now.getTime() - sendAt.getTime();
+      if (age < 0 || age >= DUE_WINDOW_MS) continue;
+      const latest =
+        offsetMinutes === 0
+          ? start.getTime() + 5 * 60_000
+          : Math.min(start.getTime(), sendAt.getTime() + DUE_WINDOW_MS);
+      due.push({ item, expiresAt: new Date(latest).toISOString() });
+    }
+    return due;
+  }
+
+  /** Período a consultar para lembretes com antecedência (inclui o deslocamento p/ dia útil). */
+  private reminderLookahead(offsetMinutes: number) {
+    const shift = offsetMinutes >= 1440 ? MAX_BUSINESS_SHIFT_MS : 0;
+    return {
+      from: new Date(this.now.getTime() - DUE_WINDOW_MS).toISOString(),
+      to: new Date(
+        this.now.getTime() + offsetMinutes * 60_000 + shift + DUE_WINDOW_MS,
+      ).toISOString(),
+    };
+  }
 
   /** Início da janela de eventos desta automação. */
   private since(a: any) {
@@ -186,6 +235,7 @@ class Context {
     vars: any,
     ref: [string, string],
     key: string,
+    options: SendOptions = {},
   ) {
     if (!person?.phone) return 0;
     const row = await enqueueNotification(this.admin, {
@@ -199,11 +249,21 @@ class Context {
       idempotencyKey: `auto:${a.id}:${key}:${person.id}`,
       targetUrl: vars.link ?? appLink(),
       message: renderAutomation(a.trigger, a.template, { ...vars, nome: firstName(person) }),
+      sendWindow: this.window,
+      timeSensitive: options.timeSensitive,
+      expiresAt: options.expiresAt,
+      digestLine: options.digestLine,
     });
     return row ? 1 : 0;
   }
 
-  private async toGroup(a: any, vars: any, ref: [string, string], key: string) {
+  private async toGroup(
+    a: any,
+    vars: any,
+    ref: [string, string],
+    key: string,
+    options: SendOptions = {},
+  ) {
     const chatId = this.settings?.group_chat_id;
     if (!chatId) {
       console.warn(`[automações] ${a.name}: nenhum grupo escolhido no painel`);
@@ -221,6 +281,9 @@ class Context {
       idempotencyKey: `auto:${a.id}:${key}:group`,
       targetUrl: vars.link ?? appLink(),
       message: renderAutomation(a.trigger, a.template, { ...vars, nome: "" }),
+      sendWindow: this.window,
+      timeSensitive: options.timeSensitive,
+      expiresAt: options.expiresAt,
     });
     return row ? 1 : 0;
   }
@@ -248,11 +311,6 @@ class Context {
     return this.toGroup(a, vars, ["week", key], key);
   }
 
-  private dueRange(offsetMinutes: number) {
-    const to = this.now.getTime() + offsetMinutes * 60_000;
-    return { from: new Date(to - DUE_WINDOW_MS).toISOString(), to: new Date(to).toISOString() };
-  }
-
   private async attendeeEnrollmentIds(meeting: any) {
     if (meeting.enrollment_id) return [meeting.enrollment_id];
     if (meeting.audience === "selected") {
@@ -270,18 +328,23 @@ class Context {
   }
 
   private async groupMeetingBefore(a: any) {
-    const due = this.dueRange(a.offset_minutes);
-    const { data: meetings } = await this.admin
+    const range = this.reminderLookahead(a.offset_minutes);
+    const { data: candidates } = await this.admin
       .from("meetings")
       .select(
         "id, title, scheduled_at, join_url, mentor_name, mentor_id, created_by, audience, cohort_id, enrollment_id",
       )
       .is("deleted_at", null)
       .eq("kind", "grupo")
-      .gt("scheduled_at", due.from)
-      .lte("scheduled_at", due.to);
+      .gt("scheduled_at", range.from)
+      .lte("scheduled_at", range.to);
     let queued = 0;
-    for (const meeting of meetings ?? []) {
+    for (const { item: meeting, expiresAt } of this.dueReminders(
+      candidates ?? [],
+      (m: any) => m.scheduled_at,
+      a.offset_minutes,
+    )) {
+      const options: SendOptions = { timeSensitive: true, expiresAt };
       const when = new Date(meeting.scheduled_at);
       const vars = {
         encontro: meeting.title,
@@ -294,11 +357,11 @@ class Context {
       const key = `${meeting.id}:${meeting.scheduled_at}`;
       const ref: [string, string] = ["meeting", meeting.id];
       if (a.audience === "group" && meeting.audience === "all")
-        queued += await this.toGroup(a, vars, ref, key);
+        queued += await this.toGroup(a, vars, ref, key, options);
       else if (a.audience === "group") continue;
       else if (a.audience === "mentor") {
         const mentor = await this.profile(meeting.mentor_id ?? meeting.created_by);
-        queued += await this.toPerson(a, mentor, "mentor", vars, ref, key);
+        queued += await this.toPerson(a, mentor, "mentor", vars, ref, key, options);
       } else {
         for (const enrollmentId of await this.attendeeEnrollmentIds(meeting)) {
           const enrollment = await this.enrollment(enrollmentId);
@@ -310,6 +373,7 @@ class Context {
             vars,
             ref,
             key,
+            options,
           );
         }
       }
@@ -354,22 +418,27 @@ class Context {
   }
 
   private async bookingBefore(a: any) {
-    const due = this.dueRange(a.offset_minutes);
-    const { data: reservations } = await this.admin
+    const range = this.reminderLookahead(a.offset_minutes);
+    const { data: candidates } = await this.admin
       .from("booking_reservations")
       .select("id, offering_id, mentor_id, enrollment_id, meeting_id, starts_at")
       .eq("status", "confirmed")
-      .gt("starts_at", due.from)
-      .lte("starts_at", due.to);
+      .gt("starts_at", range.from)
+      .lte("starts_at", range.to);
     let queued = 0;
-    for (const reservation of reservations ?? []) {
+    for (const { item: reservation, expiresAt } of this.dueReminders(
+      candidates ?? [],
+      (r: any) => r.starts_at,
+      a.offset_minutes,
+    )) {
       const { mentee, mentor, vars } = await this.bookingVars(reservation);
       const key = `${reservation.id}:${reservation.starts_at}`;
       const ref: [string, string] = ["booking", reservation.id];
+      const options: SendOptions = { timeSensitive: true, expiresAt };
       queued +=
         a.audience === "mentor"
-          ? await this.toPerson(a, mentor, "mentor", vars, ref, key)
-          : await this.toPerson(a, mentee, "mentee", vars, ref, key);
+          ? await this.toPerson(a, mentor, "mentor", vars, ref, key, options)
+          : await this.toPerson(a, mentee, "mentee", vars, ref, key, options);
     }
     return queued;
   }
@@ -389,7 +458,9 @@ class Context {
       queued +=
         a.audience === "mentees"
           ? await this.toPerson(a, mentee, "mentee", vars, ref, key)
-          : await this.toPerson(a, mentor, "mentor", vars, ref, key);
+          : await this.toPerson(a, mentor, "mentor", vars, ref, key, {
+              digestLine: `${vars.mentorada} agendou *${vars.encontro}* para ${vars.data} às ${vars.hora}`,
+            });
     }
     return queued;
   }
@@ -526,6 +597,7 @@ class Context {
           vars,
           ["questionnaire", response.id],
           `${response.id}:${response.submitted_at}`,
+          { digestLine: `${vars.mentorada} respondeu o questionário *${vars.questionario}*` },
         );
     }
     return queued;
@@ -552,6 +624,7 @@ class Context {
           vars,
           ["assessment", attempt.id],
           attempt.id,
+          { digestLine: `${vars.mentorada} concluiu o mapeamento comportamental` },
         );
     }
     return queued;
@@ -569,7 +642,9 @@ class Context {
       const mentee = await this.profile(enrollment?.mentee_id);
       const vars = { mentorada: fullName(mentee), meta: goal.title, link: appLink() };
       for (const mentor of await this.mentors(a, [enrollment?.mentor_id]))
-        queued += await this.toPerson(a, mentor, "mentor", vars, ["goal", goal.id], goal.id);
+        queued += await this.toPerson(a, mentor, "mentor", vars, ["goal", goal.id], goal.id, {
+          digestLine: `${vars.mentorada} registrou a meta *${goal.title}* no RISE 90`,
+        });
     }
     return queued;
   }
@@ -604,7 +679,9 @@ class Context {
         link: appLink({ view: "gestao-jornada" }),
       };
       for (const mentor of await this.mentors(a, [step.mentorId, enrollment?.mentor_id]))
-        queued += await this.toPerson(a, mentor, "mentor", vars, ref, key);
+        queued += await this.toPerson(a, mentor, "mentor", vars, ref, key, {
+          digestLine: `${vars.mentorada} concluiu a etapa *${step.title}*`,
+        });
     }
     return queued;
   }

@@ -2,8 +2,8 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.117.2";
 import {
-  WHATSAPP_PENDING_MAX_AGE_MS,
   WHATSAPP_SEND_INTERVAL_MS,
+  deliverDigest,
   deliverNotification,
   enqueueNotification,
   gatewayConfig,
@@ -14,6 +14,7 @@ import {
 } from "../_shared/whatsapp-gateway.ts";
 import { renderTemplate } from "../_shared/whatsapp-templates.ts";
 import { runAutomations } from "./automations.ts";
+import { isWithinWindow, sendWindowFromSettings } from "../_shared/send-window.ts";
 import { reconcileGoogleCancellations } from "../_shared/google-cancellations.ts";
 import { purgeTrash } from "../_shared/trash-purge.ts";
 
@@ -215,6 +216,7 @@ async function queueMeetingReminders(settings: any, now: Date) {
           referenceId: meeting.id,
           idempotencyKey: `meeting_reminder_mentor:${meeting.id}:${meeting.scheduled_at}:${mentor.id}`,
           targetUrl: url,
+          timeSensitive: true,
           message: renderTemplate("meeting_reminder_mentor", settings.message_templates, {
             nome: firstName(mentor),
             encontro: meeting.title,
@@ -241,6 +243,7 @@ async function queueMeetingReminders(settings: any, now: Date) {
         referenceId: meeting.id,
         idempotencyKey: `meeting_reminder:${meeting.id}:${meeting.scheduled_at}:${user.id}`,
         targetUrl: url,
+        timeSensitive: true,
         message: renderTemplate("meeting_reminder", settings.message_templates, {
           nome: firstName(user),
           encontro: meeting.title,
@@ -255,7 +258,7 @@ async function queueMeetingReminders(settings: any, now: Date) {
 }
 
 /** Envia as pendentes em fila, uma por vez, com pausa entre elas. */
-async function deliverPending(now: Date) {
+async function deliverPending(now: Date, settings: any) {
   // Uma execução interrompida pode ter entregue antes de cair: não reenvia às cegas.
   const uncertain = await admin
     .from("whatsapp_notifications")
@@ -266,25 +269,79 @@ async function deliverPending(now: Date) {
     .eq("status", "processing")
     .lt("updated_at", new Date(now.getTime() - 5 * 60_000).toISOString());
   if (uncertain.error) throw new Error(uncertain.error.message);
-  const oldest = new Date(now.getTime() - WHATSAPP_PENDING_MAX_AGE_MS).toISOString();
-  // Pendentes antigas demais (ex.: lembrete de encontro que já passou) expiram.
+  const nowIso = now.toISOString();
+  // Pendentes vencidas expiram pelo prazo de cada aviso (avisos guardados para o próximo
+  // horário comercial têm prazo maior). Linhas antigas sem prazo expiram em 7 dias.
   await admin
     .from("whatsapp_notifications")
-    .update({ status: "failed", error_message: "Expirou sem conexão com o WhatsApp." })
+    .update({ status: "failed", error_message: "O prazo deste aviso encerrou." })
     .eq("status", "pending")
-    .lt("created_at", oldest);
+    .lt("expires_at", nowIso);
+  await admin
+    .from("whatsapp_notifications")
+    .update({ status: "failed", error_message: "Expirou sem envio." })
+    .eq("status", "pending")
+    .is("expires_at", null)
+    .lt("created_at", new Date(now.getTime() - 7 * 86_400_000).toISOString());
+
+  const window = sendWindowFromSettings(settings);
+  const inWindow = isWithinWindow(now, window);
   const { data: pending, error } = await admin
     .from("whatsapp_notifications")
-    .select("id, phone, chat_id, message, updated_at")
+    .select(
+      "id, phone, chat_id, message, updated_at, created_at, send_after, recipient_user_id, automation_id, reference_type, reference_id, digest_line",
+    )
     .eq("status", "pending")
-    .gte("created_at", oldest)
+    .or(`send_after.is.null,send_after.lte.${nowIso}`)
     .order("created_at", { ascending: true })
-    .limit(MAX_SENDS_PER_RUN);
+    .limit(100);
   if (error) throw new Error(error.message);
-  const result = { sent: 0, failed: 0 };
-  for (const [index, row] of (pending ?? []).entries()) {
+
+  // Fora do horário comercial nada novo sai; só termina de entregar o que foi colocado
+  // na fila dentro da janela há poucos minutos (ex.: link de aula das 17:00).
+  const spillLimit = now.getTime() - 15 * 60_000;
+  let rows = (pending ?? []).filter(
+    (row: any) => inWindow || (!row.send_after && Date.parse(row.created_at) >= spillLimit),
+  );
+
+  // "Horários liberados" repetidos para a mesma pessoa: fica só o mais recente.
+  const latestOffer = new Map<string, any>();
+  const superseded: string[] = [];
+  for (const row of rows) {
+    if (row.reference_type !== "booking_offering") continue;
+    const key = `${row.automation_id}:${row.recipient_user_id}:${row.reference_id}`;
+    const previous = latestOffer.get(key);
+    if (previous) superseded.push(previous.id);
+    latestOffer.set(key, row);
+  }
+  if (superseded.length) {
+    await admin
+      .from("whatsapp_notifications")
+      .update({ status: "failed", error_message: "Substituído por um aviso mais recente." })
+      .in("id", superseded)
+      .eq("status", "pending");
+    rows = rows.filter((row: any) => !superseded.includes(row.id));
+  }
+
+  // Avisos com linha de resumo para a mesma pessoa saem juntos em uma mensagem só.
+  const batches: any[][] = [];
+  const digestByRecipient = new Map<string, any[]>();
+  for (const row of rows) {
+    if (row.digest_line && row.recipient_user_id && !row.chat_id) {
+      const list = digestByRecipient.get(row.recipient_user_id) ?? [];
+      if (!list.length) batches.push(list);
+      list.push(row);
+      digestByRecipient.set(row.recipient_user_id, list);
+    } else batches.push([row]);
+  }
+
+  const result = { sent: 0, failed: 0, held: (pending ?? []).length - rows.length };
+  for (const [index, batch] of batches.slice(0, MAX_SENDS_PER_RUN).entries()) {
     if (index > 0) await sleep(WHATSAPP_SEND_INTERVAL_MS);
-    const outcome = await deliverNotification(admin, row);
+    const outcome =
+      batch.length > 1
+        ? await deliverDigest(admin, batch)
+        : await deliverNotification(admin, batch[0]);
     if (outcome === "sent") result.sent += 1;
     if (outcome === "failed") result.failed += 1;
   }
@@ -372,9 +429,17 @@ Deno.serve(async (request: Request) => {
         },
         { status: automationsFailed ? 500 : 200 },
       );
-    const { sent, failed } = await deliverPending(now);
+    const { sent, failed, held } = await deliverPending(now, settings);
     return Response.json(
-      { ok: !automationsFailed, queued, sent, failed, sessionStatus: session.status },
+      {
+        ok: !automationsFailed,
+        queued,
+        sent,
+        failed,
+        held,
+        inBusinessHours: isWithinWindow(now, sendWindowFromSettings(settings)),
+        sessionStatus: session.status,
+      },
       { status: automationsFailed ? 500 : 200 },
     );
   } catch (error) {

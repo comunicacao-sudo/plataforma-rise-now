@@ -261,6 +261,14 @@ export function sanitizeAutomation(input: unknown): AutomationInput {
   if (!template) throw new Error("Escreva o texto da mensagem.");
   if (template.length > MAX_AUTOMATION_TEMPLATE)
     throw new Error(`O texto passou de ${MAX_AUTOMATION_TEMPLATE} caracteres.`);
+  // Variável inexistente sairia literalmente na mensagem (ex.: "{titulo}"): bloqueia ao salvar.
+  const unknown = unknownAutomationVariables(trigger, template);
+  if (unknown.length)
+    throw new Error(
+      `Este gatilho não reconhece ${unknown.map((name) => `{${name}}`).join(", ")}. Use: ${definition.variables
+        .map((name) => `{${name}}`)
+        .join(", ")}.`,
+    );
 
   let offsetMinutes = 0;
   let weekday: number | null = null;

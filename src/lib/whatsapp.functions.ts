@@ -2,6 +2,7 @@ import type {
   AutomationAudience,
   AutomationTrigger,
 } from "../../supabase/functions/_shared/whatsapp-automations.ts";
+import type { SendWindow } from "../../supabase/functions/_shared/send-window.ts";
 import type { WhatsAppTemplateKey } from "../../supabase/functions/_shared/whatsapp-templates.ts";
 
 import { createEdgeFunction } from "./edge-function-client";
@@ -30,6 +31,8 @@ export type WhatsAppSessionStatus =
 
 export type WhatsAppAdminState = {
   configured: boolean;
+  /** Horário comercial em que as mensagens podem sair (fuso de São Paulo). */
+  sendWindow?: SendWindow;
   session: {
     status: WhatsAppSessionStatus;
     phone: string | null;
@@ -142,6 +145,10 @@ export const startWhatsAppSession = createEdgeFunction<undefined, ActionResult>(
 export const getWhatsAppQrCode = createEdgeFunction<undefined, ActionResult & { qrCode?: string }>(
   "getWhatsAppQrCode",
 );
+export const saveWhatsAppWindow = createEdgeFunction<
+  SendWindow,
+  ActionResult & { sendWindow?: SendWindow }
+>("saveWhatsAppWindow");
 export const sendWhatsAppTest = createEdgeFunction<
   { phone: string; message: string },
   ActionResult

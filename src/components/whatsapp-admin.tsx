@@ -12,6 +12,7 @@ import {
 
 import { WhatsAppAutomations } from "./whatsapp-automations";
 import { WhatsAppContacts } from "./whatsapp-contacts";
+import { WhatsAppSendWindow } from "./whatsapp-send-window";
 
 const eventLabels: Record<string, string> = {
   account_created: "Conta criada",
@@ -253,6 +254,7 @@ export function WhatsAppAdmin() {
               </p>
             ) : null}
 
+            <WhatsAppSendWindow value={data.sendWindow} onFeedback={setFeedback} />
             <WhatsAppContacts />
             <WhatsAppAutomations connected={connected} onFeedback={setFeedback} />
 

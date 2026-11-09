@@ -64,6 +64,7 @@ import {
   renderAutomation,
   sanitizeAutomation,
 } from "../_shared/whatsapp-automations.ts";
+import { sanitizeSendWindow, sendWindowFromSettings } from "../_shared/send-window.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -4190,6 +4191,12 @@ async function automationAction(c: Context, action: string, d: any) {
     }
     const target = toChatId(d.phone);
     if (!target) return { ok: false, error: "Telefone inválido. Use DDD + número." };
+    if (!(await testPhoneAllowed(c, target.digits)))
+      return {
+        ok: false,
+        error:
+          "Testes só podem ir para o seu próprio celular ou para alguém com autorização de WhatsApp registrada.",
+      };
     if ((await getGatewaySession()).status !== "ready")
       return { ok: false, error: "O número institucional não está conectado." };
     const sample = TRIGGER_DEFINITIONS[input.trigger].sample;
@@ -4201,9 +4208,49 @@ async function automationAction(c: Context, action: string, d: any) {
   throw new Error("Ação de automação inválida.");
 }
 
+/** Teste de WhatsApp: só para o próprio celular de quem testa ou para número com aceite. */
+async function testPhoneAllowed(c: Context, digits: string) {
+  const { data: me, error } = await c.admin
+    .from("profiles")
+    .select("phone")
+    .eq("id", c.userId)
+    .maybeSingle();
+  if (error) throw new Error("Não foi possível conferir o seu telefone.");
+  if (toChatId(me?.phone)?.digits === digits) return true;
+  const { data: consent, error: consentError } = await c.admin
+    .from("whatsapp_contact_permissions")
+    .select("user_id")
+    .eq("phone", digits)
+    .eq("authorized", true)
+    .limit(1)
+    .maybeSingle();
+  if (consentError) throw new Error("Não foi possível conferir a autorização do número.");
+  return !!consent;
+}
+
 async function whatsappAction(c: Context, action: string, d: any) {
   await requireStaff(c);
   const configured = gatewayConfigured();
+  if (action === "saveWhatsAppWindow") {
+    let window;
+    try {
+      window = sanitizeSendWindow(d);
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : "Janela inválida." };
+    }
+    const { error } = await c.admin
+      .from("whatsapp_settings")
+      .update({
+        send_window_start: window.start,
+        send_window_end: window.end,
+        send_window_days: window.days,
+        updated_by: c.userId,
+      })
+      .eq("id", "primary");
+    if (error) throw new Error(error.message);
+    await audit(c, "whatsapp_send_window_updated", "primary", window);
+    return { ok: true, sendWindow: window };
+  }
   if (action === "listWhatsAppContacts") {
     const [
       { data: profiles, error: profileError },
@@ -4318,6 +4365,12 @@ async function whatsappAction(c: Context, action: string, d: any) {
     if (!target) return { ok: false, error: "Telefone inválido. Use DDD + número." };
     if (!message || message.length > 2000)
       return { ok: false, error: "Escreva uma mensagem de até 2.000 caracteres." };
+    if (!(await testPhoneAllowed(c, target.digits)))
+      return {
+        ok: false,
+        error:
+          "Testes só podem ir para o seu próprio celular ou para alguém com autorização de WhatsApp registrada.",
+      };
     if ((await getGatewaySession()).status !== "ready")
       return { ok: false, error: "O número institucional não está conectado." };
     await sendGatewayText(target.chatId, message);
@@ -4363,6 +4416,7 @@ async function whatsappAction(c: Context, action: string, d: any) {
         stageCompletedMentor: !!s?.enabled_stage_completed_mentor,
         meetingReminderHours: s?.meeting_reminder_hours ?? 24,
       },
+      sendWindow: sendWindowFromSettings(s),
       templatesAvailable: !!s && "message_templates" in s,
       templates: Object.fromEntries(
         WHATSAPP_TEMPLATE_KEYS.map((key) => [key, templateFor(key, s?.message_templates)]),
@@ -4472,6 +4526,7 @@ const groups = {
   ]),
   whatsapp: new Set([
     "getWhatsAppAdminState",
+    "saveWhatsAppWindow",
     "listWhatsAppContacts",
     "saveWhatsAppContact",
     "saveWhatsAppSettings",

@@ -15,6 +15,12 @@
 
 import { authorizedWhatsAppPhone } from "./whatsapp-consent.ts";
 import { notificationInvalidReason, reminderDeadline } from "./notification-validity.ts";
+import {
+  isWithinWindow,
+  nextWindowOpening,
+  sendWindowFromSettings,
+  type SendWindow,
+} from "./send-window.ts";
 
 export const WHATSAPP_ENGINE = "pamaris_gateway";
 
@@ -134,11 +140,17 @@ export const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve
  * Envia uma linha de whatsapp_notifications já registrada como "pending".
  * Reserva a linha mudando seu estado. Resultado incerto não é reenviado automaticamente.
  */
-export async function deliverNotification(admin: any, row: any) {
+/**
+ * Confere se a linha ainda pode sair agora (estado, horário guardado, validade do evento
+ * e autorização do número). Retorna a linha atualizada, ou null se não deve ser enviada.
+ */
+async function checkDeliverable(admin: any, row: any) {
   const current = await admin.from("whatsapp_notifications").select("*").eq("id", row.id).single();
   if (current.error) throw new Error("Não foi possível carregar o aviso.");
   row = { ...row, ...current.data };
-  if (row.status && row.status !== "pending") return "skipped" as const;
+  if (row.status && row.status !== "pending") return null;
+  // Aviso guardado para o próximo horário comercial: ainda não é hora.
+  if (row.send_after && Date.parse(row.send_after) > Date.now()) return null;
   const invalid = await notificationInvalidReason(admin, row);
   if (invalid) {
     const result = await admin
@@ -147,18 +159,12 @@ export async function deliverNotification(admin: any, row: any) {
       .eq("id", row.id)
       .eq("status", "pending");
     if (result.error) throw new Error(result.error.message);
-    return "skipped" as const;
+    return null;
   }
   if (!isGroupChatId(row.chat_id)) {
     // Consulta novamente antes de cada envio: revogações também bloqueiam a fila antiga.
-    const { data: saved, error } = await admin
-      .from("whatsapp_notifications")
-      .select("recipient_user_id")
-      .eq("id", row.id)
-      .single();
-    if (error) throw new Error("Não foi possível conferir o destinatário.");
     const phone = toChatId(row.phone)?.digits ?? null;
-    if (!(await authorizedWhatsAppPhone(admin, saved.recipient_user_id, phone))) {
+    if (!(await authorizedWhatsAppPhone(admin, row.recipient_user_id, phone))) {
       await admin
         .from("whatsapp_notifications")
         .update({
@@ -167,9 +173,107 @@ export async function deliverNotification(admin: any, row: any) {
         })
         .eq("id", row.id)
         .eq("status", "pending");
-      return "skipped" as const;
+      return null;
     }
   }
+  return row;
+}
+
+/**
+ * Envia vários avisos da mesma pessoa em UMA mensagem de resumo (usa digest_line).
+ * Evita que a mentora receba uma sequência de mensagens na abertura do horário comercial.
+ */
+export async function deliverDigest(admin: any, rows: any[]) {
+  const ready = [];
+  for (const row of rows) {
+    const checked = await checkDeliverable(admin, row);
+    if (checked?.digest_line) ready.push(checked);
+  }
+  if (ready.length < 2) {
+    const outcomes = [];
+    for (const row of ready) outcomes.push(await deliverNotification(admin, row));
+    return outcomes.includes("sent") ? ("sent" as const) : ("skipped" as const);
+  }
+  const claimed = [];
+  for (const row of ready) {
+    const result = await admin
+      .from("whatsapp_notifications")
+      .update({ status: "processing", error_message: "Enviando resumo…" })
+      .eq("id", row.id)
+      .eq("status", "pending")
+      .eq("updated_at", row.updated_at)
+      .select("id")
+      .maybeSingle();
+    if (result.error) throw new Error(result.error.message);
+    if (result.data) claimed.push(row);
+  }
+  if (!claimed.length) return "skipped" as const;
+  const chatId = toChatId(claimed[0].phone)?.chatId;
+  const ids = claimed.map((row) => row.id);
+  if (!chatId) {
+    await admin
+      .from("whatsapp_notifications")
+      .update({ status: "failed", error_message: "Telefone inválido." })
+      .in("id", ids)
+      .eq("status", "processing");
+    return "failed" as const;
+  }
+  const { data: person } = await admin
+    .from("profiles")
+    .select("display_name, full_name")
+    .eq("id", claimed[0].recipient_user_id)
+    .maybeSingle();
+  const firstName = String(person?.display_name || person?.full_name || "")
+    .trim()
+    .split(/\s+/)[0];
+  const appBase = gatewayConfig().appBase;
+  const message = [
+    "📬 *RISE NOW | RESUMO DE ATUALIZAÇÕES*",
+    "",
+    firstName ? `Olá, ${firstName}! Desde o último aviso:` : "Olá! Desde o último aviso:",
+    "",
+    ...claimed.map((row) => `• ${row.digest_line}`),
+    "",
+    "Acompanhe tudo na plataforma:",
+    appBase,
+  ].join("\n");
+  try {
+    const providerId = await sendGatewayText(chatId, message);
+    const saved = await admin
+      .from("whatsapp_notifications")
+      .update({
+        status: "sent",
+        provider_message_id: providerId,
+        sent_at: new Date().toISOString(),
+        error_message: `Enviado em resumo com ${claimed.length} avisos.`,
+      })
+      .in("id", ids)
+      .eq("status", "processing");
+    if (saved.error)
+      throw new Error(
+        "Resumo possivelmente enviado, mas não foi possível registrar a confirmação. Confira antes de reenviar.",
+      );
+    return "sent" as const;
+  } catch (error) {
+    const retryable = error?.gatewayStatus === 429;
+    await admin
+      .from("whatsapp_notifications")
+      .update({
+        status: retryable ? "pending" : "failed",
+        error_message: retryable
+          ? error.message
+          : `Resumo sem confirmação; confira o WhatsApp antes de reenviar. ${error instanceof Error ? error.message : "Falha no envio."}`,
+      })
+      .in("id", ids)
+      .eq("status", "processing");
+    return "failed" as const;
+  }
+}
+
+export async function deliverNotification(admin: any, row: any) {
+  const checked = await checkDeliverable(admin, row);
+  if (!checked) return "skipped" as const;
+  row = checked;
   const claimed = await admin
     .from("whatsapp_notifications")
     .update({ status: "processing", error_message: "Enviando…" })
@@ -255,6 +359,14 @@ export type NotificationInput = {
   idempotencyKey: string;
   message: string;
   targetUrl: string;
+  /** Lembrete com hora marcada: fora do horário comercial não é enviado (nem guardado). */
+  timeSensitive?: boolean;
+  /** Prazo explícito do aviso (substitui o prazo calculado pela antecedência). */
+  expiresAt?: string | null;
+  /** Linha curta para quando vários avisos da mesma pessoa saem juntos em um resumo. */
+  digestLine?: string | null;
+  /** Janela de envio já carregada (evita reconsultar as configurações). */
+  sendWindow?: SendWindow;
 };
 
 /**
@@ -295,12 +407,33 @@ export async function enqueueNotification(admin: any, input: NotificationInput) 
         .single();
       if (automation.error) throw new Error(automation.error.message);
       if (["group_meeting_before", "booking_before"].includes(automation.data.trigger))
-        deadline = Date.parse(reminderDeadline(sourceScheduledAt, automation.data.offset_minutes));
+        deadline = input.expiresAt
+          ? Math.min(deadline + 5 * 60_000, Date.parse(input.expiresAt))
+          : Date.parse(reminderDeadline(sourceScheduledAt, automation.data.offset_minutes));
     } else if (["meeting_reminder", "meeting_reminder_mentor"].includes(input.eventType))
       deadline = Math.min(deadline, Date.now() + 30 * 60_000);
     expiresAt = new Date(Math.min(Date.parse(expiresAt), deadline)).toISOString();
     if (Date.parse(expiresAt) <= Date.now()) return null;
   }
+
+  // Horário comercial (público CLT): fora da janela, o aviso espera a próxima abertura;
+  // lembretes com hora marcada simplesmente não saem, para não chegarem fora de hora.
+  const now = new Date();
+  const window = input.sendWindow ?? sendWindowFromSettings(await whatsappSettings(admin));
+  let sendAfter: string | null = null;
+  if (!isWithinWindow(now, window)) {
+    if (input.timeSensitive) return null;
+    const opening = nextWindowOpening(now, window);
+    sendAfter = opening.toISOString();
+    const heldDeadline = opening.getTime() + WHATSAPP_PENDING_MAX_AGE_MS;
+    if (sourceScheduledAt) {
+      // Aviso ligado a um encontro: se a abertura for depois do prazo, não vale guardar.
+      if (opening.getTime() >= Date.parse(expiresAt)) return null;
+    } else {
+      expiresAt = new Date(Math.max(Date.parse(expiresAt), heldDeadline)).toISOString();
+    }
+  }
+
   const { data, error } = await admin
     .from("whatsapp_notifications")
     .upsert(
@@ -319,10 +452,12 @@ export async function enqueueNotification(admin: any, input: NotificationInput) 
         status: "pending",
         source_scheduled_at: sourceScheduledAt,
         expires_at: expiresAt,
+        send_after: sendAfter,
+        digest_line: input.digestLine ? String(input.digestLine).slice(0, 300) : null,
       },
       { onConflict: "idempotency_key", ignoreDuplicates: true },
     )
-    .select("id, phone, chat_id, message, updated_at")
+    .select("id, phone, chat_id, message, updated_at, send_after")
     .maybeSingle();
   if (error) throw new Error(error.message);
   return data;
