@@ -94,6 +94,7 @@ test("service worker não intercepta APIs, autenticação, uploads, vídeos ou c
     ["https://projeto.supabase.co/storage/v1/object/sign/capa.webp?token=privado", "cors", "GET"],
     ["https://rise.invalid/video.mp4", "no-cors", "GET"],
     ["https://rise.invalid/assets/versao-atual.js", "cors", "GET"],
+    ["https://rise.invalid/app-version.json", "cors", "GET"],
   ])
     assert.equal(app.fetch(url!, mode!, method!), undefined);
   assert.deepEqual(app.cacheReads, []);

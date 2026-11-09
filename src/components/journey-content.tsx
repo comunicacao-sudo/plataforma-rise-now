@@ -1,4 +1,5 @@
 import { retainPlaybackUrl } from "@/lib/playback-cache";
+import { useAppUpdateGuard } from "@/hooks/use-app-update-guard";
 import { usesBehavioralAssessment } from "@/lib/journey-navigation";
 import { supabase } from "@/integrations/supabase/client";
 import { JourneyCoverImage } from "@/components/journey-cover-image";
@@ -445,15 +446,18 @@ function JourneyNotebook({
   });
   const [text, setText] = useState("");
   const [ready, setReady] = useState(false);
+  const [savedText, setSavedText] = useState("");
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [tab, setTab] = useState<"notes" | "markers">("notes");
   const [marking, setMarking] = useState(false);
   const [reflection, setReflection] = useState("");
   const [markerError, setMarkerError] = useState("");
+  useAppUpdateGuard(!ready || (text === savedText && !marking));
 
   useEffect(() => {
     if (!query.data || ready) return;
     setText(query.data.note);
+    setSavedText(query.data.note);
     setReady(true);
   }, [query.data, ready]);
 
@@ -463,6 +467,7 @@ function JourneyNotebook({
     const timer = window.setTimeout(async () => {
       try {
         await save({ data: { stepKey: item.stepKey, content: text } });
+        setSavedText(text);
         setSaveState("saved");
       } catch {
         setSaveState("error");

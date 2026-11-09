@@ -5,6 +5,8 @@
 //     React/TanStack dedupe, error logger plugins, and sandbox detection (port/host/strictPort).
 // You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
+import { fileURLToPath } from "node:url";
+import { appVersionPlugin } from "./scripts/app-version.ts";
 
 const SUPABASE_PROJECT_ID = "riakceytqrlvdcgcwfdx";
 const SUPABASE_URL = `https://${SUPABASE_PROJECT_ID}.supabase.co`;
@@ -20,6 +22,7 @@ export default defineConfig({
     spa: { enabled: true },
   },
   vite: {
+    plugins: [appVersionPlugin(fileURLToPath(new URL(".", import.meta.url)))],
     // Prevent Vite's native VITE_* loader from re-injecting Lovable-managed
     // variables after the wrapper injection above has been disabled.
     envPrefix: "RISE_PUBLIC_",

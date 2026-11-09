@@ -1,0 +1,94 @@
+.rise-app-update {
+  position: fixed;
+  z-index: 230;
+  right: max(12px, env(safe-area-inset-right));
+  bottom: max(12px, env(safe-area-inset-bottom));
+  width: min(420px, calc(100% - 24px - env(safe-area-inset-left) - env(safe-area-inset-right)));
+  max-height: calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  overflow-y: auto;
+  border: 1px solid #8c795b;
+  border-radius: 18px;
+  padding: 22px;
+  background: #123d35;
+  color: #ffffff;
+  box-shadow: 0 12px 40px #0005;
+  font-family: "Montserrat", system-ui, sans-serif;
+  overflow-wrap: anywhere;
+}
+.rise-app-update__brand {
+  display: block;
+  margin-bottom: 8px;
+  color: #d7b07a;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+}
+.rise-app-update h2 {
+  margin: 0;
+  color: inherit;
+  font:
+    650 18px/1.4 "Montserrat",
+    system-ui,
+    sans-serif;
+}
+.rise-app-update p {
+  margin: 8px 0 0;
+  color: #e8ded0;
+  font-size: 14px;
+  line-height: 1.65;
+}
+.rise-app-update .rise-app-update__message {
+  padding-top: 8px;
+  font-weight: 600;
+}
+.rise-app-update__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-top: 18px;
+}
+.rise-app-update button {
+  min-height: 44px;
+  padding: 10px 15px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  color: inherit;
+  background: transparent;
+  font:
+    600 13px/1.5 "Montserrat",
+    system-ui,
+    sans-serif;
+  cursor: pointer;
+}
+.rise-app-update button:last-child {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.rise-app-update .rise-app-update__primary {
+  color: #082a24;
+  background: #d7b07a;
+}
+.rise-app-update button:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
+.rise-app-update button:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+html[data-theme="light"] .rise-app-update {
+  color: #26312f;
+  background: #fffdf9;
+  border-color: #b8755d;
+  box-shadow: 0 12px 40px #26312f26;
+}
+html[data-theme="light"] .rise-app-update p {
+  color: #48564f;
+}
+html[data-theme="light"] .rise-app-update__brand {
+  color: #754534;
+}
+html[data-theme="light"] .rise-app-update__primary {
+  color: #fff;
+  background: #754534;
+}

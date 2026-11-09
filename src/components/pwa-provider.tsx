@@ -1,5 +1,7 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 import { PwaContext, type InstallPromptEvent } from "@/lib/pwa";
+
+const AppUpdate = lazy(() => import("@/components/app-update"));
 
 export function PwaProvider({ children }: { children: ReactNode }) {
   const [standalone, setStandalone] = useState(true);
@@ -59,6 +61,11 @@ export function PwaProvider({ children }: { children: ReactNode }) {
   return (
     <PwaContext.Provider value={{ standalone, prompt, clearPrompt: () => setPrompt(null) }}>
       {children}
+      {import.meta.env.PROD ? (
+        <Suspense fallback={null}>
+          <AppUpdate />
+        </Suspense>
+      ) : null}
     </PwaContext.Provider>
   );
 }
