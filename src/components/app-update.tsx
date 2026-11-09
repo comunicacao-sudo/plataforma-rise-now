@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
   appUpdateGuards,
+  appVersionUrl,
   canReloadApp,
   createVersionChecker,
   UPDATE_CHECK_INTERVAL,
@@ -33,7 +34,7 @@ export default function AppUpdate() {
       canCheck: () =>
         document.visibilityState === "visible" && navigator.onLine && window.self === window.top,
       fetchVersion: async (signal) => {
-        const response = await fetch("/app-version.json", {
+        const response = await fetch(appVersionUrl(), {
           cache: "no-store",
           credentials: "omit",
           signal,

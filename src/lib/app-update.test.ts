@@ -4,12 +4,19 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { appSourceVersion } from "../../scripts/app-version";
-import { createUpdateGuards, createVersionChecker, readAppVersion } from "./app-update";
+import {
+  appVersionUrl,
+  createUpdateGuards,
+  createVersionChecker,
+  readAppVersion,
+} from "./app-update";
 
 const versionA = "a".repeat(64);
 const versionB = "b".repeat(64);
 
 test("versão pública aceita somente o identificador do build, sem dados ou URLs arbitrárias", () => {
+  assert.match(appVersionUrl(123), /^\/app-version\.json\?check=[a-z0-9]+$/);
+  assert.notEqual(appVersionUrl(123), appVersionUrl(124));
   assert.equal(readAppVersion({ version: versionA }), versionA);
   for (const value of [
     null,
@@ -29,9 +36,13 @@ test("identificador é reproduzível entre Windows e deploy e muda com código o
     mkdirSync(join(root, "src"));
     mkdirSync(join(root, "public"));
     writeFileSync(join(root, "src", "app.ts"), "const title = 'RISE';\r\n");
+    writeFileSync(join(root, "src", "README.md"), "RISE\r\n");
+    writeFileSync(join(root, "public", "robots.txt"), "User-agent: *\r\n");
     writeFileSync(join(root, "public", "logo.png"), Buffer.from([0, 255, 1]));
     const first = appSourceVersion(root);
     writeFileSync(join(root, "src", "app.ts"), "const title = 'RISE';\n");
+    writeFileSync(join(root, "src", "README.md"), "RISE\n");
+    writeFileSync(join(root, "public", "robots.txt"), "User-agent: *\n");
     writeFileSync(join(root, ".env"), "SEGREDO=nao-incluir");
     writeFileSync(join(root, "src", "routeTree.gen.ts"), "gerado durante o build");
     assert.equal(appSourceVersion(root), first);

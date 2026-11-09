@@ -11,7 +11,7 @@ O aviso é discreto, não toma o foco, cabe no celular e no computador e respeit
 - Cada build produz um identificador SHA-256 dos arquivos da aplicação e publica somente esse identificador em /app-version.json. O mesmo valor é incorporado ao JavaScript.
 - O identificador é estável entre Windows e Linux: caminhos são relativos e as quebras de linha de arquivos de texto são normalizadas. Arquivos de ambiente e rotas geradas não participam.
 - A consulta começa depois da abertura da tela, sem cookies nem credenciais. Repete a cada cinco minutos enquanto a página está visível e online; voltar ao aplicativo ou recuperar a conexão também permite conferir, com intervalo mínimo de 30 segundos entre consultas bem-sucedidas.
-- O JSON público usa Cache-Control: no-store, não é guardado pelo service worker e não contém dados de participantes.
+- A consulta usa cache: no-store e uma URL com parâmetro novo a cada verificação. O host publicado não repassa o Cache-Control configurado em _headers; por isso a detecção não depende desse cabeçalho para evitar uma resposta antiga do cache intermediário. O JSON não é guardado pelo service worker e não contém dados de participantes.
 - Respostas inválidas, erro de publicação ou falha de conexão não geram aviso falso e permitem nova tentativa. A consulta tem cancelamento e limite de 15 segundos.
 - “Mais tarde” adia o mesmo aviso por 30 minutos. Uma versão diferente pode ser informada antes disso.
 - O componente é carregado sob demanda. O service worker mantém sua política anterior: HTML, respostas, sessões, APIs, vídeos e capas privadas seguem pela rede.
@@ -34,7 +34,7 @@ A recarga só ocorre por clique explícito, com internet e após a verificação
 - Cinco cenários de interface com serviços externos bloqueados: desktop 1366 × 768 e celular 390 × 844 nos dois temas, mais recuperação após falha de publicação.
 - Conferidos contraste, nomes dos botões, atributos ARIA, limites da tela, adiamento, nova versão após adiamento, ausência de cookies na consulta, ausência de recarga automática, proteção de formulário e vídeo em reprodução, aviso offline e uma única recarga após o clique autorizado.
 - Nenhum participante, mensagem, convite ou análise por IA foi usado no teste.
-- Build: JS/CSS total 347.875 bytes gzip; entrada pública 107.075; entrada autenticada 54.056, dentro dos limites existentes.
+- Build: JS/CSS total 347.896 bytes gzip; entrada pública 107.075; entrada autenticada 54.058, dentro dos limites existentes.
 
 ## Publicação e primeiro uso
 

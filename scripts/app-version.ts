@@ -22,8 +22,9 @@ export function appSourceVersion(root: string) {
     const name = relative(root, path).replaceAll("\\", "/");
     const bytes = readFileSync(path);
     const text =
-      /\.(?:[cm]?[jt]sx?|css|json|lock|webmanifest|html|svg)$/.test(name) ||
-      name.endsWith("/_headers");
+      /\.(?:[cm]?[jt]sx?|css|json|lock|webmanifest|html|svg|mdx?|txt|ya?ml|toml|xml|csv)$/.test(
+        name,
+      ) || /\/_(?:headers|redirects)$/.test(name);
     hash
       .update(name)
       .update("\0")

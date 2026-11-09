@@ -2,6 +2,11 @@ export const UPDATE_CHECK_INTERVAL = 5 * 60 * 1000;
 export const UPDATE_FOCUS_INTERVAL = 30 * 1000;
 export const UPDATE_REMINDER_INTERVAL = 30 * 60 * 1000;
 
+export function appVersionUrl(now = Date.now()) {
+  // O host pode não repassar _headers; uma URL nova também evita cache intermediário.
+  return "/app-version.json?check=" + now.toString(36);
+}
+
 /** Nenhum dado da sessão faz parte do arquivo público de versão. */
 export function readAppVersion(value: unknown): string | null {
   if (!value || typeof value !== "object" || !("version" in value)) return null;
