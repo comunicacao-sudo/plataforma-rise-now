@@ -24,8 +24,8 @@ export const WHATSAPP_VARIABLE_HELP: Record<string, string> = {
   encontro: "título do encontro",
   data: "data e hora do encontro",
   etapa: "nome da etapa",
-  participantes: "quantas mentoradas participam",
-  mentorada: "nome da mentorada",
+  participantes: "quantas pessoas participam",
+  participante: "nome de quem participa",
   link: "link da plataforma",
 };
 
@@ -65,7 +65,7 @@ export const WHATSAPP_TEMPLATE_DEFINITIONS: Record<
       nome: "Camila",
       encontro: "Forward Reflection",
       data: "12/11/2026 às 19:00",
-      participantes: "6 mentoradas",
+      participantes: "6 participantes",
       link: "https://board.mentoriarisenow.com.br/?view=agenda",
     },
   },
@@ -81,7 +81,7 @@ export const WHATSAPP_TEMPLATE_DEFINITIONS: Record<
     },
   },
   stage_completed_mentee: {
-    label: "Etapa concluída (mentorada)",
+    label: "Etapa concluída (participante)",
     variables: ["nome", "etapa", "link"],
     defaultText:
       "Olá, {nome}! 🌟\n\nParabéns pela conclusão da etapa *{etapa}* na *RISE NOW*.\n\nAcompanhe seu progresso:\n{link}",
@@ -93,12 +93,12 @@ export const WHATSAPP_TEMPLATE_DEFINITIONS: Record<
   },
   stage_completed_mentor: {
     label: "Etapa concluída (mentora)",
-    variables: ["nome", "mentorada", "etapa", "link"],
+    variables: ["nome", "participante", "etapa", "link"],
     defaultText:
-      "Olá, {nome}! ✅\n\n{mentorada} concluiu a etapa *{etapa}* na *RISE NOW*.\n\nAcompanhe o progresso da mentorada:\n{link}",
+      "Olá, {nome}! ✅\n\n{participante} concluiu a etapa *{etapa}* na *RISE NOW*.\n\nAcompanhe o progresso:\n{link}",
     sample: {
       nome: "Camila",
-      mentorada: "Mariana Souza",
+      participante: "Mariana Souza",
       etapa: "Mapa de Clareza RISE",
       link: "https://board.mentoriarisenow.com.br/?view=gestao-jornada",
     },
@@ -143,8 +143,11 @@ export function templateFor(key: WhatsAppTemplateKey, custom: unknown) {
 export function unknownVariables(key: WhatsAppTemplateKey, text: string) {
   const allowed = new Set(WHATSAPP_TEMPLATE_DEFINITIONS[key].variables);
   const found = [...text.matchAll(/\{(\w+)\}/g)].map((match) => match[1]!);
-  return [...new Set(found.filter((name) => !allowed.has(name)))];
+  return [...new Set(found.filter((name) => !allowed.has(LEGACY_VARIABLES[name] ?? name)))];
 }
+
+/** {mentorada} virou {participante}; textos antigos continuam funcionando. */
+const LEGACY_VARIABLES: Record<string, string> = { mentorada: "participante" };
 
 /**
  * Monta a mensagem final. Variáveis desconhecidas ficam como estão; se {nome}
@@ -159,7 +162,8 @@ export function renderTemplate(
   let text = templateFor(key, custom);
   const name = variables["nome"]?.replace(/\s+/g, " ").trim();
   if (!name) text = text.replace(/[,\s]*\{nome\}/g, "");
-  return text.replace(/\{(\w+)\}/g, (match, variable: string) => {
+  return text.replace(/\{(\w+)\}/g, (match, written: string) => {
+    const variable = LEGACY_VARIABLES[written] ?? written;
     if (!allowed.has(variable)) return match;
     const value = variables[variable];
     if (value === null || value === undefined) return "";

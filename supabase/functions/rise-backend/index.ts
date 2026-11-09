@@ -586,7 +586,7 @@ async function whatsappProfile(userId: string) {
     ? {
         id: data.id,
         name: (data.display_name || data.full_name || "").trim().split(/\s+/)[0] || "",
-        fullName: data.display_name || data.full_name || "Uma mentorada",
+        fullName: data.display_name || data.full_name || "Uma pessoa participante",
         phone: data.phone,
       }
     : null;
@@ -660,7 +660,7 @@ async function notifyStageCompleted(enrollmentId: string, menteeId: string, step
           targetUrl: mentorLink,
           message: renderTemplate("stage_completed_mentor", settings?.message_templates, {
             nome: mentor.name,
-            mentorada: mentee?.fullName ?? "Uma mentorada",
+            participante: mentee?.fullName ?? "Uma pessoa participante",
             etapa: title,
             link: mentorLink,
           }),
@@ -814,7 +814,7 @@ async function journeyAction(c: Context, action: string, d: any) {
     return { ok: true };
   }
   if (action === "reopenJourneyStep") {
-    // A mentora desfaz uma conclusão (ex.: a mentorada faltou ao encontro). A marcação
+    // A mentora desfaz uma conclusão (ex.: a pessoa faltou ao encontro). A marcação
     // mentor_reopened impede que a conclusão automática do encontro refaça a conclusão.
     await requireStaff(c);
     const { data, error } = await c.admin
@@ -832,7 +832,7 @@ async function journeyAction(c: Context, action: string, d: any) {
       .select("enrollment_id")
       .maybeSingle();
     if (error) throw new Error(error.message);
-    if (!data) return { ok: false, error: "Esta etapa não está concluída para essa mentorada." };
+    if (!data) return { ok: false, error: "Esta etapa não está concluída para essa pessoa." };
     await audit(c, "journey_step_reopened", `${d.enrollmentId}:${d.stepKey}`);
     return { ok: true };
   }
@@ -961,7 +961,7 @@ async function journeyAction(c: Context, action: string, d: any) {
       enrollmentId: x.enrollment_id,
       stepKey: x.step_key,
       completedAt: x.completed_at,
-      menteeName: x.enrollment?.mentee?.full_name ?? "Mentorada",
+      menteeName: x.enrollment?.mentee?.full_name ?? "Participante",
       stepTitle: stepTitles.get(x.step_key) ?? "Etapa",
     }));
     const { data: pending } = await c.admin
@@ -978,7 +978,7 @@ async function journeyAction(c: Context, action: string, d: any) {
       stepKey: x.step_key,
       status: x.status,
       updatedAt: x.updated_at,
-      menteeName: x.enrollment?.mentee?.full_name ?? "Mentorada",
+      menteeName: x.enrollment?.mentee?.full_name ?? "Participante",
       stepTitle: titles.get(x.step_key) ?? "Etapa",
     }));
   }
@@ -1251,14 +1251,7 @@ async function loadLibrary(
       const p = versions.get(s.version_id) ?? { name: "Jornada", position: 999 };
       const locked = isJourneyContentLocked(s, enrollment.current_month, now);
       const stageRows = stageByStep.get(s.stable_key) ?? [];
-      const videos = stageRows
-        .filter((r: any) => r.content_type === "video")
-        .sort(
-          (a: any, b: any) =>
-            (a.position ?? 0) - (b.position ?? 0) ||
-            String(a.created_at).localeCompare(String(b.created_at)) ||
-            a.id.localeCompare(b.id),
-        );
+      const videos = sortByModule(stageRows.filter((r: any) => r.content_type === "video"));
       const stageVideo =
         (selection?.stepKey === s.stable_key
           ? videos.find((v: any) => v.id === selection.contentId)
@@ -1328,6 +1321,7 @@ async function loadLibrary(
           return {
             id: video.id,
             title: video.title,
+            module: cleanModuleTitle(video.module_title),
             durationMinutes: video.duration_minutes,
             completed:
               watched?.completed ??
@@ -1458,7 +1452,40 @@ function stageContentShape(row: any) {
     menteeId: row.mentee_id,
     position: row.position ?? 0,
     active: row.active !== false,
+    moduleTitle: cleanModuleTitle(row.module_title),
   };
+}
+
+/** Nome do módulo: espaços normalizados, até 120 caracteres; vazio = sem módulo. */
+function cleanModuleTitle(value: unknown) {
+  const text = String(value ?? "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 120);
+  return text || null;
+}
+
+/**
+ * Ordena conteúdos agrupando por módulo: cada módulo aparece na posição do seu
+ * primeiro conteúdo e, dentro dele, vale a ordem definida pela equipe.
+ */
+function sortByModule<T extends { module_title?: unknown; position?: unknown; id?: unknown }>(
+  rows: T[],
+) {
+  const pos = (row: T) => (typeof row.position === "number" ? row.position : 0);
+  const key = (row: T) => cleanModuleTitle(row.module_title) ?? "";
+  const start = new Map<string, number>();
+  for (const row of rows) {
+    const current = start.get(key(row));
+    if (current === undefined || pos(row) < current) start.set(key(row), pos(row));
+  }
+  return [...rows].sort(
+    (a, b) =>
+      start.get(key(a))! - start.get(key(b))! ||
+      key(a).localeCompare(key(b), "pt-BR") ||
+      pos(a) - pos(b) ||
+      String(a.id ?? "").localeCompare(String(b.id ?? "")),
+  );
 }
 
 function sanitizeStageQuestions(input: unknown) {
@@ -1844,7 +1871,7 @@ async function contentAction(c: Context, action: string, d: any) {
     const cohortId = accessScope === "cohort" ? String(d.cohortId ?? "") || null : null;
     const menteeId = accessScope === "mentee" ? String(d.menteeId ?? "") || null : null;
     if (accessScope === "cohort" && !cohortId) throw new Error("Selecione a turma.");
-    if (accessScope === "mentee" && !menteeId) throw new Error("Selecione o mentorado.");
+    if (accessScope === "mentee" && !menteeId) throw new Error("Selecione a pessoa participante.");
 
     const externalVideo = contentType === "video" ? String(d.externalUrl ?? "").trim() : "";
     if (d.externalUrl) {
@@ -1917,6 +1944,10 @@ async function contentAction(c: Context, action: string, d: any) {
       access_scope: accessScope,
       cohort_id: cohortId,
       mentee_id: menteeId,
+      // Só mexe no módulo quando a tela manda o campo (telas antigas não apagam o módulo).
+      ...(d && typeof d === "object" && "moduleTitle" in d
+        ? { module_title: cleanModuleTitle(d.moduleTitle) }
+        : {}),
       position: Number.isFinite(Number(d.position)) ? Math.max(0, Number(d.position)) : 0,
       active: d.active !== false,
       created_by: c.userId,
@@ -1940,6 +1971,47 @@ async function contentAction(c: Context, action: string, d: any) {
     });
     if (result.error) throw new Error(result.error.message);
     return { ok: true };
+  }
+  if (action === "renameStageModule") {
+    // Renomeia (ou desfaz, com nome vazio) um módulo inteiro da etapa de uma vez.
+    await requireStaff(c);
+    const from = cleanModuleTitle(d.from);
+    const to = cleanModuleTitle(d.to);
+    if (!from) throw new Error("Escolha o módulo que será renomeado.");
+    const { data, error } = await c.admin
+      .from("journey_stage_contents")
+      .update({ module_title: to, updated_at: new Date().toISOString() })
+      .eq("pillar_id", String(d.pillarId ?? ""))
+      .eq("step_key", String(d.stepKey ?? ""))
+      .eq("module_title", from)
+      .is("deleted_at", null)
+      .select("id");
+    if (error) throw new Error("Não foi possível renomear o módulo.");
+    if (!data?.length) throw new Error("Este módulo não foi encontrado. Atualize a página.");
+    await audit(c, "stage_module_renamed", `${d.stepKey}:${from}`);
+    return { ok: true, updated: data.length };
+  }
+  if (action === "assignStageModule") {
+    // Coloca vários conteúdos da etapa no mesmo módulo (nome vazio = sem módulo).
+    await requireStaff(c);
+    const ids = Array.isArray(d.ids)
+      ? [...new Set(d.ids.map((id: unknown) => String(id ?? "")).filter(Boolean))].slice(0, 200)
+      : [];
+    if (!ids.length) throw new Error("Selecione pelo menos um conteúdo.");
+    const { data, error } = await c.admin
+      .from("journey_stage_contents")
+      .update({
+        module_title: cleanModuleTitle(d.moduleTitle),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("pillar_id", String(d.pillarId ?? ""))
+      .eq("step_key", String(d.stepKey ?? ""))
+      .in("id", ids)
+      .is("deleted_at", null)
+      .select("id");
+    if (error) throw new Error("Não foi possível mover os conteúdos para o módulo.");
+    await audit(c, "stage_module_assigned", `${d.stepKey}:${data?.length ?? 0}`);
+    return { ok: true, updated: data?.length ?? 0 };
   }
   if (action === "deleteStageContent") {
     await requireStaff(c);
@@ -2986,7 +3058,7 @@ async function assessmentAction(c: Context, action: string, d: any) {
       )
       .eq("id", d.enrollmentId)
       .maybeSingle();
-    if (ee || !enrollment) throw new Error(ee?.message ?? "Mentorada não encontrada.");
+    if (ee || !enrollment) throw new Error(ee?.message ?? "Participante não encontrado.");
     const { data: attempts, error } = await c.admin
       .from("assessment_attempts")
       .select("*")
@@ -3641,7 +3713,7 @@ async function googleAction(c: Context, action: string, d: any) {
     const enrollment = await activeEnrollment(c);
     const offering = await offeringById(c, d.offeringId);
     const availability = await availableBookingSlots(c, offering, enrollment, d.startsAt, d.endsAt);
-    // O Google da mentorada é opcional: quando conectado, os horários em conflito já
+    // O Google de quem participa é opcional: quando conectado, os horários em conflito já
     // saem da lista; sem ele, a reserva segue e o convite chega pelo e-mail.
     const slot = availability.slots.find(
       (item) => item.startsAt === new Date(d.startsAt).toISOString(),
@@ -4303,7 +4375,7 @@ async function whatsappAction(c: Context, action: string, d: any) {
             (r: any) => r.user_id === p.id && ["admin", "mentor"].includes(r.role),
           )
             ? "mentora"
-            : "mentorado",
+            : "participante",
           authorized: !!phone && consent?.authorized === true && consent.phone === phone,
           recordedAt: consent?.recorded_at ?? null,
           recordedBy:
@@ -4512,6 +4584,8 @@ const groups = {
     "saveStageContent",
     "deleteStageContent",
     "orderStageContents",
+    "renameStageModule",
+    "assignStageModule",
     "getMyAgendaMaterials",
     "getStageQuestionnaireResponse",
     "submitStageQuestionnaire",

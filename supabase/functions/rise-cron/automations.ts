@@ -45,7 +45,7 @@ const firstName = (person: any) =>
     .trim()
     .split(/\s+/)[0] || "";
 const fullName = (person: any) =>
-  String(person?.display_name || person?.full_name || "").trim() || "Uma mentorada";
+  String(person?.display_name || person?.full_name || "").trim() || "Uma pessoa participante";
 
 function appLink(params: Record<string, string> = {}) {
   const target = new URL("/", gatewayConfig().appBase);
@@ -406,7 +406,7 @@ class Context {
       mentee,
       mentor,
       vars: {
-        mentorada: fullName(mentee),
+        participante: fullName(mentee),
         mentora: mentor ? fullName(mentor) : "sua mentora",
         encontro: offering?.data?.title ?? "Mentoria individual",
         data: formatDayMonth(when),
@@ -459,7 +459,7 @@ class Context {
         a.audience === "mentees"
           ? await this.toPerson(a, mentee, "mentee", vars, ref, key)
           : await this.toPerson(a, mentor, "mentor", vars, ref, key, {
-              digestLine: `${vars.mentorada} agendou *${vars.encontro}* para ${vars.data} às ${vars.hora}`,
+              digestLine: `${vars.participante} agendou *${vars.encontro}* para ${vars.data} às ${vars.hora}`,
             });
     }
     return queued;
@@ -582,7 +582,7 @@ class Context {
         this.profile(response.user_id),
       ]);
       const vars = {
-        mentorada: fullName(mentee),
+        participante: fullName(mentee),
         questionario: content?.title ?? "Questionário",
         link: appLink({ view: "gestao-jornada" }),
       };
@@ -597,7 +597,7 @@ class Context {
           vars,
           ["questionnaire", response.id],
           `${response.id}:${response.submitted_at}`,
-          { digestLine: `${vars.mentorada} respondeu o questionário *${vars.questionario}*` },
+          { digestLine: `${vars.participante} respondeu o questionário *${vars.questionario}*` },
         );
     }
     return queued;
@@ -615,7 +615,7 @@ class Context {
         this.enrollment(attempt.enrollment_id),
         this.profile(attempt.mentee_id),
       ]);
-      const vars = { mentorada: fullName(mentee), link: appLink() };
+      const vars = { participante: fullName(mentee), link: appLink() };
       for (const mentor of await this.mentors(a, [enrollment?.mentor_id]))
         queued += await this.toPerson(
           a,
@@ -624,7 +624,7 @@ class Context {
           vars,
           ["assessment", attempt.id],
           attempt.id,
-          { digestLine: `${vars.mentorada} concluiu o mapeamento comportamental` },
+          { digestLine: `${vars.participante} concluiu o mapeamento comportamental` },
         );
     }
     return queued;
@@ -640,10 +640,10 @@ class Context {
     for (const goal of goals ?? []) {
       const enrollment = await this.enrollment(goal.enrollment_id);
       const mentee = await this.profile(enrollment?.mentee_id);
-      const vars = { mentorada: fullName(mentee), meta: goal.title, link: appLink() };
+      const vars = { participante: fullName(mentee), meta: goal.title, link: appLink() };
       for (const mentor of await this.mentors(a, [enrollment?.mentor_id]))
         queued += await this.toPerson(a, mentor, "mentor", vars, ["goal", goal.id], goal.id, {
-          digestLine: `${vars.mentorada} registrou a meta *${goal.title}* no RISE 90`,
+          digestLine: `${vars.participante} registrou a meta *${goal.title}* no RISE 90`,
         });
     }
     return queued;
@@ -666,7 +666,7 @@ class Context {
       const ref: [string, string] = ["journey_step", row.step_key];
       if (a.audience === "mentees") {
         const vars = {
-          mentorada: fullName(mentee),
+          participante: fullName(mentee),
           etapa: step.title,
           link: appLink({ view: "jornada" }),
         };
@@ -674,13 +674,13 @@ class Context {
         continue;
       }
       const vars = {
-        mentorada: fullName(mentee),
+        participante: fullName(mentee),
         etapa: step.title,
         link: appLink({ view: "gestao-jornada" }),
       };
       for (const mentor of await this.mentors(a, [step.mentorId, enrollment?.mentor_id]))
         queued += await this.toPerson(a, mentor, "mentor", vars, ref, key, {
-          digestLine: `${vars.mentorada} concluiu a etapa *${step.title}*`,
+          digestLine: `${vars.participante} concluiu a etapa *${step.title}*`,
         });
     }
     return queued;

@@ -104,7 +104,7 @@ test("usa textos seguros de apoio quando dados opcionais não existem", () => {
   });
 
   assert.match(message, /^Olá!/);
-  assert.match(message, /Uma mentorada concluiu a etapa \*Nova etapa\*/);
+  assert.match(message, /Uma pessoa participante concluiu a etapa \*Nova etapa\*/);
   assert.throws(
     () =>
       renderWhatsAppMessage({

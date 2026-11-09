@@ -511,7 +511,7 @@ function ScheduleForm({ onDone }: { onDone: () => void }) {
     if (f.audience === "cohorts" && !f.cohortIds.length)
       return setMsg("Escolha pelo menos uma turma.");
     if (f.audience === "selected" && !f.enrollmentIds.length)
-      return setMsg("Escolha pelo menos uma mentorada.");
+      return setMsg("Escolha pelo menos uma pessoa.");
     const startsAt = new Date(`${f.date}T${f.start}`);
     const endsAt = new Date(`${f.date}T${f.end}`);
     if (endsAt <= startsAt) return setMsg("O horário de término precisa ser depois do início.");
@@ -634,7 +634,7 @@ function ScheduleForm({ onDone }: { onDone: () => void }) {
                 [
                   ["all", "Todas as turmas"],
                   ["cohorts", "Turmas selecionadas"],
-                  ["selected", "Mentoradas escolhidas"],
+                  ["selected", "Pessoas escolhidas"],
                 ] as const
               ).map(([v, l]) => (
                 <button
@@ -693,7 +693,7 @@ function ScheduleForm({ onDone }: { onDone: () => void }) {
                   </label>
                 ))}
               {!dir?.enrollments.length ? (
-                <span className="ops-muted">Nenhuma mentorada cadastrada.</span>
+                <span className="ops-muted">Nenhuma pessoa cadastrada.</span>
               ) : null}
             </div>
           ) : null}
@@ -873,7 +873,7 @@ function StaffAgenda() {
       ? "Todas as turmas"
       : m.audience === "cohort"
         ? (dir?.cohorts.find((c) => c.id === m.cohort_id)?.name ?? "Turma")
-        : "Mentoradas escolhidas";
+        : "Pessoas escolhidas";
 
   async function cancel(m: MeetingRow) {
     const proof = await confirmProtectedOperation({
@@ -1161,7 +1161,7 @@ function ReviewScreen({
               ) : null}
             </div>
           </div>
-          <Field label="Retorno para a mentorada (ela vê na tela da entrega)">
+          <Field label="Retorno para quem participa (aparece na tela da entrega)">
             <textarea rows={4} value={feedback} onChange={(e) => setFeedback(e.target.value)} />
           </Field>
           <div className="content-modal__actions">
@@ -1194,13 +1194,13 @@ function ReviewScreen({
           <div className="ops-confidential">
             <div className="private-note">
               <LockKeyhole size={15} />
-              <span>Anotações confidenciais · a mentorada nunca vê</span>
+              <span>Anotações confidenciais · quem participa nunca vê</span>
             </div>
             <textarea
               rows={3}
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              placeholder="Observações sobre a evolução dela…"
+              placeholder="Observações sobre a evolução dessa pessoa…"
             />
             <button className="button button--glass" type="button" onClick={() => void addNote()}>
               Salvar anotação
@@ -1242,7 +1242,7 @@ function ReviewPanel() {
     <main className="inner-page">
       <Intro
         eyebrow="Avaliação"
-        title="Entregas das mentoradas"
+        title="Entregas de participantes"
         copy="Revise, deixe o seu retorno e aprove cada marco da jornada."
       />
       <section className="page-width ops-section">
@@ -1256,7 +1256,7 @@ function ReviewPanel() {
             ))}
           </select>
           <select value={mentee} onChange={(e) => setMentee(e.target.value)}>
-            <option value="">Todas as mentoradas</option>
+            <option value="">Todas as pessoas</option>
             {dir?.enrollments.map((e) => (
               <option key={e.id} value={e.id}>
                 {e.name}
@@ -1418,7 +1418,7 @@ function CohortEditor({
   async function remove() {
     const detail =
       memberCount > 0
-        ? ` Os vínculos de ${memberCount} mentorada(s) serão preservados para recuperação.`
+        ? ` Os vínculos de ${memberCount} participante(s) serão preservados para recuperação.`
         : "";
     const proof = await confirmProtectedOperation({
       scope: { type: "cohort", id: cohort.id, operation: "delete" },
@@ -1487,7 +1487,7 @@ function CohortEditor({
             </Field>
           </div>
 
-          <p className="ops-muted">{memberCount} mentorada(s) vinculada(s) a esta turma.</p>
+          <p className="ops-muted">{memberCount} participante(s) nesta turma.</p>
           {msg ? <p className="form-message">{msg}</p> : null}
 
           <div className="content-modal__actions">
@@ -1618,7 +1618,7 @@ function MemberForm({ onDone }: { onDone: () => void }) {
                   })
                 }
               >
-                <option value="mentee">Mentorada</option>
+                <option value="mentee">Participante</option>
                 <option value="mentor">Mentora · Administradora</option>
               </select>
             </Field>
@@ -1758,7 +1758,7 @@ function MenteeProfilePage({
     <main className="inner-page mentee-profile-page">
       <section className="page-width ops-section">
         <button className="recorded-back" type="button" onClick={onBack}>
-          <ArrowLeft size={17} /> Voltar para mentoradas
+          <ArrowLeft size={17} /> Voltar para participantes
         </button>
         <header className="mentee-profile-header">
           <Avatar name={enrollment.name} url={enrollment.avatarUrl} size={92} />
@@ -1962,10 +1962,10 @@ function MembersPanel({ mode }: { mode: "students" | "access" }) {
     <main className="inner-page">
       <Intro
         eyebrow="Gestão"
-        title={mode === "students" ? "Alunas" : "Turmas e acessos"}
+        title={mode === "students" ? "Participantes" : "Turmas e acessos"}
         copy={
           mode === "students"
-            ? "Perfis, acompanhamento e informações das mentoradas."
+            ? "Perfis, acompanhamento e informações de cada participante."
             : "Gerencie acessos da plataforma e organize as turmas."
         }
       />
@@ -2100,7 +2100,9 @@ function MembersPanel({ mode }: { mode: "students" | "access" }) {
                           </div>
                         )}
                       </td>
-                      <td>{entry.role === "mentee" ? "Mentorada" : "Mentora · Administradora"}</td>
+                      <td>
+                        {entry.role === "mentee" ? "Participante" : "Mentora · Administradora"}
+                      </td>
                       <td>
                         <span
                           className={`ops-tag ops-tag--${entry.archivedAt ? "excluido" : entry.status}`}
@@ -2258,7 +2260,7 @@ function MembersPanel({ mode }: { mode: "students" | "access" }) {
                     ? new Date(`${c.ends_on}T12:00`).toLocaleDateString("pt-BR")
                     : "A definir"}
                 </small>
-                <span>{memberCount} mentorada(s)</span>
+                <span>{memberCount} participante(s)</span>
                 <div className="ops-actions">
                   <button type="button" onClick={() => setEditingCohort(c)}>
                     <Pencil size={15} /> Editar
@@ -2301,7 +2303,7 @@ function MembersPanel({ mode }: { mode: "students" | "access" }) {
 
         <div className="section-heading ops-gap" hidden={adminSection !== "perfis"}>
           <div>
-            <h2>Mentoradas</h2>
+            <h2>Participantes</h2>
             <p>Avanço na trilha e status da entrega do mês atual.</p>
           </div>
           <button type="button" onClick={() => setMemberOpen(true)}>
@@ -2312,7 +2314,7 @@ function MembersPanel({ mode }: { mode: "students" | "access" }) {
           <table className="ops-table">
             <thead>
               <tr>
-                <th>Mentorada</th>
+                <th>Participante</th>
                 <th>Turma</th>
                 <th>Avanço</th>
                 <th>Entrega do mês</th>
@@ -2418,7 +2420,7 @@ function StaffOverview({ onView }: { onView: (v: StaffView) => void }) {
       <section className="mentor-stats page-width">
         <article onClick={() => onView("alunas")}>
           <UsersRound size={23} />
-          <span>Mentoradas ativas</span>
+          <span>Matrículas ativas</span>
           <strong>
             {dir?.enrollments.filter((e) => e.status === "ativa").length ?? "A definir"}
           </strong>
@@ -2447,7 +2449,7 @@ function StaffOverview({ onView }: { onView: (v: StaffView) => void }) {
       <section className="page-width ops-section">
         <div className="section-heading">
           <div>
-            <h2>Mentoradas</h2>
+            <h2>Participantes</h2>
           </div>
         </div>
         <div className="people-table">
@@ -2479,7 +2481,7 @@ function StaffOverview({ onView }: { onView: (v: StaffView) => void }) {
             </article>
           ))}
           {dir && !dir.enrollments.length ? (
-            <p className="ops-empty">Nenhuma mentorada atribuída ainda.</p>
+            <p className="ops-empty">Ainda não há participantes.</p>
           ) : null}
         </div>
       </section>

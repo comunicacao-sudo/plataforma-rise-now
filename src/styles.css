@@ -12016,3 +12016,121 @@ html[data-theme="light"] .rise-install-page :where(a, button):focus-visible {
   font-size: .85rem;
   line-height: 1.55;
 }
+
+/* 2026-11-09 Módulos dentro da etapa (Conteúdos da jornada) */
+.content-admin-filters--detail.has-modules {
+  grid-template-columns: minmax(220px, 1.8fr) repeat(5, minmax(125px, 0.8fr)) auto;
+}
+.content-admin-hint {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 1rem 0 0;
+  color: var(--platform-muted, var(--muted-foreground));
+  font-size: 0.86rem;
+}
+.content-admin-hint svg {
+  flex-shrink: 0;
+  color: var(--gold);
+}
+.content-admin-bulk {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--gold) 55%, var(--platform-line));
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--gold) 10%, var(--platform-surface-strong));
+}
+.content-admin-bulk > strong {
+  align-self: center;
+  color: var(--platform-title);
+  font-size: 0.9rem;
+}
+.content-admin-bulk label {
+  display: grid;
+  gap: 0.3rem;
+  flex: 1 1 240px;
+  font-size: 0.78rem;
+  color: var(--platform-muted, var(--muted-foreground));
+}
+.content-admin-bulk input,
+.content-admin-module__rename input {
+  min-height: 40px;
+  padding: 0 0.8rem;
+  border: 1px solid var(--platform-line, var(--border));
+  border-radius: 10px;
+  background: var(--platform-surface, transparent);
+  color: var(--platform-title);
+}
+.content-admin-check {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  accent-color: var(--gold);
+  cursor: pointer;
+}
+.content-admin-modules {
+  display: grid;
+  gap: 1.4rem;
+  margin-top: 1.25rem;
+}
+.content-admin-module {
+  display: grid;
+  gap: 0.7rem;
+}
+.content-admin-module__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0 0.25rem;
+}
+.content-admin-module__header h2 {
+  margin: 0.15rem 0 0;
+  color: var(--platform-title);
+  font-size: 1.15rem;
+  line-height: 1.3;
+}
+.content-admin-module__header small {
+  color: var(--platform-muted, var(--muted-foreground));
+  font-size: 0.8rem;
+}
+.content-admin-module__rename {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  flex: 1 1 320px;
+}
+.content-admin-module__rename input {
+  flex: 1 1 220px;
+}
+.stage-lesson-picker li.stage-lesson-picker__module {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  color: var(--platform-title);
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+.stage-lesson-picker li.stage-lesson-picker__module:first-child {
+  margin-top: 0;
+}
+@media (max-width: 1180px) {
+  .content-admin-filters--detail.has-modules {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 720px) {
+  .content-admin-filters--detail.has-modules {
+    grid-template-columns: 1fr;
+  }
+  .content-admin-module__header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

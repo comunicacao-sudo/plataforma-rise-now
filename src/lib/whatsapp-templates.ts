@@ -163,7 +163,7 @@ export const WHATSAPP_MESSAGE_TEMPLATES: Readonly<Record<WhatsAppEventType, Mess
   stage_completed_mentee: ({ greeting, title, actionUrl }) =>
     `${greeting} 🌟\n\nParabéns pela conclusão da etapa *${title}*.\n\nAcompanhe seu progresso na plataforma:\n${actionUrl}`,
   stage_completed_mentor: ({ greeting, actorName, title, actionUrl }) =>
-    `${greeting} ✅\n\n${actorName} concluiu a etapa *${title}*.\n\nAcompanhe o progresso da mentorada:\n${actionUrl}`,
+    `${greeting} ✅\n\n${actorName} concluiu a etapa *${title}*.\n\nAcompanhe o progresso:\n${actionUrl}`,
 };
 
 export function renderWhatsAppMessage(input: WhatsAppMessageInput) {
@@ -171,7 +171,7 @@ export function renderWhatsAppMessage(input: WhatsAppMessageInput) {
   const recipientName = cleanInlineText(input.recipientName, "");
   const context: MessageContext = {
     greeting: recipientName ? `Olá, ${recipientName}!` : "Olá!",
-    actorName: cleanInlineText(input.actorName, "Uma mentorada"),
+    actorName: cleanInlineText(input.actorName, "Uma pessoa participante"),
     title: cleanInlineText(input.title, "Nova etapa"),
     startsAt: formatBrazilianDateTime(input.startsAt),
     actionUrl,

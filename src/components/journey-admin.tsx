@@ -282,8 +282,8 @@ function StepForm({
           <legend>Capas do card</legend>
           <p className="journey-field-help">
             Cadastre uma arte para cada tema. A plataforma exibe automaticamente a capa
-            correspondente ao tema claro ou escuro escolhido por mentorados e mentoras. PNG, JPG ou
-            WebP.
+            correspondente ao tema claro ou escuro escolhido por participantes e mentoras. PNG, JPG
+            ou WebP.
           </p>
 
           <div className="journey-theme-cover">
@@ -587,7 +587,7 @@ function JourneyPillarPanel({
         qc.invalidateQueries({ queryKey: ["journey-editor"] }),
         qc.invalidateQueries({ queryKey: ["journey-content-structure"] }),
       ]);
-      setMessage("Rascunho salvo. As mentoradas ainda não foram afetadas.");
+      setMessage("Rascunho salvo. Nada muda para participantes até a publicação.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Não foi possível salvar o rascunho.");
     } finally {
@@ -680,7 +680,7 @@ function JourneyPillarPanel({
     try {
       await confirm({ data: { enrollmentId, stepKey } });
       await invalidateJourneyData(qc);
-      setMessage("Conclusão confirmada. O próximo passo da mentorada foi recalculado.");
+      setMessage("Conclusão confirmada. O próximo passo dessa pessoa foi recalculado.");
     } catch (error) {
       setMessage(
         error instanceof Error ? error.message : "Não foi possível confirmar a conclusão.",
@@ -768,7 +768,9 @@ function JourneyPillarPanel({
         {!steps.length ? (
           <div className="journey-editor-empty">
             <h2>Seu rascunho ainda não tem etapas.</h2>
-            <p>Adicione a primeira atividade. Nada será mostrado às mentoradas até a publicação.</p>
+            <p>
+              Adicione a primeira atividade. Nada será mostrado a participantes até a publicação.
+            </p>
           </div>
         ) : (
           steps.map((step, index) => (
@@ -977,8 +979,8 @@ function JourneyPillarPanel({
             <span className="eyebrow eyebrow--gold">Concluídas automaticamente</span>
             <h2 id={"journey-auto-completed-" + pillarId}>Encontros realizados</h2>
             <p>
-              Etapas de encontro são concluídas sozinhas quando o encontro termina, para quem foi
-              convidada. Se alguém faltou, desfaça a conclusão dela.
+              Etapas de encontro são concluídas sozinhas quando o encontro termina, para quem
+              recebeu o convite. Se alguém faltou, desfaça a conclusão dessa pessoa.
             </p>
           </div>
           <div className="journey-confirmations__list">
@@ -1145,7 +1147,9 @@ export function JourneyAdmin() {
       <div className="page-intro page-width">
         <span className="eyebrow eyebrow--gold">Mentoria RISE</span>
         <h1>Jornada da mentoria</h1>
-        <p>Organize os pilares, as etapas e as frases que conduzem a evolução das mentoradas.</p>
+        <p>
+          Organize os pilares, as etapas e as frases que conduzem a evolução de cada participante.
+        </p>
       </div>
       <div className="page-width mentor-journey-groups">
         {query.isLoading ? (

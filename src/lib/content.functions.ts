@@ -19,7 +19,13 @@ export type JourneyMaterial = {
 export type JourneyContentItem = {
   stepKey: string;
   videoTitle?: string | null;
-  videos?: Array<{ id: string; title: string; durationMinutes: number | null; completed: boolean }>;
+  videos?: Array<{
+    id: string;
+    title: string;
+    module?: string | null;
+    durationMinutes: number | null;
+    completed: boolean;
+  }>;
   videoCompleted?: boolean;
   videoContentId?: string | null;
   videoRevision?: number | null;
@@ -125,6 +131,8 @@ export type StageContentItem = {
   menteeId: string | null;
   position: number;
   active: boolean;
+  /** Módulo dentro da etapa (null = sem módulo). */
+  moduleTitle?: string | null;
 };
 
 export type AgendaMaterial = {
@@ -213,3 +221,13 @@ export const orderStageContents = createEdgeFunction<
   { pillarId: string; stepKey: string; expectedIds: string[]; ids: string[] },
   { ok: boolean }
 >("orderStageContents");
+
+export const renameStageModule = createEdgeFunction<
+  { pillarId: string; stepKey: string; from: string; to: string },
+  { ok: boolean; updated: number }
+>("renameStageModule");
+
+export const assignStageModule = createEdgeFunction<
+  { pillarId: string; stepKey: string; ids: string[]; moduleTitle: string },
+  { ok: boolean; updated: number }
+>("assignStageModule");

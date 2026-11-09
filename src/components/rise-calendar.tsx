@@ -304,7 +304,7 @@ function OfferingModal({
           <span className="eyebrow eyebrow--gold">Agenda 1:1</span>
           <h2>Disponibilizar encontro</h2>
           <p className="ops-muted">
-            A mentorada verá o nome do encontro e escolherá somente um horário livre.
+            Quem participa verá o nome do encontro e escolherá somente um horário livre.
           </p>
           <Field label="Etapa da jornada (opcional)">
             <select
@@ -326,7 +326,7 @@ function OfferingModal({
             </select>
           </Field>
           <p className="ops-muted">
-            Quando a mentorada reservar, a data será atualizada na jornada dela.
+            Quando a reserva for feita, a data aparece na jornada de quem reservou.
           </p>
           <Field label="Nome do encontro">
             <input value={form.title} onChange={(event) => set("title", event.target.value)} />
@@ -524,7 +524,9 @@ export function StaffBookingOfferings({ directory }: { directory: RiseDirectory 
       <div className="section-heading ops-gap">
         <div>
           <h2>Disponibilidades para encontros 1:1</h2>
-          <p>Crie horários nomeados. A mentorada escolhe o horário, sem escolher a mentora.</p>
+          <p>
+            Crie horários nomeados. Cada participante escolhe o horário, sem escolher a mentora.
+          </p>
         </div>
         <button type="button" onClick={() => setOpen(true)}>
           <Plus size={16} /> Disponibilizar 1:1

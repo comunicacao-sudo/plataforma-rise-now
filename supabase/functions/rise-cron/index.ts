@@ -221,7 +221,7 @@ async function queueMeetingReminders(settings: any, now: Date) {
             nome: firstName(mentor),
             encontro: meeting.title,
             data: when(meeting.scheduled_at),
-            participantes: total === 1 ? "1 mentorada" : `${total} mentoradas`,
+            participantes: total === 1 ? "1 participante" : `${total} participantes`,
             link: url,
           }),
         });
@@ -383,7 +383,7 @@ Deno.serve(async (request: Request) => {
     request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
   if (!expected || !provided || !sameSecret(provided, expected))
     return new Response("Unauthorized", { status: 401 });
-  // Avança o mês da jornada de cada mentorada pela data de início (migration 0046).
+  // Avança o mês da jornada de cada participante pela data de início (migration 0046).
   const months = await admin.rpc("refresh_journey_months");
   if (months.error) console.error("[rise-cron] mês da jornada", months.error.message);
   // Etapas de encontro terminam sozinhas quando o encontro vinculado acaba.

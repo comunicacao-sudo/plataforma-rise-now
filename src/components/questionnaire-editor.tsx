@@ -121,10 +121,10 @@ export function QuestionnaireEditor({
   const titleInput = `${formId}-name`;
   const audience =
     value.accessScope === "general"
-      ? "Todos os mentorados"
+      ? "Todas as pessoas"
       : value.accessScope === "cohort"
         ? (cohorts.find((c) => c.id === value.cohortId)?.name ?? "Turma específica")
-        : (mentees.find((m) => m.id === value.menteeId)?.name ?? "Mentorado específico");
+        : (mentees.find((m) => m.id === value.menteeId)?.name ?? "Pessoa específica");
   const required = value.questions.filter((q) => q.required).length;
   const count = `${value.questions.length} ${value.questions.length === 1 ? "pergunta" : "perguntas"}`;
   function change(patch: Partial<QuestionnaireDraft>) {
@@ -179,7 +179,9 @@ export function QuestionnaireEditor({
     ) {
       setPreview(false);
       setGeneralOpen(true);
-      setError(value.accessScope === "cohort" ? "Selecione a turma." : "Selecione o mentorado.");
+      setError(
+        value.accessScope === "cohort" ? "Selecione a turma." : "Selecione a pessoa participante.",
+      );
       focusField(`${formId}-target`);
       return;
     }
@@ -243,9 +245,12 @@ export function QuestionnaireEditor({
         </header>
         <div className="questionnaire-editor__scroll">
           {preview ? (
-            <section className="questionnaire-editor__preview" aria-label="Prévia do mentorado">
+            <section
+              className="questionnaire-editor__preview"
+              aria-label="Prévia de quem participa"
+            >
               <header>
-                <p className="questionnaire-editor__kicker">PRÉVIA DO MENTORADO</p>
+                <p className="questionnaire-editor__kicker">PRÉVIA DE QUEM PARTICIPA</p>
                 <h3>{value.title.trim() || "Seu questionário"}</h3>
                 {value.description && (
                   <p className="questionnaire-editor__description">{value.description}</p>
@@ -328,7 +333,7 @@ export function QuestionnaireEditor({
                       htmlFor={`${formId}-description`}
                     >
                       <span>
-                        Descrição para o mentorado <small>Opcional</small>
+                        Descrição para quem participa <small>Opcional</small>
                       </span>
                       <GrowingTextarea
                         id={`${formId}-description`}
@@ -353,14 +358,14 @@ export function QuestionnaireEditor({
                             });
                           }}
                         >
-                          <option value="general">Todos os mentorados</option>
+                          <option value="general">Todas as pessoas</option>
                           <option value="cohort">Uma turma específica</option>
-                          <option value="mentee">Um mentorado específico</option>
+                          <option value="mentee">Uma pessoa específica</option>
                         </select>
                       </label>
                       {value.accessScope !== "general" ? (
                         <label className="questionnaire-editor__field" htmlFor={`${formId}-target`}>
-                          <span>{value.accessScope === "cohort" ? "Turma" : "Mentorado"}</span>
+                          <span>{value.accessScope === "cohort" ? "Turma" : "Participante"}</span>
                           <select
                             id={`${formId}-target`}
                             value={
@@ -555,8 +560,8 @@ export function QuestionnaireEditor({
                           ) : (
                             <p className="questionnaire-editor__hint">
                               {q.type === "long_text"
-                                ? "O mentorado terá um campo amplo para escrever sua reflexão."
-                                : "O mentorado responderá em um campo de texto curto."}
+                                ? "Quem participa terá um campo amplo para escrever a reflexão."
+                                : "A resposta será dada em um campo de texto curto."}
                             </p>
                           )}
                         </div>

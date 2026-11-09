@@ -166,7 +166,7 @@ function allowedViewsForRole(role: Role) {
 }
 
 const roleLabels: Record<Role, string> = {
-  mentee: "Mentorada",
+  mentee: "Participante",
   admin: "Mentora · Administradora",
 };
 
@@ -522,7 +522,7 @@ function Header({
           { label: "Jornada", view: "gestao-jornada" },
           { label: "Conteúdos", view: "conteudos" },
           { label: "Agenda", view: "agenda" },
-          { label: "Alunas", view: "alunas" },
+          { label: "Participantes", view: "alunas" },
           { label: "Turmas e acessos", view: "turmas-acessos" },
           { label: "WhatsApp", view: "whatsapp" },
         ];

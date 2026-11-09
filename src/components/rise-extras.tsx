@@ -851,7 +851,7 @@ function GuidanceNotes({ enrollmentId }: { enrollmentId: string }) {
       <div className="x-row">
         <label className="x-check">
           <input type="checkbox" checked={shared} onChange={(e) => setShared(e.target.checked)} />{" "}
-          Mostrar para a aluna
+          Mostrar para quem participa
         </label>
         <button
           className="button button--primary"
@@ -871,7 +871,7 @@ function GuidanceNotes({ enrollmentId }: { enrollmentId: string }) {
         <article key={n.id} className="x-note">
           <small>
             {n.author?.full_name ?? "Equipe"} · {new Date(n.created_at).toLocaleDateString("pt-BR")}{" "}
-            · {n.visibility === "shared" ? "Visível para a aluna" : "Confidencial"}
+            · {n.visibility === "shared" ? "Visível para quem participa" : "Confidencial"}
           </small>
           <p>{n.content}</p>
         </article>
@@ -1774,7 +1774,7 @@ export function ProfileModal({
               </label>
               <label className="ops-field">
                 <span>
-                  O que abordamos <small>Visível para as mentoradas</small>
+                  O que abordamos <small>Visível para participantes</small>
                 </span>
                 <textarea
                   value={form.mentor_summary}
@@ -1790,7 +1790,7 @@ export function ProfileModal({
           <p className="x-privacy">
             {role === "mentee"
               ? "Seu nome completo, email e telefone ficam visíveis somente para você e para a administração da RISE NOW."
-              : "Sua foto, nome, especialidade e contatos ficam visíveis para as mentoradas."}
+              : "Sua foto, nome, especialidade e contatos ficam visíveis para participantes."}
           </p>
           {msg ? <p className="form-message">{msg}</p> : null}
           <button

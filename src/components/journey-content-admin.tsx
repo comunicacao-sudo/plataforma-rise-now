@@ -10,6 +10,7 @@ import {
   ExternalLink,
   Eye,
   FileText,
+  FolderOpen,
   Layers3,
   Pencil,
   Play,
@@ -33,6 +34,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { getDirectory } from "@/lib/admin.functions";
 import {
   filterStageContents,
+  groupByModule,
+  moduleNames,
+  moveModule,
+  moveWithinModule,
   paginate,
   stageMatchesFilters,
   summarizeStageContent,
@@ -51,6 +56,8 @@ import {
   updateStageVideoMetadata,
   saveStageContent,
   orderStageContents,
+  renameStageModule,
+  assignStageModule,
   type StageContentItem,
   type StageQuestion,
 } from "@/lib/content.functions";
@@ -78,8 +85,8 @@ function audienceLabel(
   if (item.accessScope === "cohort")
     return cohorts.find((c) => c.id === item.cohortId)?.name ?? "Turma específica";
   if (item.accessScope === "mentee")
-    return mentees.find((m) => m.id === item.menteeId)?.name ?? "Mentorado específico";
-  return "Todos os mentorados";
+    return mentees.find((m) => m.id === item.menteeId)?.name ?? "Participante específico";
+  return "Todas as pessoas";
 }
 
 function safeExternalUrl(value: string | null) {
@@ -110,6 +117,8 @@ function ContentForm({
   nextPosition = 0,
   cohorts,
   mentees,
+  modules = [],
+  defaultModule = "",
   onDone,
 }: {
   pillarId: string;
@@ -119,6 +128,8 @@ function ContentForm({
   nextPosition?: number;
   cohorts: Array<{ id: string; name: string }>;
   mentees: Array<{ id: string; name: string }>;
+  modules?: string[];
+  defaultModule?: string;
   onDone: () => void;
 }) {
   const saveFn = useServerFn(saveStageContent);
@@ -130,6 +141,7 @@ function ContentForm({
     initial?.contentType ?? defaultType ?? "video",
   );
   const [title, setTitle] = useState(initial?.title ?? "");
+  const [moduleTitle, setModuleTitle] = useState(initial?.moduleTitle ?? defaultModule);
   const [description, setDescription] = useState(initial?.description ?? "");
   const [duration, setDuration] = useState(
     initial?.durationMinutes ? String(initial.durationMinutes) : "",
@@ -237,7 +249,8 @@ function ContentForm({
     const cleanTitle = title.trim();
     if (!cleanTitle) return setMessage("Informe um título.");
     if (accessScope === "cohort" && !cohortId) return setMessage("Selecione a turma.");
-    if (accessScope === "mentee" && !menteeId) return setMessage("Selecione o mentorado.");
+    if (accessScope === "mentee" && !menteeId)
+      return setMessage("Selecione a pessoa participante.");
 
     if (contentType === "video" && !mediaPath && !externalUrl.trim())
       return setMessage("Envie a aula ou informe uma URL externa.");
@@ -265,6 +278,7 @@ function ContentForm({
           cohortId: accessScope === "cohort" ? cohortId : null,
           menteeId: accessScope === "mentee" ? menteeId : null,
           questionnaire: { questions },
+          moduleTitle: moduleTitle.replace(/\s+/g, " ").trim() || null,
           position: initial?.position ?? nextPosition,
           active: true,
         },
@@ -339,6 +353,26 @@ function ContentForm({
           </label>
 
           <label className="ops-field">
+            <span>Módulo (opcional)</span>
+            <input
+              list="stage-module-options"
+              maxLength={120}
+              placeholder="Ex.: Módulo 1 — Autoconsciência"
+              value={moduleTitle}
+              onChange={(event) => setModuleTitle(event.target.value)}
+            />
+            <datalist id="stage-module-options">
+              {modules.map((name) => (
+                <option key={name} value={name} />
+              ))}
+            </datalist>
+            <small className="ops-muted">
+              Conteúdos com o mesmo nome de módulo aparecem juntos, para a equipe e para quem
+              participa.
+            </small>
+          </label>
+
+          <label className="ops-field">
             <span>Descrição (opcional)</span>
             <textarea
               rows={3}
@@ -362,7 +396,7 @@ function ContentForm({
               >
                 <option value="general">Todos</option>
                 <option value="cohort">Uma turma específica</option>
-                <option value="mentee">Um mentorado específico</option>
+                <option value="mentee">Uma pessoa específica</option>
               </select>
             </label>
             {accessScope === "cohort" ? (
@@ -380,7 +414,7 @@ function ContentForm({
             ) : null}
             {accessScope === "mentee" ? (
               <label className="ops-field">
-                <span>Mentorado</span>
+                <span>Participante</span>
                 <select value={menteeId} onChange={(event) => setMenteeId(event.target.value)}>
                   <option value="">Selecione</option>
                   {mentees.map((mentee) => (
@@ -567,7 +601,7 @@ function StageVideoPreview({ item }: { item: StageContentItem }) {
         />
       </div>
       <p className="ops-muted">
-        Prévia da mentora: esta reprodução não conta como progresso dos mentorados.
+        Prévia da mentora: esta reprodução não conta no progresso de quem participa.
       </p>
     </>
   );
@@ -597,7 +631,7 @@ function VideoEngagement({ item, onClose }: { item: StageContentItem; onClose: (
           <span className="eyebrow eyebrow--gold">Acompanhamento da aula</span>
           <h2>{item.title}</h2>
           <p className="ops-muted">
-            Mentorados com acesso liberado ao vídeo atual. O progresso mostra a maior posição
+            Participantes com acesso liberado ao vídeo atual. O progresso mostra a maior posição
             alcançada; a prévia da mentora não entra nos registros.
           </p>
           {query.isLoading ? (
@@ -624,7 +658,7 @@ function VideoEngagement({ item, onClose }: { item: StageContentItem; onClose: (
                   <table className="content-admin-table">
                     <thead>
                       <tr>
-                        <th>Mentorado</th>
+                        <th>Participante</th>
                         <th>Situação</th>
                         <th>Progresso</th>
                         <th>Última reprodução</th>
@@ -637,7 +671,7 @@ function VideoEngagement({ item, onClose }: { item: StageContentItem; onClose: (
                           : null;
                         return (
                           <tr key={v.enrollment_id}>
-                            <td data-label="Mentorado">{v.display_name}</td>
+                            <td data-label="Participante">{v.display_name}</td>
                             <td data-label="Situação">
                               {v.completed
                                 ? "Concluído"
@@ -670,7 +704,7 @@ function VideoEngagement({ item, onClose }: { item: StageContentItem; onClose: (
                   </table>
                 </div>
               ) : (
-                <p>Nenhum mentorado tem acesso liberado a esta gravação no momento.</p>
+                <p>Ninguém tem acesso liberado a esta gravação no momento.</p>
               )}
             </>
           )}
@@ -783,14 +817,26 @@ function StageContentManager({
   const deleteFn = useServerFn(deleteStageContent);
   const reorder = useServerFn(orderStageContents);
   const [reordering, setReordering] = useState(false);
+  const renameFn = useServerFn(renameStageModule);
+  const assignFn = useServerFn(assignStageModule);
   const ordered = [...items].sort((a, b) => a.position - b.position || a.id.localeCompare(b.id));
-  async function moveContent(id: string, direction: number) {
-    const index = ordered.findIndex((i) => i.id === id);
-    const target = index + direction;
-    if (target < 0 || target >= ordered.length) return;
-    const ids = ordered.map((i) => i.id);
-    [ids[index], ids[target]] = [ids[target]!, ids[index]!];
+  const allGroups = useMemo(() => groupByModule(items), [items]);
+  const modules = useMemo(() => moduleNames(items), [items]);
+  const hasModules = modules.length > 0;
+  /** Primeiro/último de cada módulo: limita as setas ao próprio módulo. */
+  const edges = useMemo(() => {
+    const map = new Map<string, { first: boolean; last: boolean }>();
+    for (const group of allGroups)
+      group.items.forEach((item, index) =>
+        map.set(item.id, { first: index === 0, last: index === group.items.length - 1 }),
+      );
+    return map;
+  }, [allGroups]);
+
+  async function applyOrder(ids: string[] | null) {
+    if (!ids) return;
     setReordering(true);
+    setMessage("");
     try {
       await reorder({
         data: { pillarId, stepKey: step.stableKey, expectedIds: ordered.map((i) => i.id), ids },
@@ -802,7 +848,56 @@ function StageContentManager({
       setReordering(false);
     }
   }
+  const moveContent = (id: string, direction: number) =>
+    applyOrder(moveWithinModule(items, id, direction));
+  const moveWholeModule = (title: string, direction: number) =>
+    applyOrder(moveModule(items, title, direction));
+
+  const [renaming, setRenaming] = useState<{ from: string; value: string } | null>(null);
+  async function saveRename() {
+    if (!renaming) return;
+    setReordering(true);
+    setMessage("");
+    try {
+      await renameFn({
+        data: { pillarId, stepKey: step.stableKey, from: renaming.from, to: renaming.value },
+      });
+      setRenaming(null);
+      await invalidateJourneyData(qc);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Não foi possível renomear o módulo.");
+    } finally {
+      setReordering(false);
+    }
+  }
+
+  const [selected, setSelected] = useState<string[]>([]);
+  const [targetModule, setTargetModule] = useState("");
+  function toggleSelected(id: string) {
+    setSelected((current) =>
+      current.includes(id) ? current.filter((value) => value !== id) : [...current, id],
+    );
+  }
+  async function assignSelected() {
+    if (!selected.length) return;
+    setReordering(true);
+    setMessage("");
+    try {
+      await assignFn({
+        data: { pillarId, stepKey: step.stableKey, ids: selected, moduleTitle: targetModule },
+      });
+      setSelected([]);
+      setTargetModule("");
+      await invalidateJourneyData(qc);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Não foi possível mover para o módulo.");
+    } finally {
+      setReordering(false);
+    }
+  }
   const qc = useQueryClient();
+  const [newModule, setNewModule] = useState("");
+  const [moduleFilter, setModuleFilter] = useState("all");
   const [editing, setEditing] = useState<StageContentItem | null | "new">(null);
   const [previewing, setPreviewing] = useState<StageContentItem | null>(null);
   const [tracking, setTracking] = useState<StageContentItem | null>(null);
@@ -823,10 +918,14 @@ function StageContentManager({
         audience: audienceFilter,
         contentType: typeFilter,
         sort,
+        module: moduleFilter,
       }),
-    [audienceFilter, cohortFilter, items, search, sort, typeFilter],
+    [audienceFilter, cohortFilter, items, moduleFilter, search, sort, typeFilter],
   );
   const paged = useMemo(() => paginate(filtered, page, 8), [filtered, page]);
+  // Com módulos e "Ordem da jornada", a lista aparece separada por módulo (sem paginação).
+  const groupedView = hasModules && sort === "position";
+  const visibleGroups = useMemo(() => groupByModule(filtered), [filtered]);
 
   useEffect(() => {
     if (page !== paged.page) setPage(paged.page);
@@ -837,13 +936,15 @@ function StageContentManager({
     setPage(1);
   }
 
-  function startNew(type: StageContentItem["contentType"]) {
+  function startNew(type: StageContentItem["contentType"], module = "") {
     setNewType(type);
+    setNewModule(module);
     setEditing("new");
   }
 
   function clearFilters() {
     setSearch("");
+    setModuleFilter("all");
     setCohortFilter("all");
     setAudienceFilter("all");
     setTypeFilter("all");
@@ -868,6 +969,116 @@ function StageContentManager({
   }
 
   const coverUrl = step.coverUrlDark ?? step.coverUrl ?? step.coverUrlLight ?? null;
+
+  function renderRow(item: StageContentItem) {
+    const Icon = typeIcon[item.contentType];
+    return (
+      <tr key={item.id}>
+        <td data-label="Conteúdo">
+          <div className="content-admin-title-cell">
+            <input
+              className="content-admin-check"
+              type="checkbox"
+              checked={selected.includes(item.id)}
+              onChange={() => toggleSelected(item.id)}
+              aria-label={`Selecionar ${item.title}`}
+            />
+            <span className={`content-admin-thumb is-${item.contentType}`}>
+              {coverUrl && item.contentType === "video" ? (
+                <img src={coverUrl} alt="" />
+              ) : (
+                <Icon size={22} />
+              )}
+            </span>
+            <div>
+              <strong>{item.title}</strong>
+              <small>{item.description || "Sem descrição"}</small>
+              {item.contentType === "video" ? (
+                <small>
+                  {videoDurationLabel(item.durationSeconds, item.durationMinutes)}
+                  {item.engagement
+                    ? ` · Concluíram ${item.engagement.completed} de ${item.engagement.eligible}`
+                    : ""}
+                </small>
+              ) : null}
+            </div>
+          </div>
+        </td>
+        <td data-label="Tipo">
+          <span className={`content-admin-type-chip is-${item.contentType}`}>
+            <Icon size={15} /> {typeLabel[item.contentType]}
+          </span>
+        </td>
+        <td data-label="Destinatário">
+          <span className="content-admin-audience">
+            <UsersRound size={16} />
+            <span>
+              <strong>{audienceLabel(item, cohorts, mentees)}</strong>
+              <small>
+                {item.accessScope === "general"
+                  ? "Todos os acessos ativos"
+                  : item.accessScope === "cohort"
+                    ? "Somente esta turma"
+                    : "Somente esta pessoa"}
+              </small>
+            </span>
+          </span>
+        </td>
+        <td data-label="Ações">
+          <div className="content-admin-actions">
+            <button
+              type="button"
+              disabled={reordering || edges.get(item.id)?.first !== false}
+              onClick={() => void moveContent(item.id, -1)}
+              aria-label={`Mover ${item.title} para cima`}
+            >
+              <ArrowUp size={15} />
+            </button>
+            <button
+              type="button"
+              disabled={reordering || edges.get(item.id)?.last !== false}
+              onClick={() => void moveContent(item.id, 1)}
+              aria-label={`Mover ${item.title} para baixo`}
+            >
+              <ArrowDown size={15} />
+            </button>
+            <button type="button" onClick={() => setPreviewing(item)}>
+              <Eye size={15} /> Visualizar
+            </button>
+            {item.contentType === "video" ? (
+              <button type="button" onClick={() => setTracking(item)}>
+                <UsersRound size={15} /> Acompanhamento
+              </button>
+            ) : null}
+            <button type="button" onClick={() => setEditing(item)}>
+              <Pencil size={15} /> Editar
+            </button>
+            <button className="is-danger" type="button" onClick={() => void remove(item)}>
+              <Trash2 size={15} /> Excluir
+            </button>
+          </div>
+        </td>
+      </tr>
+    );
+  }
+
+  function renderTable(rows: StageContentItem[]) {
+    return (
+      <div className="content-admin-table-wrap">
+        <table className="content-admin-table">
+          <thead>
+            <tr>
+              <th>Conteúdo</th>
+              <th>Tipo</th>
+              <th>Turma / destinatário</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody>{rows.map(renderRow)}</tbody>
+        </table>
+      </div>
+    );
+  }
 
   return (
     <div className="content-admin-detail">
@@ -924,7 +1135,9 @@ function StageContentManager({
         </div>
       </section>
 
-      <section className="content-admin-filters content-admin-filters--detail">
+      <section
+        className={`content-admin-filters content-admin-filters--detail${hasModules ? " has-modules" : ""}`}
+      >
         <label className="content-admin-search">
           <Search size={18} />
           <span className="sr-only">Buscar conteúdo</span>
@@ -935,6 +1148,25 @@ function StageContentManager({
             onChange={(event) => updateFilter(() => setSearch(event.target.value))}
           />
         </label>
+        {hasModules ? (
+          <label>
+            <span>Módulo</span>
+            <select
+              value={moduleFilter}
+              onChange={(event) => updateFilter(() => setModuleFilter(event.target.value))}
+            >
+              <option value="all">Todos</option>
+              {modules.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+              {allGroups.some((group) => !group.title) ? (
+                <option value="">Sem módulo</option>
+              ) : null}
+            </select>
+          </label>
+        ) : null}
         <label>
           <span>Turma</span>
           <select
@@ -958,9 +1190,9 @@ function StageContentManager({
             }
           >
             <option value="all">Todos</option>
-            <option value="general">Todos os mentorados</option>
+            <option value="general">Todas as pessoas</option>
             <option value="cohort">Turma específica</option>
-            <option value="mentee">Mentorado específico</option>
+            <option value="mentee">Pessoa específica</option>
           </select>
         </label>
         <label>
@@ -993,136 +1225,170 @@ function StageContentManager({
         </button>
       </section>
 
+      {!hasModules && items.length > 1 ? (
+        <p className="content-admin-hint">
+          <FolderOpen size={16} /> Para separar as aulas por módulo, marque as aulas na lista e use
+          “Mover para módulo”, ou preencha o campo Módulo ao editar uma aula.
+        </p>
+      ) : null}
+
+      {selected.length ? (
+        <section className="content-admin-bulk" aria-label="Mover conteúdos para um módulo">
+          <strong>
+            {selected.length === 1
+              ? "1 conteúdo selecionado"
+              : `${selected.length} conteúdos selecionados`}
+          </strong>
+          <label>
+            <span>Mover para módulo</span>
+            <input
+              list="stage-module-bulk-options"
+              maxLength={120}
+              placeholder="Nome do módulo (vazio = sem módulo)"
+              value={targetModule}
+              onChange={(event) => setTargetModule(event.target.value)}
+            />
+            <datalist id="stage-module-bulk-options">
+              {modules.map((name) => (
+                <option key={name} value={name} />
+              ))}
+            </datalist>
+          </label>
+          <button
+            className="button button--primary"
+            type="button"
+            disabled={reordering}
+            onClick={() => void assignSelected()}
+          >
+            <FolderOpen size={16} /> Aplicar
+          </button>
+          <button className="button button--glass" type="button" onClick={() => setSelected([])}>
+            Cancelar
+          </button>
+        </section>
+      ) : null}
+
       {paged.total ? (
-        <>
-          <div className="content-admin-table-wrap">
-            <table className="content-admin-table">
-              <thead>
-                <tr>
-                  <th>Conteúdo</th>
-                  <th>Tipo</th>
-                  <th>Turma / destinatário</th>
-                  <th>Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paged.items.map((item) => {
-                  const Icon = typeIcon[item.contentType];
-                  return (
-                    <tr key={item.id}>
-                      <td data-label="Conteúdo">
-                        <div className="content-admin-title-cell">
-                          <span className={`content-admin-thumb is-${item.contentType}`}>
-                            {coverUrl && item.contentType === "video" ? (
-                              <img src={coverUrl} alt="" />
-                            ) : (
-                              <Icon size={22} />
-                            )}
-                          </span>
-                          <div>
-                            <strong>{item.title}</strong>
-                            <small>{item.description || "Sem descrição"}</small>
-                            {item.contentType === "video" ? (
-                              <small>
-                                {videoDurationLabel(item.durationSeconds, item.durationMinutes)}
-                                {item.engagement
-                                  ? ` · Concluíram ${item.engagement.completed} de ${item.engagement.eligible}`
-                                  : ""}
-                              </small>
-                            ) : null}
-                          </div>
-                        </div>
-                      </td>
-                      <td data-label="Tipo">
-                        <span className={`content-admin-type-chip is-${item.contentType}`}>
-                          <Icon size={15} /> {typeLabel[item.contentType]}
+        groupedView ? (
+          <div className="content-admin-modules">
+            {visibleGroups.map((group) => {
+              const groupIndex = allGroups.findIndex((entry) => entry.title === group.title);
+              const isRenaming = renaming && renaming.from === group.title;
+              return (
+                <section className="content-admin-module" key={group.title || "__sem-modulo"}>
+                  <header className="content-admin-module__header">
+                    {isRenaming ? (
+                      <form
+                        className="content-admin-module__rename"
+                        onSubmit={(event) => {
+                          event.preventDefault();
+                          void saveRename();
+                        }}
+                      >
+                        <input
+                          autoFocus
+                          maxLength={120}
+                          value={renaming.value}
+                          onChange={(event) =>
+                            setRenaming({ from: group.title, value: event.target.value })
+                          }
+                          aria-label="Novo nome do módulo"
+                        />
+                        <button
+                          className="button button--primary"
+                          type="submit"
+                          disabled={reordering}
+                        >
+                          <Save size={15} /> Salvar
+                        </button>
+                        <button
+                          className="button button--glass"
+                          type="button"
+                          onClick={() => setRenaming(null)}
+                        >
+                          Cancelar
+                        </button>
+                      </form>
+                    ) : (
+                      <div>
+                        <span className="eyebrow eyebrow--gold">
+                          {group.title ? `Módulo ${groupIndex + 1}` : "Fora dos módulos"}
                         </span>
-                      </td>
-                      <td data-label="Destinatário">
-                        <span className="content-admin-audience">
-                          <UsersRound size={16} />
-                          <span>
-                            <strong>{audienceLabel(item, cohorts, mentees)}</strong>
-                            <small>
-                              {item.accessScope === "general"
-                                ? "Todos os acessos ativos"
-                                : item.accessScope === "cohort"
-                                  ? "Somente esta turma"
-                                  : "Somente este mentorado"}
-                            </small>
-                          </span>
-                        </span>
-                      </td>
-                      <td data-label="Ações">
-                        <div className="content-admin-actions">
+                        <h2>{group.title || "Sem módulo"}</h2>
+                        <small>
+                          {group.items.length === 1
+                            ? "1 conteúdo"
+                            : `${group.items.length} conteúdos`}
+                        </small>
+                      </div>
+                    )}
+                    {!isRenaming ? (
+                      <div className="content-admin-actions">
+                        <button
+                          type="button"
+                          disabled={reordering || groupIndex <= 0}
+                          onClick={() => void moveWholeModule(group.title, -1)}
+                          aria-label={`Subir o módulo ${group.title || "Sem módulo"}`}
+                        >
+                          <ArrowUp size={15} />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={reordering || groupIndex >= allGroups.length - 1}
+                          onClick={() => void moveWholeModule(group.title, 1)}
+                          aria-label={`Descer o módulo ${group.title || "Sem módulo"}`}
+                        >
+                          <ArrowDown size={15} />
+                        </button>
+                        {group.title ? (
                           <button
                             type="button"
-                            disabled={reordering || ordered[0]?.id === item.id}
-                            onClick={() => void moveContent(item.id, -1)}
-                            aria-label={`Mover ${item.title} para cima`}
+                            onClick={() => setRenaming({ from: group.title, value: group.title })}
                           >
-                            <ArrowUp size={15} />
+                            <Pencil size={15} /> Renomear
                           </button>
-                          <button
-                            type="button"
-                            disabled={reordering || ordered.at(-1)?.id === item.id}
-                            onClick={() => void moveContent(item.id, 1)}
-                            aria-label={`Mover ${item.title} para baixo`}
-                          >
-                            <ArrowDown size={15} />
-                          </button>
-                          <button type="button" onClick={() => setPreviewing(item)}>
-                            <Eye size={15} /> Visualizar
-                          </button>
-                          {item.contentType === "video" ? (
-                            <button type="button" onClick={() => setTracking(item)}>
-                              <UsersRound size={15} /> Acompanhamento
-                            </button>
-                          ) : null}
-                          <button type="button" onClick={() => setEditing(item)}>
-                            <Pencil size={15} /> Editar
-                          </button>
-                          <button
-                            className="is-danger"
-                            type="button"
-                            onClick={() => void remove(item)}
-                          >
-                            <Trash2 size={15} /> Excluir
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                        ) : null}
+                        <button type="button" onClick={() => startNew("video", group.title)}>
+                          <Plus size={15} /> Aula neste módulo
+                        </button>
+                      </div>
+                    ) : null}
+                  </header>
+                  {renderTable(group.items)}
+                </section>
+              );
+            })}
           </div>
-          <footer className="content-admin-pagination">
-            <span>
-              Exibindo {(paged.page - 1) * 8 + 1} a {Math.min(paged.page * 8, paged.total)} de{" "}
-              {paged.total} conteúdos
-            </span>
-            <div>
-              <button
-                type="button"
-                disabled={paged.page === 1}
-                onClick={() => setPage((current) => Math.max(1, current - 1))}
-                aria-label="Página anterior"
-              >
-                <ChevronLeft size={18} />
-              </button>
-              <strong>{paged.page}</strong>
-              <button
-                type="button"
-                disabled={paged.page === paged.pageCount}
-                onClick={() => setPage((current) => Math.min(paged.pageCount, current + 1))}
-                aria-label="Próxima página"
-              >
-                <ChevronRight size={18} />
-              </button>
-            </div>
-          </footer>
-        </>
+        ) : (
+          <>
+            {renderTable(paged.items)}
+            <footer className="content-admin-pagination">
+              <span>
+                Exibindo {(paged.page - 1) * 8 + 1} a {Math.min(paged.page * 8, paged.total)} de{" "}
+                {paged.total} conteúdos
+              </span>
+              <div>
+                <button
+                  type="button"
+                  disabled={paged.page === 1}
+                  onClick={() => setPage((current) => Math.max(1, current - 1))}
+                  aria-label="Página anterior"
+                >
+                  <ChevronLeft size={18} />
+                </button>
+                <strong>{paged.page}</strong>
+                <button
+                  type="button"
+                  disabled={paged.page === paged.pageCount}
+                  onClick={() => setPage((current) => Math.min(paged.pageCount, current + 1))}
+                  aria-label="Próxima página"
+                >
+                  <ChevronRight size={18} />
+                </button>
+              </div>
+            </footer>
+          </>
+        )
       ) : (
         <div className="content-admin-empty">
           <Layers3 size={34} />
@@ -1159,6 +1425,8 @@ function StageContentManager({
           defaultType={editing === "new" ? newType : undefined}
           cohorts={cohorts}
           mentees={mentees}
+          modules={modules}
+          defaultModule={editing === "new" ? newModule : ""}
           onDone={() => setEditing(null)}
         />
       ) : null}
@@ -1279,8 +1547,8 @@ export function JourneyContentAdmin() {
         <span className="eyebrow eyebrow--gold">Conteúdos</span>
         <h1>Conteúdos da jornada</h1>
         <p>
-          Organize aulas e materiais para cada etapa, turma ou mentorado. Datas e etapas se editam
-          em Jornada.
+          Organize aulas e materiais para cada etapa, turma ou participante. Datas e etapas se
+          editam em Jornada.
         </p>
       </div>
       <div className="page-width">
@@ -1326,9 +1594,9 @@ export function JourneyContentAdmin() {
             onChange={(e) => setAudienceFilter(e.target.value as AudienceFilter)}
           >
             <option value="all">Todos</option>
-            <option value="general">Todos os mentorados</option>
+            <option value="general">Todas as pessoas</option>
             <option value="cohort">Turma específica</option>
-            <option value="mentee">Mentorado específico</option>
+            <option value="mentee">Pessoa específica</option>
           </select>
         </label>
         <button className="content-admin-clear" type="button" onClick={clear}>

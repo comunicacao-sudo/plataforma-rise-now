@@ -96,7 +96,7 @@ test("agenda unifies Google events, collective meetings and named 1:1 booking", 
   assert.match(backend, /action === "bookOneToOne"/);
   assert.match(backend, /d\.audience === "cohorts"/);
   assert.match(calendar, /"month", "week", "day"/);
-  assert.match(calendar, /A mentorada escolhe o horário, sem escolher a mentora/);
+  assert.match(calendar, /Cada participante escolhe o horário, sem escolher a mentora/);
   assert.match(migration, /booking_reservations_mentor_no_overlap/);
   assert.match(migration, /booking_reservations_mentee_no_overlap/);
   assert.doesNotMatch(operations, /Materiais da trilha/);

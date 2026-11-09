@@ -40,7 +40,7 @@ function splitOffset(minutes: number): { value: number; unit: Unit } {
 }
 
 const GROUPS: Array<{ title: string; audiences: AutomationAudience[] }> = [
-  { title: "Para mentoradas", audiences: ["group", "mentees"] },
+  { title: "Para participantes", audiences: ["group", "mentees"] },
   { title: "Para mentoras", audiences: ["mentor", "staff"] },
   { title: "Para todas", audiences: ["member"] },
 ];

@@ -77,7 +77,7 @@ export const track: TrackPhase[] = [
         mentor: CU,
         duration: 90,
         description: "Encontro coletivo para transformar reflexão em perspectiva de futuro.",
-        topics: ["Padrões que se repetem", "O que levar adiante", "Troca entre mentoradas"],
+        topics: ["Padrões que se repetem", "O que levar adiante", "Troca entre participantes"],
       },
       {
         title: "Consolidação",
@@ -267,7 +267,7 @@ export const track: TrackPhase[] = [
         mentor: CM,
         duration: 90,
         description: "Encontro coletivo de troca sobre consistência.",
-        topics: ["Troca entre mentoradas", "Obstáculos comuns"],
+        topics: ["Troca entre participantes", "Obstáculos comuns"],
       },
     ],
   },

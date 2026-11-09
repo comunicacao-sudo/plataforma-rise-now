@@ -401,7 +401,7 @@ function AssessmentReport({
     try {
       await release({ data: { enrollmentId, attemptId: attempt.id } });
       setPreviewRelease(false);
-      setActionMessage("O mapeamento completo foi liberado para a mentorada.");
+      setActionMessage("O mapeamento completo foi liberado para quem participa.");
       onChanged?.();
     } catch {
       setActionMessage("Não foi possível liberar o mapeamento. Tente novamente.");
@@ -486,7 +486,7 @@ function AssessmentReport({
             {isReleased
               ? "Completo liberado"
               : mentor
-                ? "Completo bloqueado para mentorada"
+                ? "Completo bloqueado para participante"
                 : "Resumo disponível"}
           </span>
         </div>
@@ -497,7 +497,7 @@ function AssessmentReport({
             <ShieldCheck size={21} />
             <span>
               <strong>Você está vendo o relatório completo.</strong>
-              <small>A mentorada ainda vê somente o resumo inicial.</small>
+              <small>Quem participa ainda vê somente o resumo inicial.</small>
             </span>
           </div>
           <button type="button" onClick={() => setPreviewRelease(true)}>
@@ -833,7 +833,7 @@ function AssessmentReport({
             <div>
               <span className="assessment-section__eyebrow">Acompanhamento</span>
               <h3>Plano de desenvolvimento</h3>
-              <p>Ações acordadas entre mentora e mentorada, com acompanhamento de progresso.</p>
+              <p>Ações acordadas entre mentora e participante, com acompanhamento de progresso.</p>
             </div>
             {mentor ? (
               <button type="button" onClick={() => setPlanOpen(!planOpen)}>
@@ -940,7 +940,7 @@ function AssessmentReport({
                   checked={plan.sharedWithMentee}
                   onChange={(e) => setPlan({ ...plan, sharedWithMentee: e.target.checked })}
                 />
-                Compartilhar este plano com a mentorada
+                Compartilhar este plano com quem participa
               </label>
               <button type="button" disabled={busy} onClick={() => void submitPlan()}>
                 <Save size={16} />
@@ -958,7 +958,7 @@ function AssessmentReport({
                   <p>{item.objective}</p>
                   <small>
                     {item.shared_with_mentee
-                      ? "Compartilhado com a mentorada"
+                      ? "Compartilhado com quem participa"
                       : "Visível somente para a mentoria"}
                   </small>
                 </article>
@@ -1065,7 +1065,7 @@ function AssessmentReport({
             <span className="eyebrow eyebrow--gold">Prévia de compartilhamento</span>
             <h3>Liberar relatório completo?</h3>
             <p>
-              A mentorada passará a ver, além do resumo, as seções de liderança, competências,
+              Quem participa passará a ver, além do resumo, as seções de liderança, competências,
               pontos fortes, pontos a desenvolver e planos marcados como compartilhados.
             </p>
             <ul>

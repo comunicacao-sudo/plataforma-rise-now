@@ -11,6 +11,7 @@ import {
   ArrowLeft,
   ArrowRight,
   CheckCircle2,
+  FolderOpen,
   Clock3,
   Download,
   ClipboardList,
@@ -21,7 +22,7 @@ import {
   Plus,
   VideoOff,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 
 import { RecordedPlayer, type PlayerController } from "@/components/recorded-lessons";
 const RiseAssessmentExperience = deferredView<
@@ -875,27 +876,35 @@ export function JourneyContentLessonPage({
               <section className="stage-lesson-picker" aria-label="Aulas desta etapa">
                 <h2>Aulas desta etapa</h2>
                 <ol>
-                  {item.videos?.map((video, index) => (
-                    <li key={video.id}>
-                      <button
-                        type="button"
-                        aria-current={item.videoContentId === video.id ? "true" : undefined}
-                        onClick={() => setSelectedVideo({ stepKey, id: video.id })}
-                      >
-                        {video.completed ? <CheckCircle2 size={18} /> : <Play size={18} />}
-                        <span>
-                          <strong>
-                            {index + 1}. {video.title}
-                          </strong>
-                          <small>
-                            {video.durationMinutes
-                              ? video.durationMinutes + " min"
-                              : "Duração a identificar"}{" "}
-                            · {video.completed ? "Concluída" : "Disponível"}
-                          </small>
-                        </span>
-                      </button>
-                    </li>
+                  {item.videos?.map((video, index, all) => (
+                    <Fragment key={video.id}>
+                      {all.some((entry) => entry.module) &&
+                      (index === 0 || all[index - 1]?.module !== video.module) ? (
+                        <li className="stage-lesson-picker__module">
+                          <FolderOpen size={15} /> {video.module || "Outras aulas"}
+                        </li>
+                      ) : null}
+                      <li>
+                        <button
+                          type="button"
+                          aria-current={item.videoContentId === video.id ? "true" : undefined}
+                          onClick={() => setSelectedVideo({ stepKey, id: video.id })}
+                        >
+                          {video.completed ? <CheckCircle2 size={18} /> : <Play size={18} />}
+                          <span>
+                            <strong>
+                              {index + 1}. {video.title}
+                            </strong>
+                            <small>
+                              {video.durationMinutes
+                                ? video.durationMinutes + " min"
+                                : "Duração a identificar"}{" "}
+                              · {video.completed ? "Concluída" : "Disponível"}
+                            </small>
+                          </span>
+                        </button>
+                      </li>
+                    </Fragment>
                   ))}
                 </ol>
               </section>

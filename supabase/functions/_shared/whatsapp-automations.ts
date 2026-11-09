@@ -25,7 +25,7 @@ export type AutomationAudience = (typeof AUTOMATION_AUDIENCES)[number];
 
 export const AUDIENCE_LABELS: Record<AutomationAudience, string> = {
   group: "Grupo da RISE no WhatsApp",
-  mentees: "Mentoradas (no privado)",
+  mentees: "Participantes (no privado)",
   mentor: "Mentora responsável",
   staff: "Todas as mentoras",
   member: "A pessoa cadastrada",
@@ -33,7 +33,7 @@ export const AUDIENCE_LABELS: Record<AutomationAudience, string> = {
 
 export const AUTOMATION_VARIABLE_HELP: Record<string, string> = {
   nome: "primeiro nome de quem recebe",
-  mentorada: "nome da mentorada",
+  participante: "nome de quem participa",
   mentora: "nome da mentora",
   encontro: "título do encontro",
   data: "data (dd/mm)",
@@ -49,6 +49,14 @@ export const AUTOMATION_VARIABLE_HELP: Record<string, string> = {
 };
 
 type TriggerKind = "weekly" | "before" | "event";
+
+/**
+ * Nomes antigos que continuam funcionando em textos já salvos, mas não aparecem
+ * mais no painel. {mentorada} virou {participante} (linguagem neutra).
+ */
+export const AUTOMATION_VARIABLE_ALIASES: Record<string, string> = {
+  mentorada: "participante",
+};
 
 export type TriggerDefinition = {
   label: string;
@@ -114,7 +122,7 @@ export const TRIGGER_DEFINITIONS: Record<AutomationTrigger, TriggerDefinition> =
     audiences: ["mentees", "mentor"],
     variables: [
       "nome",
-      "mentorada",
+      "participante",
       "mentora",
       "encontro",
       "data",
@@ -124,7 +132,7 @@ export const TRIGGER_DEFINITIONS: Record<AutomationTrigger, TriggerDefinition> =
     ],
     sample: {
       nome: "Mariana",
-      mentorada: "Mariana Souza",
+      participante: "Mariana Souza",
       mentora: "Camila Mariano",
       encontro: "Mentoria individual de Direção",
       data: "12/11",
@@ -135,13 +143,13 @@ export const TRIGGER_DEFINITIONS: Record<AutomationTrigger, TriggerDefinition> =
   },
   booking_confirmed: {
     label: "1:1 agendado",
-    description: "Assim que uma mentorada agenda um 1:1",
+    description: "Assim que alguém da turma agenda um 1:1",
     kind: "event",
     audiences: ["mentor", "mentees"],
-    variables: ["nome", "mentorada", "mentora", "encontro", "data", "hora", "link"],
+    variables: ["nome", "participante", "mentora", "encontro", "data", "hora", "link"],
     sample: {
       nome: "Camila",
-      mentorada: "Mariana Souza",
+      participante: "Mariana Souza",
       mentora: "Camila Mariano",
       encontro: "Mentoria individual de Direção",
       data: "12/11",
@@ -151,47 +159,47 @@ export const TRIGGER_DEFINITIONS: Record<AutomationTrigger, TriggerDefinition> =
   },
   questionnaire_submitted: {
     label: "Questionário respondido",
-    description: "Quando uma mentorada envia um questionário de etapa",
+    description: "Quando alguém da turma envia um questionário de etapa",
     kind: "event",
     audiences: ["mentor", "staff"],
-    variables: ["nome", "mentorada", "questionario", "link"],
+    variables: ["nome", "participante", "questionario", "link"],
     sample: {
       nome: "Camila",
-      mentorada: "Mariana Souza",
+      participante: "Mariana Souza",
       questionario: "Questionário de Clareza",
       link: LINK,
     },
   },
   assessment_completed: {
     label: "Mapeamento comportamental concluído",
-    description: "Quando uma mentorada conclui o diagnóstico (mapeamento comportamental)",
+    description: "Quando alguém da turma conclui o diagnóstico (mapeamento comportamental)",
     kind: "event",
     audiences: ["mentor", "staff"],
-    variables: ["nome", "mentorada", "link"],
-    sample: { nome: "Camila", mentorada: "Mariana Souza", link: LINK },
+    variables: ["nome", "participante", "link"],
+    sample: { nome: "Camila", participante: "Mariana Souza", link: LINK },
   },
   goal_created: {
     label: "Meta do RISE 90 preenchida",
-    description: "Quando uma mentorada cadastra uma meta no RISE 90",
+    description: "Quando alguém da turma cadastra uma meta no RISE 90",
     kind: "event",
     audiences: ["mentor", "staff"],
-    variables: ["nome", "mentorada", "meta", "link"],
+    variables: ["nome", "participante", "meta", "link"],
     sample: {
       nome: "Camila",
-      mentorada: "Mariana Souza",
+      participante: "Mariana Souza",
       meta: "Assumir a gerência regional",
       link: LINK,
     },
   },
   stage_completed: {
     label: "Etapa concluída",
-    description: "Quando uma etapa da jornada de uma mentorada é concluída",
+    description: "Quando uma etapa da jornada de alguém da turma é concluída",
     kind: "event",
     audiences: ["mentor", "staff", "mentees"],
-    variables: ["nome", "mentorada", "etapa", "link"],
+    variables: ["nome", "participante", "etapa", "link"],
     sample: {
       nome: "Camila",
-      mentorada: "Mariana Souza",
+      participante: "Mariana Souza",
       etapa: "Mapa de Clareza RISE",
       link: `${LINK}?view=jornada`,
     },
@@ -330,7 +338,16 @@ export function describeAutomation(
 export function unknownAutomationVariables(trigger: AutomationTrigger, text: string) {
   const allowed = new Set(TRIGGER_DEFINITIONS[trigger].variables);
   const found = [...text.matchAll(/\{(\w+)\}/g)].map((match) => match[1]!);
-  return [...new Set(found.filter((name) => !allowed.has(name)))];
+  return [...new Set(found.filter((name) => !allowed.has(resolveVariable(name))))];
+}
+
+const resolveVariable = (name: string) => AUTOMATION_VARIABLE_ALIASES[name] ?? name;
+
+/** Troca nomes antigos de variável pelos atuais (ex.: {mentorada} → {participante}). */
+export function modernizeAutomationTemplate(text: string) {
+  return text.replace(/\{(\w+)\}/g, (match, name: string) =>
+    AUTOMATION_VARIABLE_ALIASES[name] ? `{${AUTOMATION_VARIABLE_ALIASES[name]}}` : match,
+  );
 }
 
 /**
@@ -347,7 +364,8 @@ export function renderAutomation(
   const name = variables["nome"]?.replace(/\s+/g, " ").trim();
   if (!name) text = text.replace(/[,\s]*\{nome\}/g, "");
   return text
-    .replace(/\{(\w+)\}/g, (match, variable: string) => {
+    .replace(/\{(\w+)\}/g, (match, written: string) => {
+      const variable = resolveVariable(written);
       if (!allowed.has(variable)) return match;
       const value = variables[variable];
       if (value === null || value === undefined) return "";
@@ -442,7 +460,7 @@ export const DEFAULT_AUTOMATIONS: DefaultAutomation[] = [
     sendTime: null,
     enabled: false,
     template:
-      "Olá, {nome}! 📝\n\n{mentorada} respondeu o questionário *{questionario}* na RISE NOW.\n\nVeja as respostas:\n{link}",
+      "Olá, {nome}! 📝\n\n{participante} respondeu o questionário *{questionario}* na RISE NOW.\n\nVeja as respostas:\n{link}",
   },
   {
     key: "mentor_assessment",
@@ -454,7 +472,7 @@ export const DEFAULT_AUTOMATIONS: DefaultAutomation[] = [
     sendTime: null,
     enabled: false,
     template:
-      "Olá, {nome}! 🧭\n\n{mentorada} concluiu o mapeamento comportamental na RISE NOW.\n\nVeja o resultado:\n{link}",
+      "Olá, {nome}! 🧭\n\n{participante} concluiu o mapeamento comportamental na RISE NOW.\n\nVeja o resultado:\n{link}",
   },
   {
     key: "mentor_booking",
@@ -466,7 +484,7 @@ export const DEFAULT_AUTOMATIONS: DefaultAutomation[] = [
     sendTime: null,
     enabled: false,
     template:
-      "Olá, {nome}! 📅\n\n{mentorada} agendou *{encontro}* com você para {data} às {hora}.\n\nVeja na agenda:\n{link}",
+      "Olá, {nome}! 📅\n\n{participante} agendou *{encontro}* com você para {data} às {hora}.\n\nVeja na agenda:\n{link}",
   },
   {
     key: "mentor_goal",
@@ -478,7 +496,7 @@ export const DEFAULT_AUTOMATIONS: DefaultAutomation[] = [
     sendTime: null,
     enabled: false,
     template:
-      "Olá, {nome}! 🎯\n\n{mentorada} cadastrou uma nova meta no RISE 90: *{meta}*.\n\nAcompanhe:\n{link}",
+      "Olá, {nome}! 🎯\n\n{participante} cadastrou uma nova meta no RISE 90: *{meta}*.\n\nAcompanhe:\n{link}",
   },
   {
     key: "mentor_stage",
@@ -490,7 +508,7 @@ export const DEFAULT_AUTOMATIONS: DefaultAutomation[] = [
     sendTime: null,
     enabled: false,
     template:
-      "Olá, {nome}! ✅\n\n{mentorada} concluiu a etapa *{etapa}* na RISE NOW.\n\nAcompanhe o progresso:\n{link}",
+      "Olá, {nome}! ✅\n\n{participante} concluiu a etapa *{etapa}* na RISE NOW.\n\nAcompanhe o progresso:\n{link}",
   },
   {
     key: "account_created",

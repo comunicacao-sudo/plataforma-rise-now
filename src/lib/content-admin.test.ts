@@ -3,6 +3,10 @@ import test from "node:test";
 
 import {
   filterStageContents,
+  groupByModule,
+  moduleNames,
+  moveModule,
+  moveWithinModule,
   paginate,
   stageMatchesFilters,
   summarizeStageContent,
@@ -108,4 +112,47 @@ test("content admin sorting and pagination stay deterministic", () => {
     pageCount: 2,
     total: 3,
   });
+});
+
+test("módulos agrupam na ordem do primeiro conteúdo e as setas ficam dentro do módulo", () => {
+  const lessons: StageContentItem[] = [
+    { ...base, id: "a", contentType: "video", title: "A1", position: 0, moduleTitle: "Módulo A" },
+    { ...base, id: "b", contentType: "video", title: "B1", position: 1, moduleTitle: "Módulo B" },
+    {
+      ...base,
+      id: "c",
+      contentType: "video",
+      title: "A2",
+      position: 2,
+      moduleTitle: " Módulo  A ",
+    },
+    { ...base, id: "d", contentType: "material", title: "Solto", position: 3 },
+  ];
+  const groups = groupByModule(lessons);
+  assert.deepEqual(
+    groups.map((group) => [group.title, group.items.map((item) => item.id)]),
+    [
+      ["Módulo A", ["a", "c"]],
+      ["Módulo B", ["b"]],
+      ["", ["d"]],
+    ],
+  );
+  assert.deepEqual(moduleNames(lessons), ["Módulo A", "Módulo B"]);
+  // "c" sobe dentro do Módulo A e a ordem final já fica agrupada.
+  assert.deepEqual(moveWithinModule(lessons, "c", -1), ["c", "a", "b", "d"]);
+  // "b" é o único do Módulo B: não sai do módulo.
+  assert.equal(moveWithinModule(lessons, "b", -1), null);
+  assert.deepEqual(moveModule(lessons, "Módulo B", -1), ["b", "a", "c", "d"]);
+  assert.equal(moveModule(lessons, "Módulo A", -1), null);
+  assert.deepEqual(
+    filterStageContents(lessons, {
+      search: "",
+      cohortId: "all",
+      audience: "all",
+      contentType: "all",
+      sort: "position",
+      module: "Módulo A",
+    }).map((item) => item.id),
+    ["a", "c"],
+  );
 });
