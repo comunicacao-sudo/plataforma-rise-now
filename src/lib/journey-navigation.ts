@@ -23,6 +23,22 @@ export type JourneyTimelineItem = {
 export type JourneyTimelineTarget =
   { type: "content"; stepKey: string } | { type: "lesson"; lesson: TrailLesson };
 
+export function usesBehavioralAssessment(
+  item: Pick<
+    JourneyContentItem,
+    "format" | "resourceType" | "title" | "questionnaireId" | "questionnaires"
+  >,
+) {
+  if (item.format !== "questionnaire" && item.format !== "form") return false;
+  if (item.resourceType === "rise_assessment") return true;
+  // O nome legado só identifica o perfil quando não há um questionário de aula cadastrado.
+  return (
+    !item.questionnaireId &&
+    !item.questionnaires?.length &&
+    /perfil comportamental|mapeamento comportamental/i.test(item.title)
+  );
+}
+
 export function journeyTimelineLabel(item: JourneyContentItem) {
   if (
     item.resourceType === "rise_assessment" ||

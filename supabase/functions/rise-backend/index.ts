@@ -1,5 +1,10 @@
 // @ts-nocheck
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import {
+  saveStageContentRecord,
+  visibleStageQuestionnaires,
+  allStageQuestionnairesSubmitted,
+} from "../_shared/stage-questionnaires.ts";
 import { requireApprovedAccount } from "../_shared/approved-access.ts";
 import {
   createMediaTicket,
@@ -1097,7 +1102,7 @@ async function drivePlaybackUrl(
 async function loadLibrary(
   c: Context,
   includeAssets = true,
-  selection?: { stepKey: string; contentId: string },
+  selection?: { stepKey: string; contentId?: string },
 ) {
   const userId = c.userId;
   const authorization = c.request.headers.get("Authorization") ?? "";
@@ -1369,6 +1374,10 @@ async function loadLibrary(
         mediaUrl: !locked ? mediaUrl : null,
         questionnaireUrl,
         ...visibleStageQuestionnaire(locked, stageQuestionnaire),
+        questionnaires:
+          selection?.stepKey === s.stable_key
+            ? visibleStageQuestionnaires(locked, stageRows)
+            : undefined,
         scheduledAt: dates.get(s.stable_key) ?? s.scheduled_at,
         releaseAt: s.release_at,
         topics: Array.isArray(s.topics) ? s.topics : [],
@@ -1387,7 +1396,7 @@ async function loadLibrary(
             (videos.length === 1 &&
               stageVideo.source_revision === 1 &&
               !!byStep.get(s.stable_key)?.completed)
-          : !!state?.completed,
+          : !!byStep.get(s.stable_key)?.completed,
         currentSeconds: state?.current_seconds ?? 0,
         durationSeconds: state?.duration_seconds ?? stageVideo?.duration_seconds ?? null,
       };
@@ -1400,7 +1409,7 @@ async function loadLibrary(
   };
 }
 async function requireContent(c: Context, stepKey: string, contentId?: string) {
-  const library = await loadLibrary(c, true, contentId ? { stepKey, contentId } : undefined);
+  const library = await loadLibrary(c, true, { stepKey, contentId });
   const item = library?.items.find((x: any) => x.stepKey === stepKey);
   if (
     !library ||
@@ -1525,7 +1534,7 @@ async function visibleStageContents(c: Context, contentType?: string) {
   const { data: steps, error: stepError } = await admin
     .from("journey_steps")
     .select(
-      "version_id, stable_key, title, month_number, release_at, position, access_scope, cohort_id, mentee_id",
+      "version_id, stable_key, title, resource_type, month_number, release_at, position, access_scope, cohort_id, mentee_id",
     )
     .in("version_id", [...versionToPillar.keys()])
     .is("archived_at", null)
@@ -1916,51 +1925,7 @@ async function contentAction(c: Context, action: string, d: any) {
 
     const id = String(d.id ?? "").trim();
 
-    if (!id && contentType === "questionnaire") {
-      let duplicateQuery = c.admin
-        .from("journey_stage_contents")
-        .select("id")
-        .is("deleted_at", null)
-        .eq("pillar_id", pillarId)
-        .eq("step_key", stepKey)
-        .eq("content_type", contentType)
-        .eq("access_scope", accessScope)
-        .eq("active", true);
-
-      if (accessScope === "cohort") duplicateQuery = duplicateQuery.eq("cohort_id", cohortId);
-      else duplicateQuery = duplicateQuery.is("cohort_id", null);
-
-      if (accessScope === "mentee") duplicateQuery = duplicateQuery.eq("mentee_id", menteeId);
-      else duplicateQuery = duplicateQuery.is("mentee_id", null);
-
-      const { data: duplicate, error: duplicateError } = await duplicateQuery
-        .limit(1)
-        .maybeSingle();
-      if (duplicateError) throw new Error(duplicateError.message);
-      if (duplicate) {
-        throw new Error(
-          "Já existe um questionário para esse público nesta etapa. Edite o questionário existente.",
-        );
-      }
-    }
-
-    const query = id
-      ? c.admin
-          .from("journey_stage_contents")
-          .update(payload)
-          .is("deleted_at", null)
-          .eq("id", id)
-          .select("*")
-          .is("deleted_at", null)
-          .single()
-      : c.admin
-          .from("journey_stage_contents")
-          .insert(payload)
-          .select("*")
-          .is("deleted_at", null)
-          .single();
-    const { data, error } = await query;
-    if (error || !data) throw new Error(error?.message ?? "Não foi possível salvar o conteúdo.");
+    const data = await saveStageContentRecord(c.admin, payload, id);
     if (ownDriveToken && remoteVideo) await bindDriveVideo(c, data);
     return { item: stageContentShape(data) };
   }
@@ -2071,19 +2036,35 @@ async function contentAction(c: Context, action: string, d: any) {
     );
     if (error) throw new Error(error.message);
 
-    const { data: previous } = await c.admin
+    // Questionários complementares nunca substituem o envio do perfil comportamental.
+    if (row.step?.resource_type === "rise_assessment")
+      return { ok: true, submitted: true, stepCompleted: false };
+    const allSubmitted = await allStageQuestionnairesSubmitted(
+      c.admin,
+      visible.rows,
+      row,
+      visible.enrollment.id,
+      c.userId,
+    );
+    if (!allSubmitted) return { ok: true, submitted: true, stepCompleted: false };
+
+    const { data: previous, error: previousError } = await c.admin
       .from("journey_content_progress")
-      .select("completed, completed_at")
+      .select("completed, completed_at, current_seconds, duration_seconds")
       .eq("enrollment_id", visible.enrollment.id)
       .eq("step_key", row.step_key)
       .maybeSingle();
+    if (previousError)
+      throw new Error(
+        "Suas respostas foram salvas, mas não foi possível atualizar o progresso. Tente enviar novamente.",
+      );
     const { error: progressError } = await c.admin.from("journey_content_progress").upsert(
       {
         enrollment_id: visible.enrollment.id,
         step_key: row.step_key,
         user_id: c.userId,
-        current_seconds: 0,
-        duration_seconds: null,
+        current_seconds: previous?.current_seconds ?? 0,
+        duration_seconds: previous?.duration_seconds ?? null,
         completed: true,
         completed_at: previous?.completed_at ?? new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -2094,7 +2075,7 @@ async function contentAction(c: Context, action: string, d: any) {
     if (await completeAutomaticStep(visible.enrollment.id, row.step_key, "final_submission"))
       await notifyStageCompleted(visible.enrollment.id, c.userId, row.step_key);
 
-    return { ok: true, submitted: true };
+    return { ok: true, submitted: true, stepCompleted: true };
   }
 
   if (action === "createJourneyUpload") {

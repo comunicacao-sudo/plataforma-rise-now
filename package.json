@@ -17,7 +17,7 @@
     "pretypecheck": "node scripts/verify-supabase-target.mjs",
     "typecheck": "tsc --noEmit",
     "pretest": "node scripts/verify-supabase-target.mjs && node scripts/check-edge-identifiers.mjs",
-    "test": "tsx --test src/lib/access.test.ts src/lib/assessment.test.ts src/lib/whatsapp-templates.test.ts src/lib/whatsapp-message-templates.test.ts src/lib/whatsapp-automations.test.ts src/lib/send-window.test.ts src/lib/whatsapp-consent.test.ts src/lib/journey-sync.test.ts src/lib/journey-navigation.test.ts src/lib/platform-behavior.test.ts src/lib/content-admin.test.ts src/lib/theme.test.ts src/lib/reliability.test.ts src/lib/home-performance.test.ts src/lib/pwa.test.ts src/lib/audit-session.test.ts src/lib/video-media.test.ts src/lib/playback-cache.test.ts src/lib/protected-operations.test.ts src/lib/trash-cleanup.test.ts",
+    "test": "tsx --test src/lib/access.test.ts src/lib/assessment.test.ts src/lib/whatsapp-templates.test.ts src/lib/whatsapp-message-templates.test.ts src/lib/whatsapp-automations.test.ts src/lib/send-window.test.ts src/lib/whatsapp-consent.test.ts src/lib/journey-sync.test.ts src/lib/journey-navigation.test.ts src/lib/platform-behavior.test.ts src/lib/content-admin.test.ts src/lib/theme.test.ts src/lib/reliability.test.ts src/lib/home-performance.test.ts src/lib/pwa.test.ts src/lib/audit-session.test.ts src/lib/video-media.test.ts src/lib/playback-cache.test.ts src/lib/protected-operations.test.ts src/lib/trash-cleanup.test.ts src/lib/stage-questionnaires.test.ts",
     "test:performance": "node scripts/check-performance-budgets.mjs --bundle",
     "verify:supabase": "node scripts/verify-supabase-target.mjs --bundle",
     "format": "prettier --write ."

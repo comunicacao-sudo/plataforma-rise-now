@@ -1,4 +1,5 @@
 import { retainPlaybackUrl } from "@/lib/playback-cache";
+import { usesBehavioralAssessment } from "@/lib/journey-navigation";
 import { supabase } from "@/integrations/supabase/client";
 import { JourneyCoverImage } from "@/components/journey-cover-image";
 import { retainJourneyCoverUrls } from "@/lib/journey-asset-cache";
@@ -46,7 +47,11 @@ import {
   type JourneyContentLibrary,
   type StageQuestion,
 } from "@/lib/content.functions";
-import { liveJourneyQueryOptions, resolveJourneyThemeCovers } from "@/lib/journey-sync";
+import {
+  invalidateJourneyData,
+  liveJourneyQueryOptions,
+  resolveJourneyThemeCovers,
+} from "@/lib/journey-sync";
 
 type JourneyMarker = {
   id: string;
@@ -89,9 +94,13 @@ function formatTime(value: number) {
 function StageQuestionnaire({
   contentId,
   questions,
+  title = "Questionário",
+  description,
 }: {
   contentId: string;
   questions: StageQuestion[];
+  title?: string;
+  description?: string;
 }) {
   const load = useServerFn(getStageQuestionnaireResponse);
   const submit = useServerFn(submitStageQuestionnaire);
@@ -115,8 +124,7 @@ function StageQuestionnaire({
       await submit({ data: { contentId, answers } });
       await Promise.all([
         qc.invalidateQueries({ queryKey: ["stage-questionnaire", contentId] }),
-        qc.invalidateQueries({ queryKey: ["journey-study"] }),
-        qc.invalidateQueries({ queryKey: ["journey-content-library"] }),
+        invalidateJourneyData(qc),
       ]);
       setMessage("Questionário enviado com sucesso.");
     } catch (error) {
@@ -131,8 +139,18 @@ function StageQuestionnaire({
   return (
     <section className="lesson-summary">
       <h2>
-        <ClipboardList size={22} /> Questionário
+        <ClipboardList size={22} /> {title}
       </h2>
+      {description ? <p style={{ whiteSpace: "pre-wrap" }}>{description}</p> : null}
+      {query.isPending ? <p role="status">Carregando suas respostas…</p> : null}
+      {query.isError ? (
+        <p role="alert">
+          Não foi possível carregar suas respostas.{" "}
+          <button type="button" onClick={() => void query.refetch()}>
+            Tentar novamente
+          </button>
+        </p>
+      ) : null}
       <div className="ops-form">
         {questions.map((question, index) => (
           <label className="ops-field" key={question.id}>
@@ -143,6 +161,7 @@ function StageQuestionnaire({
             {question.type === "long_text" ? (
               <textarea
                 rows={5}
+                disabled={busy || query.isPending || query.isError}
                 value={answers[question.id] ?? ""}
                 onChange={(event) =>
                   setAnswers((current) => ({ ...current, [question.id]: event.target.value }))
@@ -150,6 +169,7 @@ function StageQuestionnaire({
               />
             ) : question.type === "single_choice" ? (
               <select
+                disabled={busy || query.isPending || query.isError}
                 value={answers[question.id] ?? ""}
                 onChange={(event) =>
                   setAnswers((current) => ({ ...current, [question.id]: event.target.value }))
@@ -164,6 +184,7 @@ function StageQuestionnaire({
               </select>
             ) : (
               <input
+                disabled={busy || query.isPending || query.isError}
                 value={answers[question.id] ?? ""}
                 onChange={(event) =>
                   setAnswers((current) => ({ ...current, [question.id]: event.target.value }))
@@ -177,7 +198,7 @@ function StageQuestionnaire({
           className="button button--primary"
           type="button"
           onClick={() => void send()}
-          disabled={busy}
+          disabled={busy || query.isPending || query.isError}
         >
           {busy ? "Enviando…" : query.data?.submitted ? "Atualizar respostas" : "Enviar respostas"}
         </button>
@@ -761,12 +782,25 @@ export function JourneyContentLessonPage({
       </main>
     );
 
-  if (
-    (item.format === "questionnaire" || item.format === "form") &&
-    (item.resourceType === "rise_assessment" ||
-      /perfil comportamental|mapeamento comportamental/i.test(item.title))
-  )
-    return <RiseAssessmentExperience stepKey={item.stepKey} onBack={onBack} />;
+  if (usesBehavioralAssessment(item))
+    return (
+      <>
+        <RiseAssessmentExperience stepKey={item.stepKey} onBack={onBack} />
+        {!!item.questionnaires?.length && (
+          <div className="page-width">
+            {item.questionnaires.map((questionnaire) => (
+              <StageQuestionnaire
+                key={questionnaire.id}
+                contentId={questionnaire.id}
+                questions={questionnaire.questions}
+                title={questionnaire.title}
+                description={questionnaire.description}
+              />
+            ))}
+          </div>
+        )}
+      </>
+    );
 
   if (
     (item.format === "questionnaire" || item.format === "form") &&
@@ -955,7 +989,17 @@ export function JourneyContentLessonPage({
                 )}
               </div>
             </section>
-            {item.questionnaireId && item.questionnaire?.questions?.length ? (
+            {item.questionnaires && item.questionnaires.length > 1 ? (
+              item.questionnaires.map((questionnaire) => (
+                <StageQuestionnaire
+                  key={questionnaire.id}
+                  contentId={questionnaire.id}
+                  questions={questionnaire.questions}
+                  title={questionnaire.title}
+                  description={questionnaire.description}
+                />
+              ))
+            ) : item.questionnaireId && item.questionnaire?.questions?.length ? (
               <StageQuestionnaire
                 contentId={item.questionnaireId}
                 questions={item.questionnaire.questions}

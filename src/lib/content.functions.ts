@@ -47,6 +47,12 @@ export type JourneyContentItem = {
   questionnaireUrl: string | null;
   questionnaireId: string | null;
   questionnaire: { questions: StageQuestion[] } | null;
+  questionnaires?: Array<{
+    id: string;
+    title: string;
+    description: string;
+    questions: StageQuestion[];
+  }>;
   scheduledAt: string | null;
   releaseAt: string | null;
   topics: string[];

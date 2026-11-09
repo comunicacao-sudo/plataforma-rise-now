@@ -10,7 +10,29 @@ import {
   isJourneyTimelineItemDisabled,
   journeyTimelineLabel,
   resolveJourneyTimelineTarget,
+  usesBehavioralAssessment,
 } from "@/lib/journey-navigation";
+
+test("somente o perfil comportamental abre a experiência de análise; questionários de aula não são classificados pelo nome", () => {
+  const manual = {
+    format: "questionnaire" as const,
+    resourceType: null,
+    title: "Reflexões sobre perfil comportamental",
+    questionnaireId: "questionario-da-aula",
+  };
+  assert.equal(usesBehavioralAssessment(manual), false);
+  assert.equal(
+    usesBehavioralAssessment({
+      ...manual,
+      questionnaireId: null,
+      questionnaires: [{ id: "a", title: "Reflexão", description: "", questions: [] }],
+    }),
+    false,
+  );
+  assert.equal(usesBehavioralAssessment({ ...manual, resourceType: "rise_assessment" }), true);
+  assert.equal(usesBehavioralAssessment({ ...manual, questionnaireId: null }), true);
+  assert.equal(usesBehavioralAssessment({ ...manual, format: "recorded_class" }), false);
+});
 
 const lesson: TrailLesson = {
   id: "legacy-lesson",

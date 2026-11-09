@@ -1,0 +1,550 @@
+.platform-shell .questionnaire-backdrop {
+  z-index: 160;
+  padding: 16px;
+}
+.platform-shell .questionnaire-editor {
+  --questionnaire-error: var(--status-danger);
+  display: flex;
+  flex-direction: column;
+  width: min(1120px, 100%);
+  max-width: 1120px;
+  height: min(940px, calc(100dvh - 32px));
+  max-height: calc(100dvh - 32px);
+  min-width: 0;
+  overflow: hidden;
+  background: var(--platform-background);
+  border: 1px solid var(--platform-line-strong);
+  border-radius: 16px;
+  color: var(--platform-text);
+}
+.platform-shell[data-theme="dark"] .questionnaire-editor {
+  --questionnaire-error: #ffb4ab;
+}
+.platform-shell .questionnaire-editor * {
+  min-width: 0;
+}
+.platform-shell .questionnaire-editor__header {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 22px 28px;
+  background: var(--platform-surface-strong);
+  border-bottom: 1px solid var(--platform-line);
+}
+.platform-shell .questionnaire-editor__context {
+  margin: 0 0 8px;
+  color: var(--platform-text);
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.platform-shell .questionnaire-editor h2 {
+  margin: 0;
+  color: var(--platform-text);
+  font-size: clamp(22px, 2.5vw, 30px);
+  line-height: 1.25;
+  font-weight: 500;
+}
+.platform-shell .questionnaire-editor h3 {
+  margin: 0;
+  color: var(--platform-text);
+  font-size: 20px;
+  line-height: 1.4;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.platform-shell .questionnaire-editor [hidden] {
+  display: none !important;
+}
+.platform-shell .questionnaire-editor__preview-options span {
+  overflow-wrap: anywhere;
+}
+.platform-shell .questionnaire-editor__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-shrink: 0;
+}
+.platform-shell .questionnaire-editor__state {
+  border: 1px solid var(--platform-line-strong);
+  border-radius: 24px;
+  padding: 5px 10px;
+  color: var(--platform-text);
+  font-size: 12px;
+}
+.platform-shell .questionnaire-editor .questionnaire-editor__close {
+  position: static;
+  width: 44px;
+  height: 44px;
+  background: transparent;
+  color: var(--platform-text);
+  border: 1px solid var(--platform-line-strong);
+  flex-shrink: 0;
+}
+.platform-shell .questionnaire-editor__scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  padding: 26px 28px;
+}
+.platform-shell .questionnaire-editor__fields {
+  display: grid;
+  gap: 24px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.platform-shell .questionnaire-editor__general {
+  border: 1px solid var(--platform-line-strong);
+  border-radius: 12px;
+  background: var(--platform-surface-strong);
+}
+.platform-shell .questionnaire-editor__general summary {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 20px;
+  list-style: none;
+  cursor: pointer;
+}
+.platform-shell .questionnaire-editor__general summary::-webkit-details-marker {
+  display: none;
+}
+.platform-shell .questionnaire-editor__general summary > div {
+  flex: 1;
+}
+.platform-shell .questionnaire-editor__general summary strong {
+  display: block;
+  color: var(--platform-text);
+  font-size: 15px;
+  font-weight: 600;
+}
+.platform-shell .questionnaire-editor__general summary span {
+  display: block;
+  color: var(--platform-text);
+  font-size: 13px;
+  margin-top: 5px;
+  overflow-wrap: anywhere;
+}
+.platform-shell .questionnaire-editor__general summary > svg {
+  flex-shrink: 0;
+}
+.platform-shell .questionnaire-editor__general[open] summary > svg:last-child {
+  transform: rotate(180deg);
+}
+.platform-shell .questionnaire-editor__general-body {
+  display: grid;
+  gap: 20px;
+  padding: 4px 20px 20px;
+}
+.platform-shell .questionnaire-editor__field {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  color: var(--platform-text);
+  font-size: 15px;
+  line-height: 1.5;
+}
+.platform-shell .questionnaire-editor__field > span {
+  color: var(--platform-text);
+  font-size: 14px;
+  font-weight: 500;
+}
+.platform-shell .questionnaire-editor__field small {
+  color: var(--platform-text);
+  font-size: 12px;
+  font-weight: 400;
+}
+.platform-shell
+  .questionnaire-editor
+  :is(input:not([type="checkbox"]):not([type="radio"]), textarea, select) {
+  width: 100%;
+  max-width: 100%;
+  min-height: 46px;
+  padding: 12px 14px;
+  border: 1px solid var(--platform-line-strong);
+  border-radius: 8px;
+  background: var(--platform-background);
+  color: var(--platform-text);
+  font: inherit;
+  font-size: 16px;
+  line-height: 1.55;
+}
+.platform-shell .questionnaire-editor textarea {
+  min-height: 112px;
+  resize: vertical;
+  overflow-y: hidden;
+  white-space: pre-wrap;
+}
+.platform-shell .questionnaire-editor :is(input, textarea)::placeholder {
+  color: var(--platform-text);
+  opacity: 0.8;
+}
+.platform-shell .questionnaire-editor__audience {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  align-items: start;
+}
+.platform-shell .questionnaire-editor__section-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+}
+.platform-shell .questionnaire-editor__section-heading > span {
+  font-size: 13px;
+  color: var(--platform-text);
+}
+.platform-shell .questionnaire-editor__questions {
+  display: grid;
+  gap: 16px;
+}
+.platform-shell .questionnaire-editor__question {
+  border: 1px solid var(--platform-line-strong);
+  border-radius: 12px;
+  background: var(--platform-surface-strong);
+}
+.platform-shell .questionnaire-editor__question-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+}
+.platform-shell .questionnaire-editor button {
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.4;
+  cursor: pointer;
+}
+.platform-shell .questionnaire-editor button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+.platform-shell .questionnaire-editor :is(button, input, textarea, select, summary):focus-visible {
+  outline: 2px solid var(--platform-accent);
+  outline-offset: 3px;
+}
+.platform-shell .questionnaire-editor__toggle {
+  display: flex;
+  flex: 1 1 250px;
+  align-items: center;
+  gap: 12px;
+  padding: 6px;
+  border: 0;
+  text-align: left;
+  color: var(--platform-text);
+  background: transparent;
+}
+.platform-shell .questionnaire-editor__number {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  background: var(--platform-background);
+  color: var(--platform-accent);
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.platform-shell .questionnaire-editor__question-name {
+  display: grid;
+  flex: 1;
+  gap: 4px;
+}
+.platform-shell .questionnaire-editor__question-name strong {
+  color: var(--platform-text);
+  font-size: 15px;
+  font-weight: 600;
+}
+.platform-shell .questionnaire-editor__question-name small {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 13px;
+  color: var(--platform-text);
+}
+.platform-shell .questionnaire-editor__toggle > svg {
+  flex-shrink: 0;
+}
+.platform-shell .questionnaire-editor__question-actions {
+  display: flex;
+  gap: 3px;
+  margin-left: auto;
+}
+.platform-shell .questionnaire-editor__question-actions button,
+.platform-shell .questionnaire-editor__option > button {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 8px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--platform-text);
+  background: transparent;
+  flex-shrink: 0;
+}
+.platform-shell .questionnaire-editor__question-actions button:hover:not(:disabled),
+.platform-shell .questionnaire-editor__option > button:hover:not(:disabled) {
+  background: var(--platform-background);
+  border-color: var(--platform-line-strong);
+}
+.platform-shell .questionnaire-editor__question-body {
+  display: grid;
+  gap: 20px;
+  border-top: 1px solid var(--platform-line);
+  padding: 20px;
+}
+.platform-shell .questionnaire-editor__character-count {
+  justify-self: end;
+}
+.platform-shell .questionnaire-editor__answer-settings {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: end;
+  gap: 20px;
+}
+.platform-shell .questionnaire-editor__required {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  font-size: 14px;
+  color: var(--platform-text);
+}
+.platform-shell .questionnaire-editor input:is([type="checkbox"], [type="radio"]) {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  margin: 0;
+  flex-shrink: 0;
+  accent-color: var(--platform-accent);
+}
+.platform-shell .questionnaire-editor__hint {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--platform-text);
+}
+.platform-shell .questionnaire-editor__options {
+  display: grid;
+  gap: 14px;
+}
+.platform-shell .questionnaire-editor__options > p {
+  margin: 0;
+  color: var(--platform-text);
+  font-size: 14px;
+}
+.platform-shell .questionnaire-editor__option {
+  display: flex;
+  align-items: end;
+  gap: 10px;
+}
+.platform-shell .questionnaire-editor__option > button {
+  margin-bottom: 4px;
+}
+.platform-shell .questionnaire-editor__add {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 50px;
+  padding: 14px;
+  border: 1px dashed var(--platform-line-strong);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--platform-accent);
+}
+.platform-shell .questionnaire-editor__footer {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 28px;
+  border-top: 1px solid var(--platform-line);
+  background: var(--platform-surface-strong);
+}
+.platform-shell .questionnaire-editor__footer > span {
+  color: var(--platform-text);
+  font-size: 13px;
+}
+.platform-shell .questionnaire-editor__footer > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 9px;
+}
+.platform-shell
+  .questionnaire-editor
+  :is(.questionnaire-editor__secondary, .questionnaire-editor__save) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 11px 15px;
+  border: 1px solid var(--platform-line-strong);
+  border-radius: 8px;
+  color: var(--platform-text);
+  background: transparent;
+}
+.platform-shell .questionnaire-editor .questionnaire-editor__save {
+  background: var(--platform-accent);
+  color: var(--platform-on-accent);
+  border-color: var(--platform-accent);
+  font-weight: 600;
+}
+.platform-shell .questionnaire-editor__error {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 12px 28px;
+  color: var(--questionnaire-error);
+  font-size: 14px;
+  line-height: 1.5;
+  background: var(--platform-background);
+  overflow-wrap: anywhere;
+}
+.platform-shell .questionnaire-editor__preview {
+  display: grid;
+  gap: 24px;
+}
+.platform-shell .questionnaire-editor__preview header {
+  display: grid;
+  gap: 12px;
+}
+.platform-shell .questionnaire-editor__kicker {
+  margin: 0;
+  color: var(--platform-accent);
+  font-size: 12px;
+  letter-spacing: 1.4px;
+}
+.platform-shell .questionnaire-editor__description {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--platform-text);
+  font-size: 15px;
+  line-height: 1.6;
+}
+.platform-shell .questionnaire-editor__preview-question {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid var(--platform-line-strong);
+  border-radius: 12px;
+  background: var(--platform-surface-strong);
+}
+.platform-shell .questionnaire-editor__preview-question legend {
+  max-width: 100%;
+  padding: 0 8px;
+  font-size: 13px;
+  color: var(--platform-text);
+}
+.platform-shell .questionnaire-editor__preview-question .questionnaire-editor__field > span {
+  font-size: 16px;
+  font-weight: 400;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.platform-shell .questionnaire-editor__preview-options {
+  display: grid;
+  gap: 12px;
+}
+.platform-shell .questionnaire-editor__preview-options label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  color: var(--platform-text);
+}
+@media (max-width: 700px) {
+  .platform-shell .questionnaire-backdrop {
+    padding: 0;
+  }
+  .platform-shell .questionnaire-editor {
+    width: 100%;
+    height: 100dvh;
+    max-height: 100dvh;
+    max-width: none;
+    border: 0;
+    border-radius: 0;
+  }
+  .platform-shell .questionnaire-editor__header {
+    gap: 12px;
+    padding: calc(16px + env(safe-area-inset-top)) 16px 16px;
+  }
+  .platform-shell .questionnaire-editor__header-actions {
+    gap: 4px;
+  }
+  .platform-shell .questionnaire-editor__state {
+    display: none;
+  }
+  .platform-shell .questionnaire-editor__scroll {
+    padding: 20px 16px;
+    scrollbar-gutter: auto;
+  }
+  .platform-shell .questionnaire-editor__general summary {
+    padding: 16px;
+  }
+  .platform-shell .questionnaire-editor__general-body {
+    padding: 2px 16px 18px;
+  }
+  .platform-shell .questionnaire-editor__audience,
+  .platform-shell .questionnaire-editor__answer-settings {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+  .platform-shell .questionnaire-editor__fields {
+    gap: 20px;
+  }
+  .platform-shell .questionnaire-editor__question-body {
+    padding: 16px;
+  }
+  .platform-shell .questionnaire-editor__question-heading {
+    gap: 0;
+  }
+  .platform-shell .questionnaire-editor__toggle {
+    flex-basis: 100%;
+  }
+  .platform-shell .questionnaire-editor__question-actions {
+    margin-left: 50px;
+  }
+  .platform-shell .questionnaire-editor__footer {
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+    gap: 10px;
+  }
+  .platform-shell .questionnaire-editor__footer > div {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    gap: 8px;
+  }
+  .platform-shell .questionnaire-editor__footer .questionnaire-editor__save {
+    grid-column: 1 / -1;
+  }
+  .platform-shell .questionnaire-editor__error {
+    padding: 10px 16px;
+  }
+}
+@media (pointer: coarse) {
+  .platform-shell .questionnaire-editor__question-actions button,
+  .platform-shell .questionnaire-editor__option > button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}

@@ -24,6 +24,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { RecordedPlayer } from "@/components/recorded-lessons";
 import { GoogleDriveCard } from "@/components/google-drive-card";
+import { QuestionnaireEditor } from "@/components/questionnaire-editor";
 import { confirmProtectedOperation } from "@/lib/protected-dialog";
 import { readLocalVideoDuration, videoDurationLabel } from "@/lib/video-duration";
 import { driveFileId } from "../../supabase/functions/_shared/video-media";
@@ -145,7 +146,7 @@ function ContentForm({
   );
   const [cohortId, setCohortId] = useState(initial?.cohortId ?? "");
   const [menteeId, setMenteeId] = useState(initial?.menteeId ?? "");
-  const [questions, setQuestions] = useState<StageQuestion[]>(
+  const [questions, setQuestions] = useState<StageQuestion[]>(() =>
     initial?.questionnaire?.questions?.length ? initial.questionnaire.questions : [newQuestion()],
   );
   const [uploading, setUploading] = useState(false);
@@ -276,6 +277,30 @@ function ContentForm({
     } finally {
       setBusy(false);
     }
+  }
+
+  if (contentType === "questionnaire") {
+    return (
+      <QuestionnaireEditor
+        value={{ title, description, accessScope, cohortId, menteeId, questions }}
+        onChange={(patch) => {
+          if (patch.title !== undefined) setTitle(patch.title);
+          if (patch.description !== undefined) setDescription(patch.description);
+          if (patch.accessScope !== undefined) setAccessScope(patch.accessScope);
+          if (patch.cohortId !== undefined) setCohortId(patch.cohortId ?? "");
+          if (patch.menteeId !== undefined) setMenteeId(patch.menteeId ?? "");
+          if (patch.questions !== undefined) setQuestions(patch.questions);
+        }}
+        stepTitle={step.title}
+        editing={!!initial}
+        cohorts={cohorts}
+        mentees={mentees}
+        busy={busy}
+        message={message}
+        onSave={() => void save()}
+        onClose={onDone}
+      />
+    );
   }
 
   return (
@@ -461,117 +486,6 @@ function ContentForm({
                   }}
                 />
               </label>
-            </fieldset>
-          ) : null}
-
-          {contentType === "questionnaire" ? (
-            <fieldset className="ops-inline-form">
-              <legend>Questionário</legend>
-              <p className="ops-muted">O mentorado responde dentro da própria RISE.</p>
-              {questions.map((question, index) => (
-                <div className="admin-card" key={question.id}>
-                  <div className="section-heading">
-                    <strong>Pergunta {index + 1}</strong>
-                    <button
-                      className="icon-button"
-                      type="button"
-                      aria-label="Remover pergunta"
-                      onClick={() =>
-                        setQuestions((current) => current.filter((item) => item.id !== question.id))
-                      }
-                    >
-                      <Trash2 size={15} />
-                    </button>
-                  </div>
-                  <label className="ops-field">
-                    <span>Pergunta</span>
-                    <textarea
-                      rows={2}
-                      value={question.prompt}
-                      onChange={(event) =>
-                        setQuestions((current) =>
-                          current.map((item) =>
-                            item.id === question.id
-                              ? { ...item, prompt: event.target.value }
-                              : item,
-                          ),
-                        )
-                      }
-                    />
-                  </label>
-                  <label className="ops-field">
-                    <span>Tipo de resposta</span>
-                    <select
-                      value={question.type}
-                      onChange={(event) => {
-                        const type = event.target.value as StageQuestion["type"];
-                        setQuestions((current) =>
-                          current.map((item) =>
-                            item.id === question.id
-                              ? {
-                                  ...item,
-                                  type,
-                                  options: type === "single_choice" ? item.options : [],
-                                }
-                              : item,
-                          ),
-                        );
-                      }}
-                    >
-                      <option value="short_text">Resposta curta</option>
-                      <option value="long_text">Resposta longa</option>
-                      <option value="single_choice">Múltipla escolha</option>
-                    </select>
-                  </label>
-                  {question.type === "single_choice" ? (
-                    <label className="ops-field">
-                      <span>Opções, uma por linha</span>
-                      <textarea
-                        rows={4}
-                        value={question.options.join("\n")}
-                        onChange={(event) =>
-                          setQuestions((current) =>
-                            current.map((item) =>
-                              item.id === question.id
-                                ? {
-                                    ...item,
-                                    options: event.target.value
-                                      .split("\n")
-                                      .map((value) => value.trim())
-                                      .filter(Boolean),
-                                  }
-                                : item,
-                            ),
-                          )
-                        }
-                      />
-                    </label>
-                  ) : null}
-                  <label className="journey-check">
-                    <input
-                      type="checkbox"
-                      checked={question.required}
-                      onChange={(event) =>
-                        setQuestions((current) =>
-                          current.map((item) =>
-                            item.id === question.id
-                              ? { ...item, required: event.target.checked }
-                              : item,
-                          ),
-                        )
-                      }
-                    />
-                    <span>Resposta obrigatória</span>
-                  </label>
-                </div>
-              ))}
-              <button
-                className="button button--glass"
-                type="button"
-                onClick={() => setQuestions((current) => [...current, newQuestion()])}
-              >
-                <Plus size={16} /> Adicionar pergunta
-              </button>
             </fieldset>
           ) : null}
 
