@@ -1,6 +1,7 @@
 import { getMentorContentOverview } from "@/lib/content.functions";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { confirmProtectedOperation } from "@/lib/protected-dialog";
 import {
   CalendarCheck2,
   ChevronLeft,
@@ -497,14 +498,16 @@ export function StaffBookingOfferings({ directory }: { directory: RiseDirectory 
     }
   }
   async function archive(item: BookingOffering) {
-    const confirmed = window.confirm(
-      `Excluir a disponibilidade “${item.title}”? Ela deixará de aparecer para a equipe e para as mentoradas. Encontros já realizados continuarão no histórico.`,
-    );
-    if (!confirmed) return;
+    const proof = await confirmProtectedOperation({
+      scope: { type: "offering", id: item.id, operation: "delete" },
+      title: "Excluir disponibilidade?",
+      description: `“${item.title}” deixará de aceitar agendamentos e ficará na lixeira. Encontros já realizados continuarão no histórico.`,
+    });
+    if (!proof) return;
     setBusyId(item.id);
     setMessage("");
     try {
-      await update({ data: { id: item.id, status: "archived" } });
+      await update({ data: { id: item.id, status: "archived", proof } });
       await Promise.all([
         qc.invalidateQueries({ queryKey: ["booking-offerings"] }),
         qc.invalidateQueries({ queryKey: ["booking-slots", item.id] }),

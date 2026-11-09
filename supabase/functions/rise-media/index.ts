@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.117.2";
 import { authorizedDriveAccess } from "../_shared/google-drive.ts";
+import { readCleanupReceipt } from "../_shared/cleanup-receipt.ts";
 import {
   driveFileId,
   driveFailure,
@@ -30,6 +31,20 @@ const deny = (status: number, code?: string) =>
   });
 
 Deno.serve(async (request) => {
+  if (request.method === "POST" && new URL(request.url).pathname.endsWith("/cleanup-receipt")) {
+    try {
+      const receipt = await readCleanupReceipt(request);
+      const result = await db.rpc("authorize_trash_asset_cleanup", {
+        p_job_id: receipt.jobId,
+        p_token_hash: receipt.tokenHash,
+      });
+      if (result.error) return deny(503);
+      if (!result.data) return deny(403);
+      return Response.json(result.data, { headers: { "Cache-Control": "private, no-store" } });
+    } catch {
+      return deny(400);
+    }
+  }
   if (request.method === "OPTIONS")
     return new Response(null, {
       status: 204,

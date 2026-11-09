@@ -273,11 +273,16 @@ export async function enqueueNotification(admin: any, input: NotificationInput) 
     const booking = input.referenceType === "booking";
     const source = await admin
       .from(booking ? "booking_reservations" : "meetings")
-      .select(booking ? "starts_at, status" : "scheduled_at, audience")
+      .select(booking ? "starts_at, status" : "scheduled_at, audience, deleted_at")
       .eq("id", input.referenceId)
       .maybeSingle();
     if (source.error) throw new Error(source.error.message);
-    if (!source.data || (booking && source.data.status !== "confirmed")) return null;
+    if (
+      !source.data ||
+      (!booking && source.data.deleted_at) ||
+      (booking && source.data.status !== "confirmed")
+    )
+      return null;
     if (group && source.data.audience !== "all") return null;
     sourceScheduledAt = booking ? source.data.starts_at : source.data.scheduled_at;
     let deadline = Date.parse(sourceScheduledAt);
@@ -285,6 +290,7 @@ export async function enqueueNotification(admin: any, input: NotificationInput) 
       const automation = await admin
         .from("whatsapp_automations")
         .select("trigger, offset_minutes")
+        .is("deleted_at", null)
         .eq("id", input.automationId)
         .single();
       if (automation.error) throw new Error(automation.error.message);

@@ -195,6 +195,7 @@ test("erro de consulta preserva o cursor da automação", async () => {
     from(table: string) {
       const chain = {
         select: () => chain,
+        is: () => chain,
         eq: () => chain,
         gt: () => chain,
         update: () => {
@@ -232,6 +233,7 @@ test("erro de consulta preserva o cursor da automação", async () => {
 function sourceDb(data: unknown, error: unknown = null) {
   const chain = {
     select: () => chain,
+    is: () => chain,
     eq: () => chain,
     maybeSingle: async () => ({ data, error }),
   };

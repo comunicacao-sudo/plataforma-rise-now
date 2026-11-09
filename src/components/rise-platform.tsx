@@ -1,4 +1,5 @@
 import { PwaInstallButton } from "@/components/pwa-install-button";
+import { ProtectedOperationHost } from "@/components/protected-operation";
 import { deferredView } from "@/components/deferred-view";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -1520,6 +1521,7 @@ export function RisePlatform() {
         />
       )}
       <AppFooter role={role} onView={navigateToView} />
+      <ProtectedOperationHost />
     </div>
   );
 }

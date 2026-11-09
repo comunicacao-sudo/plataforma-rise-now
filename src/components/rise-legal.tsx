@@ -213,10 +213,11 @@ export function PrivacyPolicyPage() {
           isso procedimentos e medidas de proteção podem ser aprimorados ao longo do tempo.
         </p>
         <p>
-          Os dados são mantidos pelo período necessário às finalidades informadas e, quando cabível,
-          ao cumprimento de obrigações legais, à defesa de direitos e à preservação da segurança da
-          plataforma. A duração concreta dependerá da categoria dos dados e das condições aplicáveis
-          à mentoria.
+          Os registros excluídos ficam em uma lixeira com acesso restrito por 30 dias para permitir
+          recuperação. Após esse prazo, a plataforma executa a exclusão definitiva dos registros e
+          de seus arquivos exclusivos. Arquivos compartilhados por outros conteúdos e originais
+          hospedados em serviços externos, como Google Drive, seguem seus próprios vínculos e
+          permissões.
         </p>
         <p>
           O uso de fornecedores de tecnologia pode envolver tratamento de informações em outras

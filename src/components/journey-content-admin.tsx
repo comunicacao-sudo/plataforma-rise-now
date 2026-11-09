@@ -24,6 +24,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { RecordedPlayer } from "@/components/recorded-lessons";
 import { GoogleDriveCard } from "@/components/google-drive-card";
+import { confirmProtectedOperation } from "@/lib/protected-dialog";
 import { readLocalVideoDuration, videoDurationLabel } from "@/lib/video-duration";
 import { driveFileId } from "../../supabase/functions/_shared/video-media";
 
@@ -937,10 +938,15 @@ function StageContentManager({
   }
 
   async function remove(item: StageContentItem) {
-    if (!window.confirm(`Remover “${item.title}” desta etapa?`)) return;
+    const proof = await confirmProtectedOperation({
+      scope: { type: "content", id: item.id, operation: "delete" },
+      title: "Excluir conteúdo?",
+      description: `“${item.title}” deixará de aparecer na etapa e ficará na lixeira. O arquivo e o acompanhamento serão preservados.`,
+    });
+    if (!proof) return;
     setMessage("");
     try {
-      await deleteFn({ data: { id: item.id } });
+      await deleteFn({ data: { id: item.id, proof } });
       await invalidateJourneyData(qc);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Não foi possível remover.");

@@ -1,4 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { confirmProtectedOperation } from "@/lib/protected-dialog";
+import { TrashPanel } from "@/components/trash-panel";
+import { moveResourceToTrash } from "@/lib/protected.functions";
 import { useServerFn } from "@tanstack/react-start";
 import { isSessionCacheOwner } from "@/lib/session-cache";
 import {
@@ -266,10 +269,18 @@ export function MaterialsManager({
   }
 
   async function remove(m: Material) {
-    if (!window.confirm(`Remover "${m.title}"?`)) return;
-    if (m.file_path) await supabase.storage.from("materials").remove([m.file_path]);
-    await supabase.from("lesson_materials").delete().eq("id", m.id);
-    await qc.invalidateQueries({ queryKey: ["materials", key] });
+    const proof = await confirmProtectedOperation({
+      scope: { type: "material", id: m.id, operation: "delete" },
+      title: "Excluir material?",
+      description: `“${m.title}” ficará na lixeira. O arquivo será preservado para recuperação.`,
+    });
+    if (!proof) return;
+    try {
+      await moveResourceToTrash({ data: { type: "material", id: m.id, proof } });
+      await qc.invalidateQueries({ queryKey: ["materials", key] });
+    } catch (error) {
+      setMsg(error instanceof Error ? error.message : "Não foi possível excluir o material.");
+    }
   }
 
   return (
@@ -492,11 +503,16 @@ function GoalEditor({
     }
   }
   async function remove() {
-    if (!goal || saving || !window.confirm("Excluir esta meta?")) return;
+    if (!goal || saving) return;
+    const proof = await confirmProtectedOperation({
+      scope: { type: "goal", id: goal.id, operation: "delete" },
+      title: "Excluir meta?",
+      description: `“${goal.title}” e seus marcos ficarão preservados na lixeira.`,
+    });
+    if (!proof) return;
     setSaving(true);
     try {
-      const { error } = await supabase.from("rise90_goals").delete().eq("id", goal.id);
-      if (error) return setMsg("Não foi possível excluir a meta. Tente de novo.");
+      await moveResourceToTrash({ data: { type: "goal", id: goal.id, proof } });
       await qc.invalidateQueries({ queryKey: ["rise90", enrollmentId] });
       onDone();
     } catch {
@@ -661,11 +677,17 @@ function GoalCard({
   }
   async function removeMs(id: string) {
     if (busy) return;
+    const proof = await confirmProtectedOperation({
+      scope: { type: "milestone", id, operation: "delete" },
+      title: "Excluir marco?",
+      description: "Este marco sairá da meta e ficará na lixeira para recuperação.",
+    });
+    if (!proof) return;
     setBusy(true);
-    await attempt(
-      () => supabase.from("rise90_milestones").delete().eq("id", id),
-      "Não foi possível remover o marco. Tente de novo.",
-    );
+    await attempt(async () => {
+      await moveResourceToTrash({ data: { type: "milestone", id, proof } });
+      return { error: null };
+    }, "Não foi possível remover o marco. Tente de novo.");
     setBusy(false);
   }
 
@@ -898,6 +920,7 @@ function SharedGuidance({ enrollmentId }: { enrollmentId: string }) {
 export function Rise90Live({ enrollmentId }: { enrollmentId: string }) {
   const { data: goals = [], isLoading } = useGoals(enrollmentId);
   const [editing, setEditing] = useState<Goal | "new" | null>(null);
+  const [trashOpen, setTrashOpen] = useState(false);
   return (
     <main className="inner-page inner-page--section-hero rise90-page">
       <SectionHero
@@ -924,6 +947,13 @@ export function Rise90Live({ enrollmentId }: { enrollmentId: string }) {
         ) : null}
       </section>
       <SharedGuidance enrollmentId={enrollmentId} />
+      <details
+        className="page-width rise90-trash"
+        onToggle={(event) => setTrashOpen(event.currentTarget.open)}
+      >
+        <summary>Itens excluídos do meu RISE 90</summary>
+        {trashOpen && <TrashPanel />}
+      </details>
       {editing ? (
         <GoalEditor
           enrollmentId={enrollmentId}

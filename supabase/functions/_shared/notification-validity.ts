@@ -13,6 +13,7 @@ export async function notificationInvalidReason(admin: any, row: any, now = Date
     const result = await admin
       .from("whatsapp_automations")
       .select("enabled, trigger, offset_minutes")
+      .is("deleted_at", null)
       .eq("id", row.automation_id)
       .maybeSingle();
     if (result.error) throw new Error("Não foi possível conferir a automação.");
@@ -22,11 +23,15 @@ export async function notificationInvalidReason(admin: any, row: any, now = Date
     const booking = row.reference_type === "booking";
     const result = await admin
       .from(booking ? "booking_reservations" : "meetings")
-      .select(booking ? "starts_at, status" : "scheduled_at, audience")
+      .select(booking ? "starts_at, status" : "scheduled_at, audience, deleted_at")
       .eq("id", row.reference_id)
       .maybeSingle();
     if (result.error) throw new Error("Não foi possível conferir o encontro.");
-    if (!result.data || (booking && result.data.status !== "confirmed"))
+    if (
+      !result.data ||
+      (!booking && result.data.deleted_at) ||
+      (booking && result.data.status !== "confirmed")
+    )
       return "Encontro cancelado ou removido.";
     const date = booking ? result.data.starts_at : result.data.scheduled_at;
     if (row.source_scheduled_at && Date.parse(date) !== Date.parse(row.source_scheduled_at))

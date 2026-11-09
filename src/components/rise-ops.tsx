@@ -1,5 +1,10 @@
 import { getMentorContentOverview } from "@/lib/content.functions";
 import { invalidateJourneyData } from "@/lib/journey-sync";
+import { confirmProtectedOperation } from "@/lib/protected-dialog";
+import { TrashPanel } from "@/components/trash-panel";
+import { invalidateTrashData } from "@/lib/trash-sync";
+import { possibleAccessDuplicates } from "@/lib/access-duplicates";
+import { moveResourceToTrash } from "@/lib/protected.functions";
 import { deferredView } from "@/components/deferred-view";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -36,7 +41,6 @@ import {
   createMember,
   filterDirectoryAccess,
   getDirectory,
-  matchesAccessArchiveConfirmation,
   setAccessArchived,
   type AccessListView,
   type RiseDirectory,
@@ -871,9 +875,19 @@ function StaffAgenda() {
         : "Mentoradas escolhidas";
 
   async function cancel(m: MeetingRow) {
-    if (!window.confirm(`Cancelar "${m.title}"? As participantes também deixam de ver o evento.`))
-      return;
-    const r = await cancelFn({ data: { id: m.id } });
+    const proof = await confirmProtectedOperation({
+      scope: { type: "meeting", id: m.id, operation: "delete" },
+      title: "Cancelar encontro?",
+      description: `“${m.title}” será cancelado para as participantes e enviado para a lixeira.`,
+    });
+    if (!proof) return;
+    const r = await cancelFn({ data: { id: m.id, proof } }).catch((error: unknown) => {
+      window.alert(
+        error instanceof Error ? error.message : "Não foi possível cancelar o encontro.",
+      );
+      return null;
+    });
+    if (!r) return;
     if (r.googleWarning)
       window.alert(
         "O encontro saiu da plataforma, mas não consegui remover o evento do Google. Apague-o na agenda manualmente.",
@@ -1403,16 +1417,20 @@ function CohortEditor({
   async function remove() {
     const detail =
       memberCount > 0
-        ? ` Esta turma possui ${memberCount} mentorada(s); elas ficarão sem turma vinculada, mas não serão excluídas.`
+        ? ` Os vínculos de ${memberCount} mentorada(s) serão preservados para recuperação.`
         : "";
-    if (
-      !window.confirm(`Excluir a turma “${cohort.name}”?${detail} Esta ação não pode ser desfeita.`)
-    )
-      return;
+    const proof = await confirmProtectedOperation({
+      scope: { type: "cohort", id: cohort.id, operation: "delete" },
+      title: "Excluir turma?",
+      description: `A turma “${cohort.name}” ficará na lixeira.${detail} Nenhum cadastro será excluído.`,
+    });
+    if (!proof) return;
 
     setBusy("delete");
     setMsg("");
-    const { error } = await supabase.from("cohorts").delete().eq("id", cohort.id);
+    const error = await moveResourceToTrash({ data: { type: "cohort", id: cohort.id, proof } })
+      .then(() => null)
+      .catch((caught: unknown) => caught);
 
     if (error) {
       setMsg("Não foi possível excluir a turma.");
@@ -1800,81 +1818,10 @@ function MenteeProfilePage({
   );
 }
 
-function AccessArchiveDialog({
-  entry,
-  busy,
-  error,
-  onClose,
-  onConfirm,
-}: {
-  entry: RiseDirectory["access"][number];
-  busy: boolean;
-  error: string;
-  onClose: () => void;
-  onConfirm: () => Promise<void>;
-}) {
-  const [confirmation, setConfirmation] = useState("");
-  const valid = matchesAccessArchiveConfirmation(confirmation);
-  return (
-    <div className="modal-backdrop" role="presentation">
-      <section
-        className="content-modal ops-modal access-archive-modal"
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby="access-archive-title"
-        aria-describedby="access-archive-description"
-      >
-        <button className="modal-close" type="button" onClick={onClose} aria-label="Fechar">
-          <X size={20} />
-        </button>
-        <form
-          className="content-modal__body ops-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (valid && !busy) void onConfirm();
-          }}
-        >
-          <span className="eyebrow eyebrow--gold">Exclusão segura</span>
-          <h2 id="access-archive-title">Excluir o acesso de {entry.name}?</h2>
-          <div id="access-archive-description" className="access-archive-summary">
-            <strong>{entry.email}</strong>
-            <p>
-              O login será bloqueado e a pessoa deixará a lista ativa. Perfil, progresso, entregas,
-              avaliações e histórico permanecerão preservados e o acesso poderá ser restaurado
-              depois.
-            </p>
-          </div>
-          <Field label="Digite EXCLUIR para confirmar">
-            <input
-              value={confirmation}
-              onChange={(event) => setConfirmation(event.target.value)}
-              autoComplete="off"
-              autoFocus
-              placeholder="EXCLUIR"
-            />
-          </Field>
-          {error ? (
-            <p className="form-error" role="alert">
-              {error}
-            </p>
-          ) : null}
-          <div className="content-modal__actions">
-            <button type="button" onClick={onClose} disabled={busy}>
-              Cancelar
-            </button>
-            <button className="ops-danger-action" type="submit" disabled={!valid || busy}>
-              <Trash2 size={16} /> {busy ? "Excluindo…" : "Excluir acesso"}
-            </button>
-          </div>
-        </form>
-      </section>
-    </div>
-  );
-}
-
 function MembersPanel({ mode }: { mode: "students" | "access" }) {
   const qc = useQueryClient();
   const { data: dir } = useDirectory();
+  const duplicates = useMemo(() => possibleAccessDuplicates(dir?.access ?? []), [dir?.access]);
   const updateFn = useServerFn(updateEnrollment);
   const updateAccessFn = useServerFn(updateAccess);
   const setAccessArchivedFn = useServerFn(setAccessArchived);
@@ -1884,10 +1831,11 @@ function MembersPanel({ mode }: { mode: "students" | "access" }) {
   const [specialtyOpen, setSpecialtyOpen] = useState(false);
   const [memberOpen, setMemberOpen] = useState(false);
   const [accessView, setAccessView] = useState<AccessListView>("active");
-  const [archiveTarget, setArchiveTarget] = useState<RiseDirectory["access"][number] | null>(null);
+
   const [archiveBusy, setArchiveBusy] = useState(false);
-  const [archiveError, setArchiveError] = useState("");
-  const [adminSection, setAdminSection] = useState<"perfis" | "acessos" | "turmas">(
+  const [accessMessage, setAccessMessage] = useState("");
+
+  const [adminSection, setAdminSection] = useState<"perfis" | "acessos" | "turmas" | "lixeira">(
     mode === "students" ? "perfis" : "acessos",
   );
   const [selectedMentee, setSelectedMentee] = useState(() =>
@@ -1972,27 +1920,38 @@ function MembersPanel({ mode }: { mode: "students" | "access" }) {
     );
 
   const allAccess = dir?.access ?? [];
-  const visibleAccess = filterDirectoryAccess(allAccess, accessView);
+  const visibleAccess = filterDirectoryAccess(allAccess, accessView).filter(
+    (entry) => accessView !== "duplicates" || duplicates.has(entry.id),
+  );
   const activeAccessCount = filterDirectoryAccess(allAccess, "active").length;
   const archivedAccessCount = filterDirectoryAccess(allAccess, "archived").length;
 
   async function changeArchivedAccess(entry: RiseDirectory["access"][number], archived: boolean) {
+    if (!archived && !entry.trashId) {
+      setAccessMessage("Abra a lixeira para recuperar este acesso.");
+      return;
+    }
+    const proof = await confirmProtectedOperation({
+      scope: archived
+        ? { type: "access", id: entry.id, operation: "delete" }
+        : { type: "trash", id: entry.trashId!, operation: "restore" },
+      title: archived ? "Excluir acesso?" : "Recuperar acesso?",
+      description: archived
+        ? `O acesso de ${entry.name} será bloqueado. Perfil, progresso e histórico ficam preservados na lixeira.`
+        : `Recuperar o acesso de ${entry.name} com o estado anterior da matrícula?`,
+    });
+    if (!proof) return;
     setArchiveBusy(true);
-    setArchiveError("");
+    setAccessMessage("");
     try {
-      await setAccessArchivedFn({ data: { accessId: entry.id, archived } });
-      await qc.invalidateQueries({ queryKey: ["directory"] });
-      if (archived) {
-        setArchiveTarget(null);
-        setAccessView("active");
-      } else {
-        setAccessView("active");
-      }
-    } catch (caught) {
-      const message =
-        caught instanceof Error ? caught.message : "Não foi possível alterar o acesso.";
-      setArchiveError(message);
-      if (!archived) window.alert(message);
+      await setAccessArchivedFn({ data: { accessId: entry.id, archived, proof } });
+      await invalidateTrashData(qc);
+      setAccessMessage(archived ? "Acesso enviado para a lixeira." : "Acesso recuperado.");
+      setAccessView("active");
+    } catch (error) {
+      setAccessMessage(
+        error instanceof Error ? error.message : "Não foi possível alterar o acesso.",
+      );
     } finally {
       setArchiveBusy(false);
     }
@@ -2026,8 +1985,16 @@ function MembersPanel({ mode }: { mode: "students" | "access" }) {
             >
               Turmas
             </button>
+            <button
+              type="button"
+              className={adminSection === "lixeira" ? "is-active" : ""}
+              onClick={() => setAdminSection("lixeira")}
+            >
+              <Trash2 size={16} /> Lixeira
+            </button>
           </nav>
         ) : null}
+        {adminSection === "lixeira" ? <TrashPanel /> : null}
 
         {adminSection === "acessos" ? (
           <div className="ops-table-wrap ops-admin-panel">
@@ -2059,7 +2026,31 @@ function MembersPanel({ mode }: { mode: "students" | "access" }) {
               >
                 Acessos excluídos <span>{archivedAccessCount}</span>
               </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={accessView === "duplicates"}
+                className={accessView === "duplicates" ? "is-active" : ""}
+                onClick={() => setAccessView("duplicates")}
+              >
+                Possíveis duplicados <span>{duplicates.size}</span>
+              </button>
             </div>
+            {accessMessage && <p role="status">{accessMessage}</p>}
+            {duplicates.size > 0 && (
+              <div className="duplicate-notice">
+                <strong>{duplicates.size} cadastros com possíveis duplicidades</strong>
+                <p>
+                  Confira os perfis antes de excluir. Pessoas diferentes podem ter o mesmo nome ou
+                  compartilhar um contato.
+                </p>
+                {accessView !== "duplicates" && (
+                  <button type="button" onClick={() => setAccessView("duplicates")}>
+                    Conferir possíveis duplicados
+                  </button>
+                )}
+              </div>
+            )}
             <table className="ops-table">
               <thead>
                 <tr>
@@ -2084,6 +2075,29 @@ function MembersPanel({ mode }: { mode: "students" | "access" }) {
                       <td>
                         <strong>{entry.name}</strong>
                         <small>{entry.email}</small>
+                        {duplicates.has(entry.id) && (
+                          <div className="duplicate-reasons">
+                            {[...new Set(duplicates.get(entry.id)!.map((item) => item.reason))].map(
+                              (reason) => (
+                                <span key={reason}>{reason}</span>
+                              ),
+                            )}
+                            <small>
+                              Conferir também:{" "}
+                              {[
+                                ...new Set(
+                                  duplicates
+                                    .get(entry.id)!
+                                    .map(
+                                      (item) =>
+                                        allAccess.find((other) => other.id === item.otherId)?.email,
+                                    )
+                                    .filter(Boolean),
+                                ),
+                              ].join(", ")}
+                            </small>
+                          </div>
+                        )}
                       </td>
                       <td>{entry.role === "mentee" ? "Mentorada" : "Mentora · Administradora"}</td>
                       <td>
@@ -2190,10 +2204,7 @@ function MembersPanel({ mode }: { mode: "students" | "access" }) {
                               <button
                                 className="ops-danger-button"
                                 type="button"
-                                onClick={() => {
-                                  setArchiveError("");
-                                  setArchiveTarget(entry);
-                                }}
+                                onClick={() => void changeArchivedAccess(entry, true)}
                               >
                                 <Trash2 size={14} /> Excluir acesso
                               </button>
@@ -2207,27 +2218,16 @@ function MembersPanel({ mode }: { mode: "students" | "access" }) {
                 {visibleAccess.length === 0 ? (
                   <tr>
                     <td className="ops-empty-row" colSpan={4}>
-                      {accessView === "archived"
-                        ? "Nenhum acesso foi excluído."
-                        : "Nenhum acesso ativo ou pendente foi encontrado."}
+                      {accessView === "duplicates"
+                        ? "Nenhuma possível duplicidade encontrada."
+                        : accessView === "archived"
+                          ? "Nenhum acesso foi excluído."
+                          : "Nenhum acesso ativo ou pendente foi encontrado."}
                     </td>
                   </tr>
                 ) : null}
               </tbody>
             </table>
-            {archiveTarget ? (
-              <AccessArchiveDialog
-                entry={archiveTarget}
-                busy={archiveBusy}
-                error={archiveError}
-                onClose={() => {
-                  if (archiveBusy) return;
-                  setArchiveTarget(null);
-                  setArchiveError("");
-                }}
-                onConfirm={() => changeArchivedAccess(archiveTarget, true)}
-              />
-            ) : null}
           </div>
         ) : null}
 

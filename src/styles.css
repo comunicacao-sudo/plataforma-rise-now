@@ -5050,6 +5050,23 @@ hr,
 }
 
 /* ---------- Gerenciamento de conteúdos da jornada ---------- */
+.protected-confirmation { max-width: 540px; }
+.protected-confirmation label { display:grid;gap:.4rem; }
+.protected-confirmation input { width:100%;min-width:0; }
+.protected-confirmation p { overflow-wrap:anywhere; }
+.trash-panel { min-height:0 !important; }
+.trash-panel h2 { display:flex;align-items:center;gap:.6rem; }
+.trash-list { list-style:none;padding:0;margin:1rem 0; }
+.trash-list li { display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:1rem;padding:1rem 0;border-top:1px solid var(--line); }
+.trash-list li>div { flex:1 1 18rem;min-width:0; }
+.trash-list h3,.trash-list p { overflow-wrap:anywhere; }
+.trash-pagination { display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:1rem; }
+.duplicate-notice { padding:1rem;margin:1rem 0;border:1px solid var(--gold);border-radius:14px;background:var(--card); }
+.duplicate-notice p { margin:.4rem 0 .8rem; }
+.duplicate-reasons { display:grid;gap:.35rem;margin-top:.5rem;max-width:24rem;overflow-wrap:anywhere; }
+.duplicate-reasons>span { font-size:.75rem;font-weight:600; }
+.rise90-trash { margin-top:2rem;margin-bottom:2rem; }
+.rise90-trash>summary { cursor:pointer;padding:1rem 0;font-weight:600; }
 .drive-connection {
   min-height: 0 !important;
   margin-bottom: 1.25rem;
@@ -11947,4 +11964,43 @@ html[data-theme="light"] .rise-install-page :where(a, button):focus-visible {
   min-height: 0;
   max-width: 100%;
   max-height: 100%;
+}
+.platform-shell .protected-confirmation .content-modal__body.ops-form > p {
+  color: var(--platform-text);
+}
+.platform-shell .protected-confirmation .content-modal__body.ops-form > .form-error {
+  color: var(--status-danger);
+}
+.platform-shell[data-theme="dark"] .protected-confirmation .content-modal__body.ops-form > .form-error {
+  color: #ffb4ab;
+}
+.platform-shell .protected-confirmation input {
+  min-height: 44px;
+  padding: .75rem .875rem;
+  border: 1px solid var(--platform-line-strong);
+  border-radius: 8px;
+  background: var(--platform-background);
+  color: var(--platform-text);
+}
+.platform-shell .protected-confirmation .content-modal__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .75rem;
+}
+.platform-shell .protected-confirmation .content-modal__actions button {
+  min-height: 44px;
+  padding: .75rem 1rem;
+  border: 1px solid var(--platform-line-strong);
+  border-radius: 8px;
+  color: var(--platform-text);
+}
+.platform-shell .protected-confirmation .content-modal__actions .ops-danger-action {
+  background: var(--platform-accent);
+  color: var(--platform-on-accent);
+}
+.platform-shell .ops-subnav > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .5rem;
 }

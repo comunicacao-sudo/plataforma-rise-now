@@ -15,6 +15,7 @@ import {
 import { renderTemplate } from "../_shared/whatsapp-templates.ts";
 import { runAutomations } from "./automations.ts";
 import { reconcileGoogleCancellations } from "../_shared/google-cancellations.ts";
+import { purgeTrash } from "../_shared/trash-purge.ts";
 
 const env = (name: string) => Deno.env.get(name)?.trim() || null;
 const keyFromJson = (name: string) => {
@@ -163,6 +164,7 @@ async function queueMeetingReminders(settings: any, now: Date) {
   const { data: meetings, error } = await admin
     .from("meetings")
     .select("id, title, scheduled_at, audience, cohort_id, enrollment_id, mentor_id, created_by")
+    .is("deleted_at", null)
     .gt("scheduled_at", now.toISOString())
     .lte("scheduled_at", cutoff.toISOString());
   if (error) throw new Error(error.message);
@@ -327,6 +329,15 @@ Deno.serve(async (request: Request) => {
   // Avança o mês da jornada de cada mentorada pela data de início (migration 0046).
   const months = await admin.rpc("refresh_journey_months");
   if (months.error) console.error("[rise-cron] mês da jornada", months.error.message);
+  // A retenção roda mesmo quando o WhatsApp está desligado.
+  let trashCleanup = null;
+  try {
+    trashCleanup = await purgeTrash(admin, env("SUPABASE_URL")!);
+  } catch {
+    console.error(
+      "[rise-cron] Falha na limpeza da lixeira; nova tentativa será feita automaticamente.",
+    );
+  }
   try {
     const recovered = await admin.rpc("recover_stale_bookings");
     if (recovered.error) throw new Error(recovered.error.message);

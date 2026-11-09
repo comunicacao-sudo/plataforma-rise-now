@@ -25,6 +25,9 @@ export type RiseDirectory = {
     status: "aguardando" | "ativo" | "revogado";
     createdAt: string;
     archivedAt: string | null;
+    trashId?: string | null;
+    phone?: string | null;
+    cohortId?: string | null;
   }>;
   specialties: Array<{ id: string; name: string; category: string }>;
   cohorts: Array<{
@@ -65,7 +68,7 @@ export const updateAccess: any = createEdgeFunction("updateAccess");
 export const setAccessArchived: any = createEdgeFunction("setAccessArchived");
 export const resetMemberPassword: any = createEdgeFunction("resetMemberPassword");
 
-export type AccessListView = "active" | "archived";
+export type AccessListView = "active" | "archived" | "duplicates";
 
 export function filterDirectoryAccess(access: RiseDirectory["access"], view: AccessListView) {
   return access.filter((entry) =>

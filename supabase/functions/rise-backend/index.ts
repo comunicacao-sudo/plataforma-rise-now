@@ -14,6 +14,8 @@ import {
 } from "../_shared/content-visibility.ts";
 import { reconcileGoogleCancellations } from "../_shared/google-cancellations.ts";
 import { googleCalendarClient } from "../_shared/google-calendar.ts";
+import { protectedOperations } from "../_shared/protected-operations.ts";
+import { proofHash } from "../_shared/protected-resources.ts";
 import { authorizedDriveAccess, googleDriveScope, hasDriveScope } from "../_shared/google-drive.ts";
 import { computeBookingSlots } from "../_shared/booking-slots.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.117.2";
@@ -116,6 +118,26 @@ async function isStaff(c: Context) {
 async function requireStaff(c: Context) {
   if (!(await isStaff(c))) throw new Error("Acesso restrito à administração RISE NOW.");
 }
+function protectedService(c: Context) {
+  return protectedOperations(c, () =>
+    createClient(url, publicKey, {
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    }),
+  );
+}
+async function trashResource(c: Context, d: any) {
+  const result = await protectedService(c).trash(d);
+  const googleWarning =
+    d.type === "meeting" ? !(await reconcileGoogleCancellations(c.admin)) : false;
+  return { ...result, googleWarning };
+}
+async function protectedAction(c: Context, action: string, d: any) {
+  if (action === "authorizeProtectedOperation") return protectedService(c).authorize(d);
+  if (action === "listTrash") return protectedService(c).list(d);
+  if (action === "moveResourceToTrash") return trashResource(c, d);
+  if (action === "restoreTrashResource") return protectedService(c).restore(d);
+  throw new Error("Operação inválida.");
+}
 async function audit(c: Context, action: string, target: string, payload: unknown = null) {
   await c.admin.from("audit_log").insert({ actor_id: c.userId, action, target, payload });
 }
@@ -181,7 +203,7 @@ async function getMentorDirectory(c: Context) {
 
 async function getDirectory(c: Context) {
   await requireStaff(c);
-  const [mentorRoles, cohorts, phases, specialties, enrollments, allowed, authUsers] =
+  const [mentorRoles, cohorts, phases, specialties, enrollments, allowed, authUsers, accessTrash] =
     await Promise.all([
       c.admin
         .from("user_roles")
@@ -189,7 +211,7 @@ async function getDirectory(c: Context) {
           "role, profile:profiles(id, full_name, email, title, staff_type, primary_specialty_id, avatar_url, phone, contact_email)",
         )
         .in("role", ["mentor", "admin"]),
-      c.admin.from("cohorts").select("*").order("created_at"),
+      c.admin.from("cohorts").select("*").is("deleted_at", null).order("created_at"),
       c.admin
         .from("phases")
         .select("id, month_number, title, pillar, lessons(id, title, kind, position)")
@@ -209,7 +231,12 @@ async function getDirectory(c: Context) {
         .from("allowed_emails")
         .select("id, email, full_name, role, status, created_at, archived_at")
         .order("created_at"),
-      c.admin.auth.admin.listUsers({ page: 1, perPage: 1000 }),
+      c.admin.rpc("directory_auth_metadata"),
+      c.admin
+        .from("admin_trash")
+        .select("id,resource_id")
+        .eq("resource_type", "access")
+        .is("restored_at", null),
     ]);
   if (mentorRoles.error) throw new Error(mentorRoles.error.message);
   if (cohorts.error) throw new Error(cohorts.error.message);
@@ -218,6 +245,7 @@ async function getDirectory(c: Context) {
   if (enrollments.error) throw new Error(enrollments.error.message);
   if (allowed.error) throw new Error(allowed.error.message);
   if (authUsers.error) throw new Error(authUsers.error.message);
+  if (accessTrash.error) throw new Error("Não foi possível conferir os acessos na lixeira.");
   const specialtyById = new Map((specialties.data ?? []).map((x: any) => [x.id, x.name]));
   const staff = (mentorRoles.data ?? [])
     .flatMap((row: any) => {
@@ -239,15 +267,15 @@ async function getDirectory(c: Context) {
       ];
     })
     .sort((a: any, b: any) => a.name.localeCompare(b.name));
+  const authByEmail = new Map(
+    (authUsers.data ?? []).map((entry: any) => [String(entry.email).toLowerCase(), entry]),
+  );
   return {
     isAdmin: true,
     me: c.userId,
     staff,
     access: (allowed.data ?? []).map((entry: any) => {
-      const user = authUsers.data?.users?.find(
-        (candidate: any) =>
-          String(candidate.email).toLowerCase() === String(entry.email).toLowerCase(),
-      );
+      const user = authByEmail.get(String(entry.email).toLowerCase());
       return {
         id: entry.id,
         userId: user?.id ?? null,
@@ -255,13 +283,21 @@ async function getDirectory(c: Context) {
         email: entry.email,
         role: entry.role,
         status:
-          entry.status !== "approved" || user?.banned_until
+          entry.status !== "approved" ||
+          (user?.banned_until && Date.parse(user.banned_until) > Date.now())
             ? "revogado"
             : user?.confirmed_at
               ? "ativo"
               : "aguardando",
         createdAt: entry.created_at,
         archivedAt: entry.archived_at ?? null,
+        trashId: accessTrash.data?.find((item: any) => item.resource_id === entry.id)?.id ?? null,
+        phone:
+          enrollments.data?.find((item: any) => item.mentee?.id === user?.id)?.mentee?.phone ??
+          staff.find((item: any) => item.id === user?.id)?.phone ??
+          null,
+        cohortId:
+          enrollments.data?.find((item: any) => item.mentee?.id === user?.id)?.cohort_id ?? null,
       };
     }),
     specialties: specialties.data ?? [],
@@ -481,135 +517,19 @@ async function updateAccess(c: Context, d: any) {
 
 type ArchivedEnrollmentState = { id: string; status: string };
 
-function archivedEnrollmentStates(snapshot: unknown): ArchivedEnrollmentState[] {
-  if (!snapshot || typeof snapshot !== "object") return [];
-  const enrollments = (snapshot as { enrollments?: unknown }).enrollments;
-  if (!Array.isArray(enrollments)) return [];
-  return enrollments.flatMap((entry) => {
-    if (!entry || typeof entry !== "object") return [];
-    const id = String((entry as { id?: unknown }).id ?? "");
-    const status = String((entry as { status?: unknown }).status ?? "");
-    return id && ["ativa", "pausada", "desativada"].includes(status) ? [{ id, status }] : [];
-  });
-}
-
 async function setAccessArchived(c: Context, d: any) {
   await requireStaff(c);
-  const accessId = String(d.accessId ?? "").trim();
-  const archived = d.archived === true;
-  if (!accessId) throw new Error("Acesso inválido.");
-
-  const { data: access, error: accessError } = await c.admin
-    .from("allowed_emails")
-    .select("id, email, role, status, archived_at, archive_snapshot")
-    .eq("id", accessId)
+  const id = String(d.accessId ?? "");
+  if (d.archived === true) return trashResource(c, { type: "access", id, proof: d.proof });
+  const target = await c.admin
+    .from("admin_trash")
+    .select("id")
+    .eq("resource_type", "access")
+    .eq("resource_id", id)
+    .is("restored_at", null)
     .single();
-  if (accessError || !access) throw new Error(accessError?.message ?? "Acesso não encontrado.");
-
-  if (archived === Boolean(access.archived_at)) return { ok: true };
-
-  const { data: users, error: usersError } = await c.admin.auth.admin.listUsers({
-    page: 1,
-    perPage: 1000,
-  });
-  if (usersError) throw new Error(usersError.message);
-  const user = users.users.find(
-    (candidate: any) =>
-      String(candidate.email).toLowerCase() === String(access.email).toLowerCase(),
-  );
-
-  if (archived) {
-    if (
-      user?.id === c.userId ||
-      String(access.email).toLowerCase() === String(c.user?.email ?? "").toLowerCase()
-    ) {
-      throw new Error("Você não pode excluir o próprio acesso.");
-    }
-
-    if (access.role === "admin" || access.role === "mentor") {
-      const { count, error: countError } = await c.admin
-        .from("allowed_emails")
-        .select("id", { count: "exact", head: true })
-        .in("role", ["admin", "mentor"])
-        .eq("status", "approved")
-        .is("archived_at", null);
-      if (countError) throw new Error(countError.message);
-      if ((count ?? 0) <= 1)
-        throw new Error("O último acesso administrativo não pode ser excluído.");
-    }
-
-    const { data: enrollmentRows, error: enrollmentError } = user
-      ? await c.admin.from("enrollments").select("id, status").eq("mentee_id", user.id)
-      : { data: [], error: null };
-    if (enrollmentError) throw new Error(enrollmentError.message);
-
-    const snapshot = {
-      accessStatus: access.status,
-      enrollments: (enrollmentRows ?? []).map((entry: any) => ({
-        id: entry.id,
-        status: entry.status,
-      })),
-    };
-    const { error: archiveError } = await c.admin
-      .from("allowed_emails")
-      .update({
-        status: "revoked",
-        archived_at: new Date().toISOString(),
-        archived_by: c.userId,
-        archive_snapshot: snapshot,
-      })
-      .eq("id", accessId)
-      .is("archived_at", null);
-    if (archiveError) throw new Error(archiveError.message);
-
-    if (user) {
-      const { error: authError } = await c.admin.auth.admin.updateUserById(user.id, {
-        ban_duration: "876000h",
-      });
-      if (authError) throw new Error(authError.message);
-      const { error: disableError } = await c.admin
-        .from("enrollments")
-        .update({ status: "desativada" })
-        .eq("mentee_id", user.id);
-      if (disableError) throw new Error(disableError.message);
-    }
-
-    await audit(c, "access_archived", accessId, {
-      role: access.role,
-      enrollmentCount: (enrollmentRows ?? []).length,
-    });
-    return { ok: true };
-  }
-
-  if (user) {
-    const { error: authError } = await c.admin.auth.admin.updateUserById(user.id, {
-      ban_duration: "none",
-    });
-    if (authError) throw new Error(authError.message);
-  }
-
-  const enrollmentStates = archivedEnrollmentStates(access.archive_snapshot);
-  for (const enrollment of enrollmentStates) {
-    const { error: restoreEnrollmentError } = await c.admin
-      .from("enrollments")
-      .update({ status: enrollment.status })
-      .eq("id", enrollment.id);
-    if (restoreEnrollmentError) throw new Error(restoreEnrollmentError.message);
-  }
-
-  const { error: restoreError } = await c.admin
-    .from("allowed_emails")
-    .update({
-      status: "approved",
-      archived_at: null,
-      archived_by: null,
-      archive_snapshot: {},
-    })
-    .eq("id", accessId)
-    .not("archived_at", "is", null);
-  if (restoreError) throw new Error(restoreError.message);
-  await audit(c, "access_restored", accessId, { enrollmentCount: enrollmentStates.length });
-  return { ok: true };
+  if (target.error || !target.data) throw new Error("Este acesso não está na lixeira.");
+  return protectedService(c).restore({ id: target.data.id, proof: d.proof });
 }
 
 async function resetMemberPassword(c: Context, d: any) {
@@ -759,6 +679,7 @@ async function linkedJourneyDates(c: Context, keys: string[]) {
   const result = await c.db
     .from("meetings")
     .select("journey_step_key,scheduled_at")
+    .is("deleted_at", null)
     .in("journey_step_key", keys)
     .order("scheduled_at");
   if (result.error) throw new Error("Não foi possível atualizar as datas da Agenda.");
@@ -797,6 +718,7 @@ async function journeyAction(c: Context, action: string, d: any) {
       const linked = await c.db
         .from("meetings")
         .select("scheduled_at")
+        .is("deleted_at", null)
         .eq("journey_step_key", data.stepKey)
         .order("scheduled_at");
       if (linked.error) throw new Error(linked.error.message);
@@ -817,6 +739,7 @@ async function journeyAction(c: Context, action: string, d: any) {
       p_pillar_id: d.pillarId,
       p_expected_revision: expectedRevision,
       p_steps: d.steps,
+      p_proof_hash: d.proof ? await proofHash(d.proof) : null,
     });
     if (error) throw new Error(error.message);
     return { ok: true, revision: data };
@@ -1195,6 +1118,7 @@ async function loadLibrary(
     ? await admin
         .from("journey_stage_contents")
         .select("*")
+        .is("deleted_at", null)
         .in("step_key", allowedStepKeys)
         .eq("active", true)
         .order("position")
@@ -1251,6 +1175,7 @@ async function loadLibrary(
     c.db
       .from("meetings")
       .select("journey_step_key,scheduled_at,ends_at,duration_minutes")
+      .is("deleted_at", null)
       .in(
         "journey_step_key",
         allowedStepKeys.length ? allowedStepKeys : ["00000000-0000-0000-0000-000000000000"],
@@ -1581,6 +1506,7 @@ async function visibleStageContents(c: Context, contentType?: string) {
   let query = admin
     .from("journey_stage_contents")
     .select("*")
+    .is("deleted_at", null)
     .in(
       "step_key",
       visibleSteps.map((step: any) => step.stable_key),
@@ -1608,7 +1534,12 @@ async function contentAction(c: Context, action: string, d: any) {
       await Promise.all([
         c.admin.from("journey_pillars").select("id,name,position").order("position"),
         c.admin.from("journey_versions").select("id,pillar_id").eq("status", "draft"),
-        c.admin.from("journey_stage_contents").select("*").eq("active", true).order("position"),
+        c.admin
+          .from("journey_stage_contents")
+          .select("*")
+          .is("deleted_at", null)
+          .eq("active", true)
+          .order("position"),
       ]);
     if (pe || ve || ce) throw new Error("Não foi possível carregar os conteúdos da jornada.");
     const ids = (versions ?? []).map((v: any) => v.id);
@@ -1703,6 +1634,7 @@ async function contentAction(c: Context, action: string, d: any) {
     const { error } = await c.admin
       .from("journey_stage_contents")
       .update({ duration_seconds: seconds, duration_minutes: Math.ceil(seconds / 60) })
+      .is("deleted_at", null)
       .eq("id", String(d.contentId ?? ""))
       .eq("source_revision", Number(d.revision))
       .eq("content_type", "video");
@@ -1717,6 +1649,7 @@ async function contentAction(c: Context, action: string, d: any) {
       const { data: matches, error } = await c.admin
         .from("journey_stage_contents")
         .select("id")
+        .is("deleted_at", null)
         .eq("external_url", source)
         .eq("active", true)
         .eq("content_type", "video")
@@ -1759,6 +1692,7 @@ async function contentAction(c: Context, action: string, d: any) {
             duration_seconds: metadata.durationSeconds,
             duration_minutes: Math.ceil(metadata.durationSeconds / 60),
           })
+          .is("deleted_at", null)
           .eq("id", contentId)
           .eq("source_revision", source.revision);
         if (updated.error) throw new Error("Não foi possível atualizar a duração deste vídeo.");
@@ -1786,6 +1720,7 @@ async function contentAction(c: Context, action: string, d: any) {
     const { data, error } = await c.admin
       .from("journey_stage_contents")
       .select("*")
+      .is("deleted_at", null)
       .eq("pillar_id", pillarId)
       .eq("active", true)
       .order("step_key")
@@ -1818,6 +1753,10 @@ async function contentAction(c: Context, action: string, d: any) {
 
   if (action === "saveStageContent") {
     await requireStaff(c);
+    if (d.active === false)
+      throw new Error(
+        "Use a opção Excluir para enviar o conteúdo à lixeira com confirmação de identidade.",
+      );
     const contentType = String(d.contentType ?? "");
     if (!["video", "material", "questionnaire"].includes(contentType))
       throw new Error("Tipo de conteúdo inválido.");
@@ -1869,6 +1808,7 @@ async function contentAction(c: Context, action: string, d: any) {
       const existing = await c.admin
         .from("journey_stage_contents")
         .select("external_url,source_revision")
+        .is("deleted_at", null)
         .eq("id", d.id)
         .maybeSingle();
       if (existing.error) throw new Error("Não foi possível verificar o vídeo existente.");
@@ -1935,6 +1875,7 @@ async function contentAction(c: Context, action: string, d: any) {
       let duplicateQuery = c.admin
         .from("journey_stage_contents")
         .select("id")
+        .is("deleted_at", null)
         .eq("pillar_id", pillarId)
         .eq("step_key", stepKey)
         .eq("content_type", contentType)
@@ -1959,8 +1900,20 @@ async function contentAction(c: Context, action: string, d: any) {
     }
 
     const query = id
-      ? c.admin.from("journey_stage_contents").update(payload).eq("id", id).select("*").single()
-      : c.admin.from("journey_stage_contents").insert(payload).select("*").single();
+      ? c.admin
+          .from("journey_stage_contents")
+          .update(payload)
+          .is("deleted_at", null)
+          .eq("id", id)
+          .select("*")
+          .is("deleted_at", null)
+          .single()
+      : c.admin
+          .from("journey_stage_contents")
+          .insert(payload)
+          .select("*")
+          .is("deleted_at", null)
+          .single();
     const { data, error } = await query;
     if (error || !data) throw new Error(error?.message ?? "Não foi possível salvar o conteúdo.");
     if (ownDriveToken && remoteVideo) await bindDriveVideo(c, data);
@@ -1980,12 +1933,7 @@ async function contentAction(c: Context, action: string, d: any) {
   }
   if (action === "deleteStageContent") {
     await requireStaff(c);
-    const { error } = await c.admin
-      .from("journey_stage_contents")
-      .update({ active: false, updated_at: new Date().toISOString() })
-      .eq("id", String(d.id ?? ""));
-    if (error) throw new Error(error.message);
-    return { ok: true };
+    return trashResource(c, { type: "content", id: String(d.id ?? ""), proof: d.proof });
   }
 
   if (action === "getMyAgendaMaterials") {
@@ -3155,6 +3103,7 @@ async function offeringById(c: Context, id: string) {
     .select(
       "id, mentor_id, title, description, duration_minutes, buffer_minutes, booking_notice_hours, cancellation_notice_hours, timezone, audience, status, mentor:profiles!booking_offerings_mentor_id_fkey(full_name, display_name, email), cohorts:booking_offering_cohorts(cohort_id), rules:booking_availability_rules(id, weekday, start_time, end_time, valid_from, valid_until, slot_interval_minutes, active)",
     )
+    .is("deleted_at", null)
     .eq("id", id)
     .maybeSingle();
   if (error) throw new Error(error.message);
@@ -3240,6 +3189,7 @@ async function googleAction(c: Context, action: string, d: any) {
       const { data: source, error } = await c.admin
         .from("journey_stage_contents")
         .select("id,external_url,source_revision")
+        .is("deleted_at", null)
         .eq("id", String(d.contentId ?? ""))
         .eq("active", true)
         .eq("content_type", "video")
@@ -3265,9 +3215,11 @@ async function googleAction(c: Context, action: string, d: any) {
             : {}),
           updated_at: new Date().toISOString(),
         })
+        .is("deleted_at", null)
         .eq("id", source.id)
         .eq("source_revision", source.source_revision)
-        .select("id");
+        .select("id")
+        .is("deleted_at", null);
       if (updated.error || !updated.data?.length)
         throw new Error(
           "A gravação mudou durante a autorização. Atualize a página e autorize novamente.",
@@ -3299,6 +3251,7 @@ async function googleAction(c: Context, action: string, d: any) {
       c.admin
         .from("journey_stage_contents")
         .select("id,title,external_url,source_revision,mentee_id")
+        .is("deleted_at", null)
         .eq("active", true)
         .eq("content_type", "video")
         .not("external_url", "is", null)
@@ -3517,6 +3470,7 @@ async function googleAction(c: Context, action: string, d: any) {
       .select(
         "id, title, kind, scheduled_at, ends_at, duration_minutes, join_url, journey_step_key, google_event_id",
       )
+      .is("deleted_at", null)
       .lt("scheduled_at", endsAt.toISOString())
       .order("scheduled_at");
     if (error) throw new Error(error.message);
@@ -3596,6 +3550,7 @@ async function googleAction(c: Context, action: string, d: any) {
       .select(
         "id, mentor_id, title, description, duration_minutes, buffer_minutes, cancellation_notice_hours, status, audience, mentor:profiles!booking_offerings_mentor_id_fkey(full_name, display_name), cohorts:booking_offering_cohorts(cohort_id), rules:booking_availability_rules(id, weekday, start_time, end_time, valid_from, valid_until, active)",
       )
+      .is("deleted_at", null)
       .neq("status", "archived")
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
@@ -3802,6 +3757,7 @@ async function googleAction(c: Context, action: string, d: any) {
         created_by: c.userId,
       })
       .select("id")
+      .is("deleted_at", null)
       .single();
     if (error) throw new Error(error.message);
     try {
@@ -3833,9 +3789,12 @@ async function googleAction(c: Context, action: string, d: any) {
   if (action === "updateBookingOffering") {
     if (!d.id || !["active", "paused", "archived"].includes(d.status))
       throw new Error("Estado inválido.");
+    if (d.status === "archived")
+      return trashResource(c, { type: "offering", id: d.id, proof: d.proof });
     const { error } = await c.admin
       .from("booking_offerings")
       .update({ status: d.status })
+      .is("deleted_at", null)
       .eq("id", d.id);
     if (error) throw new Error(error.message);
     return { ok: true };
@@ -3858,6 +3817,7 @@ async function googleAction(c: Context, action: string, d: any) {
     const { data: meeting, error: readError } = await c.db
       .from("meetings")
       .select("id,scheduled_at,ends_at,duration_minutes,google_event_id,created_by,mentor_id")
+      .is("deleted_at", null)
       .eq("id", d.id)
       .maybeSingle();
     const adminRole = await c.db.rpc("has_role", { _user_id: c.userId, _role: "admin" });
@@ -3919,8 +3879,10 @@ async function googleAction(c: Context, action: string, d: any) {
     const { data: saved, error } = await c.db
       .from("meetings")
       .update(patch)
+      .is("deleted_at", null)
       .eq("id", d.id)
       .select("id")
+      .is("deleted_at", null)
       .maybeSingle();
     if (error || !saved)
       throw new Error(
@@ -3929,24 +3891,7 @@ async function googleAction(c: Context, action: string, d: any) {
     return { ok: true };
   }
   if (action === "cancelMeeting") {
-    const { data: meeting } = await c.db
-      .from("meetings")
-      .select("google_event_id, created_by")
-      .eq("id", d.id)
-      .maybeSingle();
-    if (!meeting) throw new Error("Encontro não encontrado");
-    let googleWarning = false;
-    if (meeting.google_event_id && meeting.created_by) {
-      const res = await googleFetch(
-        meeting.created_by,
-        `/calendar/v3/calendars/primary/events/${encodeURIComponent(meeting.google_event_id)}?sendUpdates=all`,
-        { method: "DELETE" },
-      );
-      googleWarning = !res.ok && ![404, 410].includes(res.status);
-    }
-    const { error } = await c.db.from("meetings").delete().eq("id", d.id);
-    if (error) throw new Error(error.message);
-    return { ok: true, googleWarning };
+    return trashResource(c, { type: "meeting", id: d.id, proof: d.proof });
   }
   if (action !== "createMeeting") throw new Error("Ação Google inválida.");
   if (
@@ -4051,6 +3996,7 @@ async function googleAction(c: Context, action: string, d: any) {
       created_by: c.userId,
     })
     .select("id")
+    .is("deleted_at", null)
     .single();
   if (error) {
     if (googleEventId)
@@ -4107,6 +4053,7 @@ function automationShape(row: any) {
 async function automationAction(c: Context, action: string, d: any) {
   await requireStaff(c);
   if (action === "listWhatsAppAutomations") {
+    // Inclui os itens na lixeira nesta contagem para não recriar automações excluídas.
     const { count, error: countError } = await c.admin
       .from("whatsapp_automations")
       .select("id", { count: "exact", head: true });
@@ -4134,7 +4081,7 @@ async function automationAction(c: Context, action: string, d: any) {
       );
     }
     const [{ data, error }, settings] = await Promise.all([
-      c.admin.from("whatsapp_automations").select("*").order("created_at"),
+      c.admin.from("whatsapp_automations").select("*").is("deleted_at", null).order("created_at"),
       whatsappSettings(c.admin),
     ]);
     if (error) throw new Error(error.message);
@@ -4164,7 +4111,11 @@ async function automationAction(c: Context, action: string, d: any) {
       updated_at: new Date().toISOString(),
     };
     if (d.id) {
-      const { error } = await c.admin.from("whatsapp_automations").update(row).eq("id", d.id);
+      const { error } = await c.admin
+        .from("whatsapp_automations")
+        .update(row)
+        .is("deleted_at", null)
+        .eq("id", d.id);
       if (error) throw new Error(error.message);
       await audit(c, "whatsapp_automation_updated", String(d.id));
       return { ok: true, id: d.id };
@@ -4173,6 +4124,7 @@ async function automationAction(c: Context, action: string, d: any) {
       .from("whatsapp_automations")
       .insert({ ...row, enabled: false, created_by: c.userId })
       .select("id")
+      .is("deleted_at", null)
       .single();
     if (error) throw new Error(error.message);
     await audit(c, "whatsapp_automation_created", data.id, { trigger: input.trigger });
@@ -4185,6 +4137,7 @@ async function automationAction(c: Context, action: string, d: any) {
     const { data: current } = await c.admin
       .from("whatsapp_automations")
       .select("audience")
+      .is("deleted_at", null)
       .eq("id", d.id)
       .maybeSingle();
     if (!current) return { ok: false, error: "Automação não encontrada." };
@@ -4197,6 +4150,7 @@ async function automationAction(c: Context, action: string, d: any) {
     const { error } = await c.admin
       .from("whatsapp_automations")
       .update({ enabled, enabled_at: enabled ? now : null, last_run_at: null, updated_at: now })
+      .is("deleted_at", null)
       .eq("id", d.id);
     if (error) throw new Error(error.message);
     await audit(
@@ -4207,10 +4161,7 @@ async function automationAction(c: Context, action: string, d: any) {
     return { ok: true };
   }
   if (action === "deleteWhatsAppAutomation") {
-    const { error } = await c.admin.from("whatsapp_automations").delete().eq("id", d.id);
-    if (error) throw new Error(error.message);
-    await audit(c, "whatsapp_automation_deleted", String(d.id));
-    return { ok: true };
+    return trashResource(c, { type: "automation", id: d.id, proof: d.proof });
   }
   if (!gatewayConfigured())
     return { ok: false, error: "Gateway de WhatsApp ainda não configurado no servidor." };
@@ -4441,6 +4392,12 @@ async function whatsappAction(c: Context, action: string, d: any) {
 }
 
 const groups = {
+  protected: new Set([
+    "authorizeProtectedOperation",
+    "listTrash",
+    "moveResourceToTrash",
+    "restoreTrashResource",
+  ]),
   admin: new Set([
     "getDirectory",
     "createMember",
@@ -4544,7 +4501,8 @@ Deno.serve(async (request: Request) => {
     const action = String(body?.action ?? "");
     const d = body?.data ?? {};
     let result: unknown;
-    if (groups.profile.has(action)) result = await getMentorDirectory(c);
+    if (groups.protected.has(action)) result = await protectedAction(c, action, d);
+    else if (groups.profile.has(action)) result = await getMentorDirectory(c);
     else if (groups.admin.has(action))
       result =
         action === "getDirectory"

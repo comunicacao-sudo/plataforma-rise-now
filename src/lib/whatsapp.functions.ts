@@ -120,9 +120,10 @@ export const toggleWhatsAppAutomation = createEdgeFunction<
   { id: string; enabled: boolean },
   ActionResult
 >("toggleWhatsAppAutomation");
-export const deleteWhatsAppAutomation = createEdgeFunction<{ id: string }, ActionResult>(
-  "deleteWhatsAppAutomation",
-);
+export const deleteWhatsAppAutomation = createEdgeFunction<
+  { id: string; proof: string },
+  ActionResult
+>("deleteWhatsAppAutomation");
 export const listWhatsAppGroups = createEdgeFunction<
   undefined,
   ActionResult & { groups?: Array<{ id: string; name: string }> }

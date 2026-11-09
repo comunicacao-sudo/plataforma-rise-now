@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { confirmProtectedOperation } from "@/lib/protected-dialog";
 import { Pencil, Plus, RefreshCw, Send, Trash2, Users, X } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 
@@ -238,12 +239,17 @@ export function WhatsAppAutomations({
                       "Teste enviado para o seu celular.",
                     )
                   }
-                  onDelete={() => {
-                    if (window.confirm(`Excluir a automação “${item.name}”?`))
+                  onDelete={async () => {
+                    const proof = await confirmProtectedOperation({
+                      scope: { type: "automation", id: item.id, operation: "delete" },
+                      title: "Excluir automação?",
+                      description: `“${item.name}” será desligada e enviada para a lixeira. O histórico de envios será preservado.`,
+                    });
+                    if (proof)
                       void run(
                         `delete:${item.id}`,
-                        () => deleteWhatsAppAutomation({ data: { id: item.id } }),
-                        "Automação excluída.",
+                        () => deleteWhatsAppAutomation({ data: { id: item.id, proof } }),
+                        "Automação enviada para a lixeira.",
                       );
                   }}
                 />

@@ -44,6 +44,7 @@ export async function runAutomations(admin: any, settings: any, now: Date) {
   const { data: automations, error } = await admin
     .from("whatsapp_automations")
     .select("*")
+    .is("deleted_at", null)
     .eq("enabled", true);
   if (error) {
     throw new Error(error.message);
@@ -57,6 +58,7 @@ export async function runAutomations(admin: any, settings: any, now: Date) {
       await admin
         .from("whatsapp_automations")
         .update({ last_run_at: now.toISOString() })
+        .is("deleted_at", null)
         .eq("id", automation.id);
     } catch (runError) {
       console.error(`[automações] ${automation.name} falhou`, runError);
@@ -232,6 +234,7 @@ class Context {
     const { data: meetings } = await this.admin
       .from("meetings")
       .select("title, scheduled_at, mentor_name")
+      .is("deleted_at", null)
       .eq("kind", "grupo")
       .eq("audience", "all")
       .gte("scheduled_at", range.start.toISOString())
@@ -273,6 +276,7 @@ class Context {
       .select(
         "id, title, scheduled_at, join_url, mentor_name, mentor_id, created_by, audience, cohort_id, enrollment_id",
       )
+      .is("deleted_at", null)
       .eq("kind", "grupo")
       .gt("scheduled_at", due.from)
       .lte("scheduled_at", due.to);
@@ -320,12 +324,14 @@ class Context {
       this.admin
         .from("booking_offerings")
         .select("title")
+        .is("deleted_at", null)
         .eq("id", reservation.offering_id)
         .maybeSingle(),
       reservation.meeting_id
         ? this.admin
             .from("meetings")
             .select("join_url")
+            .is("deleted_at", null)
             .eq("id", reservation.meeting_id)
             .maybeSingle()
         : Promise.resolve({ data: null }),
@@ -391,9 +397,8 @@ class Context {
   private async bookingSlotsAvailable(a: any) {
     const { data: offerings } = await this.admin
       .from("booking_offerings")
-      .select(
-        "*, cohorts:booking_offering_cohorts(cohort_id), rules:booking_availability_rules(*)",
-      );
+      .select("*, cohorts:booking_offering_cohorts(cohort_id), rules:booking_availability_rules(*)")
+      .is("deleted_at", null);
     const { data: enrollments } = await this.admin
       .from("enrollments")
       .select("id, mentee_id, cohort_id")
@@ -499,6 +504,7 @@ class Context {
         this.admin
           .from("journey_stage_contents")
           .select("title, pillar:journey_pillars(mentor_id)")
+          .is("deleted_at", null)
           .eq("id", response.content_id)
           .maybeSingle(),
         this.enrollment(response.enrollment_id),
@@ -555,6 +561,7 @@ class Context {
     const { data: goals } = await this.admin
       .from("rise90_goals")
       .select("id, enrollment_id, title, created_at")
+      .is("deleted_at", null)
       .gt("created_at", this.since(a));
     let queued = 0;
     for (const goal of goals ?? []) {

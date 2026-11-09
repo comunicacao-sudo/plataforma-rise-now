@@ -3,6 +3,7 @@ const managedDialogSelector = [
   '.lesson-screen[role="dialog"][aria-modal="true"]',
   '.journey-editor-modal[role="dialog"][aria-modal="true"]',
   '.assessment-release-preview[role="dialog"][aria-modal="true"]',
+  '.protected-confirmation[role="alertdialog"][aria-modal="true"]',
 ].join(",");
 
 const focusableSelector = [

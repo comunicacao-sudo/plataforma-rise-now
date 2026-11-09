@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { confirmProtectedOperation } from "@/lib/protected-dialog";
 import {
   ArrowDown,
   ArrowUp,
@@ -559,11 +560,24 @@ function JourneyPillarPanel({
     setBusy("save");
     setMessage("");
     try {
+      const removed = data.steps.some(
+        (original) => !steps.some((item) => item.stableKey === original.stableKey),
+      );
+      const proof = removed
+        ? await confirmProtectedOperation({
+            scope: { type: "draft", id: selectedPillarId, operation: "delete" },
+            title: "Salvar remoção de etapas?",
+            description:
+              "As etapas removidas ficarão na lixeira. Frases, conteúdos e histórico publicado serão preservados.",
+          })
+        : undefined;
+      if (removed && !proof) return;
       await save({
         data: {
           pillarId: selectedPillarId,
           expectedRevision: baseRevision ?? data.revision,
           steps,
+          proof,
         },
       });
       setLocalSteps(null);
@@ -594,6 +608,18 @@ function JourneyPillarPanel({
     setMessage("");
     let draftWasSaved = false;
     try {
+      const removed = data.steps.some(
+        (original) => !steps.some((item) => item.stableKey === original.stableKey),
+      );
+      const proof = removed
+        ? await confirmProtectedOperation({
+            scope: { type: "draft", id: selectedPillarId, operation: "delete" },
+            title: "Confirmar remoção de etapas?",
+            description:
+              "As etapas removidas ficarão na lixeira antes de publicar a nova versão da jornada.",
+          })
+        : undefined;
+      if (removed && !proof) return;
       // Always persist the exact editor state immediately before publishing.
       // This keeps the newly published version and the fresh draft clone identical,
       // so every unchanged step can immediately display the "Publicado" tag.
@@ -602,6 +628,7 @@ function JourneyPillarPanel({
           pillarId: selectedPillarId,
           expectedRevision: baseRevision ?? data.revision,
           steps,
+          proof,
         },
       });
       draftWasSaved = true;
