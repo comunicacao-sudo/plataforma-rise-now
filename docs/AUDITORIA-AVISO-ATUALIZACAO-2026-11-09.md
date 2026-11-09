@@ -8,8 +8,8 @@ O aviso é discreto, não toma o foco, cabe no celular e no computador e respeit
 
 ## Detecção e carregamento
 
-- Cada build produz um identificador SHA-256 dos arquivos da aplicação e publica somente esse identificador em /app-version.json. O mesmo valor é incorporado ao JavaScript.
-- O identificador é estável entre Windows e Linux: caminhos são relativos e as quebras de linha de arquivos de texto são normalizadas. Arquivos de ambiente e rotas geradas não participam.
+- Cada build publica em /app-version.json o caminho da sua entrada JavaScript, que já contém o hash gerado pelo Vite e referencia os demais módulos e estilos da aplicação. O navegador compara essa entrada com a que abriu a janela atual.
+- A detecção não depende de Git, variáveis do provedor, arquivos auxiliares ou diferenças entre Windows e Linux. A geração falha se não houver uma única entrada válida. Somente caminhos locais esperados são aceitos; o JSON não é usado para redirecionar a pessoa.
 - A consulta começa depois da abertura da tela, sem cookies nem credenciais. Repete a cada cinco minutos enquanto a página está visível e online; voltar ao aplicativo ou recuperar a conexão também permite conferir, com intervalo mínimo de 30 segundos entre consultas bem-sucedidas.
 - A consulta usa cache: no-store e uma URL com parâmetro novo a cada verificação. O host publicado não repassa o Cache-Control configurado em _headers; por isso a detecção não depende desse cabeçalho para evitar uma resposta antiga do cache intermediário. O JSON não é guardado pelo service worker e não contém dados de participantes.
 - Respostas inválidas, erro de publicação ou falha de conexão não geram aviso falso e permitem nova tentativa. A consulta tem cancelamento e limite de 15 segundos.
@@ -29,12 +29,12 @@ A recarga só ocorre por clique explícito, com internet e após a verificação
 
 ## Validação
 
-- 157 testes automatizados aprovados, incluindo identidade reproduzível do build, mudança de versão, ausência de aviso na versão atual, rollback, limitação de consultas, falta de rede, resposta inválida, cancelamento e bloqueio de atualização.
+- 158 testes automatizados aprovados, incluindo a entrada real do build, recusa de entrada inválida ou ambígua, módulo da própria origem, mudança de versão, ausência de aviso na versão atual, rollback, limitação de consultas, falta de rede, resposta inválida, cancelamento e bloqueio de atualização.
 - TypeScript e ESLint sem erros. Permanecem os 12 avisos existentes de Fast Refresh.
 - Cinco cenários de interface com serviços externos bloqueados: desktop 1366 × 768 e celular 390 × 844 nos dois temas, mais recuperação após falha de publicação.
 - Conferidos contraste, nomes dos botões, atributos ARIA, limites da tela, adiamento, nova versão após adiamento, ausência de cookies na consulta, ausência de recarga automática, proteção de formulário e vídeo em reprodução, aviso offline e uma única recarga após o clique autorizado.
 - Nenhum participante, mensagem, convite ou análise por IA foi usado no teste.
-- Build: JS/CSS total 347.896 bytes gzip; entrada pública 107.075; entrada autenticada 54.058, dentro dos limites existentes.
+- Build: JS/CSS total 347.795 bytes gzip; entrada pública 107.071; entrada autenticada 53.971, dentro dos limites existentes.
 
 ## Publicação e primeiro uso
 

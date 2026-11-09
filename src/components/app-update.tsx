@@ -4,6 +4,7 @@ import {
   appVersionUrl,
   canReloadApp,
   createVersionChecker,
+  mountedAppVersion,
   UPDATE_CHECK_INTERVAL,
   UPDATE_REMINDER_INTERVAL,
 } from "@/lib/app-update";
@@ -29,8 +30,10 @@ export default function AppUpdate() {
   const updating = useRef(false);
 
   useEffect(() => {
+    const currentVersion = mountedAppVersion(document, window.location.href);
+    if (!currentVersion) return;
     const monitor = createVersionChecker({
-      currentVersion: import.meta.env.RISE_APP_VERSION,
+      currentVersion,
       canCheck: () =>
         document.visibilityState === "visible" && navigator.onLine && window.self === window.top,
       fetchVersion: async (signal) => {

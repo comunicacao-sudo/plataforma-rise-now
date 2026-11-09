@@ -10,9 +10,18 @@ export function appVersionUrl(now = Date.now()) {
 /** Nenhum dado da sessão faz parte do arquivo público de versão. */
 export function readAppVersion(value: unknown): string | null {
   if (!value || typeof value !== "object" || !("version" in value)) return null;
-  return typeof value.version === "string" && /^[a-f0-9]{64}$/.test(value.version)
+  return typeof value.version === "string" && /^\/assets\/index-[\w-]+\.js$/.test(value.version)
     ? value.version
     : null;
+}
+
+export function mountedAppVersion(document: Document, baseUrl: string) {
+  for (const script of document.querySelectorAll<HTMLScriptElement>('script[type="module"][src]')) {
+    const url = new URL(script.src, baseUrl);
+    if (url.origin === new URL(baseUrl).origin && readAppVersion({ version: url.pathname }))
+      return url.pathname;
+  }
+  return null;
 }
 
 export function createVersionChecker({

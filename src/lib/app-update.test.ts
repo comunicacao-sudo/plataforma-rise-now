@@ -1,18 +1,29 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import test from "node:test";
-import { appSourceVersion } from "../../scripts/app-version";
+import { appVersionFromEntries } from "../../scripts/app-version";
 import {
   appVersionUrl,
   createUpdateGuards,
   createVersionChecker,
+  mountedAppVersion,
   readAppVersion,
 } from "./app-update";
 
-const versionA = "a".repeat(64);
-const versionB = "b".repeat(64);
+const versionA = "/assets/index-versaoA.js";
+const versionB = "/assets/index-versaoB.js";
+
+test("versão montada considera somente o módulo da própria origem e preserva o caminho", () => {
+  const document = {
+    querySelectorAll: () => [
+      { src: "https://outro.invalid/assets/index-externo.js" },
+      { src: "https://rise.invalid/assets/qualquer.js" },
+      { src: "https://rise.invalid" + versionA },
+    ],
+  } as unknown as Document;
+  assert.equal(mountedAppVersion(document, "https://rise.invalid/?view=inicio"), versionA);
+  const missing = { querySelectorAll: () => [] } as unknown as Document;
+  assert.equal(mountedAppVersion(missing, "https://rise.invalid"), null);
+});
 
 test("versão pública aceita somente o identificador do build, sem dados ou URLs arbitrárias", () => {
   assert.match(appVersionUrl(123), /^\/app-version\.json\?check=[a-z0-9]+$/);
@@ -30,30 +41,17 @@ test("versão pública aceita somente o identificador do build, sem dados ou URL
     assert.equal(readAppVersion(value), null);
 });
 
-test("identificador é reproduzível entre Windows e deploy e muda com código ou imagens", () => {
-  const root = mkdtempSync(join(tmpdir(), "rise-version-"));
-  try {
-    mkdirSync(join(root, "src"));
-    mkdirSync(join(root, "public"));
-    writeFileSync(join(root, "src", "app.ts"), "const title = 'RISE';\r\n");
-    writeFileSync(join(root, "src", "README.md"), "RISE\r\n");
-    writeFileSync(join(root, "public", "robots.txt"), "User-agent: *\r\n");
-    writeFileSync(join(root, "public", "logo.png"), Buffer.from([0, 255, 1]));
-    const first = appSourceVersion(root);
-    writeFileSync(join(root, "src", "app.ts"), "const title = 'RISE';\n");
-    writeFileSync(join(root, "src", "README.md"), "RISE\n");
-    writeFileSync(join(root, "public", "robots.txt"), "User-agent: *\n");
-    writeFileSync(join(root, ".env"), "SEGREDO=nao-incluir");
-    writeFileSync(join(root, "src", "routeTree.gen.ts"), "gerado durante o build");
-    assert.equal(appSourceVersion(root), first);
-    writeFileSync(join(root, "src", "app.ts"), "const title = 'RISE NOW';\n");
-    assert.notEqual(appSourceVersion(root), first);
-    const codeVersion = appSourceVersion(root);
-    writeFileSync(join(root, "public", "logo.png"), Buffer.from([0, 255, 2]));
-    assert.notEqual(appSourceVersion(root), codeVersion);
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
+test("manifesto de versão usa a entrada real do build e recusa entrada ausente ou ambígua", () => {
+  assert.equal(
+    appVersionFromEntries(["assets/index-versaoA.js", "assets/app-update-outro.js"]),
+    versionA,
+  );
+  assert.notEqual(appVersionFromEntries(["assets/index-versaoB.js"]), versionA);
+  assert.throws(() => appVersionFromEntries([]), /entrada da RISE/);
+  assert.throws(
+    () => appVersionFromEntries(["assets/index-primeiro.js", "assets/index-segundo.js"]),
+    /entrada da RISE/,
+  );
 });
 
 test("versão atual não abre aviso; versão nova abre, e rollback retira o aviso", async () => {
