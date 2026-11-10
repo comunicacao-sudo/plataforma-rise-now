@@ -311,7 +311,7 @@ function OfferingModal({
               value={form.journeyStepKey}
               onChange={(e) => set("journeyStepKey", e.target.value)}
             >
-              <option value="">Sem vínculo com uma etapa</option>
+              <option value="">Automática: próxima etapa de 1:1 de quem agendar</option>
               {(stages.data?.pillars ?? []).map((p) => (
                 <optgroup label={p.name} key={p.id}>
                   {p.steps
@@ -326,7 +326,9 @@ function OfferingModal({
             </select>
           </Field>
           <p className="ops-muted">
-            Quando a reserva for feita, a data aparece na jornada de quem reservou.
+            Quando a reserva for feita, a data aparece na jornada de quem reservou. Depois do
+            encontro, a etapa é concluída sozinha (se a pessoa faltar, desfaça em Gestão da
+            jornada).
           </p>
           <Field label="Nome do encontro">
             <input value={form.title} onChange={(event) => set("title", event.target.value)} />
