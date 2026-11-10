@@ -1205,6 +1205,9 @@ async function loadLibrary(
     if (typeof s.cover_path_dark === "string" && s.cover_path_dark)
       assetPaths.push(s.cover_path_dark);
     const locked = isJourneyContentLocked(s, enrollment.current_month, now);
+    for (const video of stageRows.filter((r: any) => r.content_type === "video"))
+      if (typeof video.cover_path === "string" && video.cover_path)
+        assetPaths.push(video.cover_path);
     if (!locked)
       for (const video of stageRows.filter((r: any) => r.content_type === "video")) {
         if (video.media_path && !video.media_path.startsWith("r2:"))
@@ -1221,7 +1224,7 @@ async function loadLibrary(
   const signedUrls = includeAssets
     ? await signedBatch(assetPaths)
     : new Map<string, string | null>();
-  const [meetingResult, videoProgressResult] = await Promise.all([
+  const [meetingResult, videoProgressResult, questionnaireResult] = await Promise.all([
     c.db
       .from("meetings")
       .select("journey_step_key,scheduled_at,ends_at,duration_minutes")
@@ -1236,9 +1239,18 @@ async function loadLibrary(
       .select("content_id,source_revision,current_seconds,duration_seconds,completed,updated_at")
       .eq("enrollment_id", enrollment.id)
       .eq("user_id", userId),
+    c.admin
+      .from("journey_stage_questionnaire_responses")
+      .select("content_id,submitted_at")
+      .eq("enrollment_id", enrollment.id),
   ]);
-  if (meetingResult.error || videoProgressResult.error)
+  if (meetingResult.error || videoProgressResult.error || questionnaireResult.error)
     throw new Error("Não foi possível atualizar a jornada.");
+  const submittedQuestionnaires = new Set(
+    (questionnaireResult.data ?? [])
+      .filter((row: any) => row.submitted_at)
+      .map((row: any) => row.content_id),
+  );
   const dates = new Map<string, string>();
   for (const meeting of meetingResult.data ?? []) {
     const key = meeting.journey_step_key;
@@ -1252,12 +1264,28 @@ async function loadLibrary(
       const locked = isJourneyContentLocked(s, enrollment.current_month, now);
       const stageRows = stageByStep.get(s.stable_key) ?? [];
       const videos = sortByModule(stageRows.filter((r: any) => r.content_type === "video"));
-      const stageVideo =
-        (selection?.stepKey === s.stable_key
-          ? videos.find((v: any) => v.id === selection.contentId)
-          : null) ??
-        videos[0] ??
-        null;
+      // Etapa com aulas: aulas e questionários formam uma sequência única, na ordem da
+      // equipe. O questionário aparece sozinho, no lugar do player, na vez dele.
+      const lessonRows = videos.length
+        ? sortByModule(
+            stageRows.filter(
+              (r: any) => r.content_type === "video" || r.content_type === "questionnaire",
+            ),
+          )
+        : [];
+      const selectionHere = selection?.stepKey === s.stable_key;
+      const selectedLesson = selectionHere
+        ? ((selection?.contentId
+            ? lessonRows.find((r: any) => r.id === selection.contentId)
+            : lessonRows[0]) ?? null)
+        : null;
+      const stageVideo = selectedLesson
+        ? selectedLesson.content_type === "video"
+          ? selectedLesson
+          : null
+        : ((selectionHere ? videos.find((v: any) => v.id === selection?.contentId) : null) ??
+          videos[0] ??
+          null);
       const stageQuestionnaire = chooseStage(stageRows, "questionnaire");
       const stageMaterials = stageRows
         .filter((row: any) => row.content_type === "material")
@@ -1309,6 +1337,13 @@ async function loadLibrary(
         (videos.length !== 1 || (stageVideo?.source_revision ?? 1) > 1
           ? null
           : byStep.get(s.stable_key));
+      const videoDone = (video: any) =>
+        (videoProgressResult.data ?? []).find(
+          (v: any) => v.content_id === video.id && v.source_revision === video.source_revision,
+        )?.completed ??
+        (videos.length === 1 && video.source_revision === 1
+          ? !!byStep.get(s.stable_key)?.completed
+          : false);
       const questionnaireUrl =
         !locked && stageQuestionnaire ? (stageQuestionnaire.external_url ?? null) : null;
       const hasStageContent = !!stageVideo || !!stageQuestionnaire || stageMaterials.length > 0;
@@ -1321,22 +1356,52 @@ async function loadLibrary(
         stepKey: s.stable_key,
         videoTitle: stageVideo?.title ?? null,
         reflectionPrompt: locked ? null : (stageVideo?.reflection_prompt ?? null),
-        videos: videos.map((video: any) => {
-          const watched = (videoProgressResult.data ?? []).find(
-            (v: any) => v.content_id === video.id && v.source_revision === video.source_revision,
-          );
-          return {
-            id: video.id,
-            title: video.title,
-            module: cleanModuleTitle(video.module_title),
-            durationMinutes: video.duration_minutes,
-            completed:
-              watched?.completed ??
-              (videos.length === 1 && video.source_revision === 1
-                ? !!byStep.get(s.stable_key)?.completed
-                : false),
-          };
-        }),
+        videos: videos.map((video: any) => ({
+          id: video.id,
+          title: video.title,
+          module: cleanModuleTitle(video.module_title),
+          durationMinutes: video.duration_minutes,
+          completed: videoDone(video),
+          coverUrl: video.cover_path ? (signedUrls.get(video.cover_path) ?? null) : null,
+        })),
+        lessons: lessonRows.length
+          ? lessonRows.map((row: any) =>
+              row.content_type === "video"
+                ? {
+                    id: row.id,
+                    kind: "video",
+                    title: row.title,
+                    module: cleanModuleTitle(row.module_title),
+                    durationMinutes: row.duration_minutes,
+                    completed: videoDone(row),
+                    coverUrl: row.cover_path ? (signedUrls.get(row.cover_path) ?? null) : null,
+                  }
+                : {
+                    id: row.id,
+                    kind: "questionnaire",
+                    title: row.title,
+                    module: cleanModuleTitle(row.module_title),
+                    durationMinutes: null,
+                    completed: submittedQuestionnaires.has(row.id),
+                    coverUrl: null,
+                  },
+            )
+          : undefined,
+        selectedContentId: selectedLesson?.id ?? stageVideo?.id ?? null,
+        currentQuestionnaire:
+          !locked && selectedLesson?.content_type === "questionnaire"
+            ? {
+                id: selectedLesson.id,
+                title: selectedLesson.title,
+                description: selectedLesson.description ?? "",
+                questions: Array.isArray(selectedLesson.questionnaire?.questions)
+                  ? selectedLesson.questionnaire.questions
+                  : [],
+              }
+            : null,
+        videoCoverUrl: stageVideo?.cover_path
+          ? (signedUrls.get(stageVideo.cover_path) ?? null)
+          : null,
         videoCompleted: !!state?.completed,
         videoContentId: stageVideo?.id ?? null,
         videoRevision: stageVideo?.source_revision ?? null,
@@ -1440,6 +1505,7 @@ function journeyResume(items: any[], progressRows: any[]) {
       index: index + 1,
       total: it.videos.length,
       durationMinutes: video.durationMinutes ?? null,
+      coverUrl: video.coverUrl ?? it.coverUrlDark ?? it.coverUrl ?? null,
       currentSeconds: row?.current_seconds ?? 0,
       durationSeconds: row?.duration_seconds ?? null,
     };
@@ -1573,6 +1639,7 @@ function stageContentShape(row: any) {
     topics: Array.isArray(row.topics) ? row.topics : [],
     lessonId: row.lesson_id ?? null,
     reflectionPrompt: row.reflection_prompt ?? null,
+    coverPath: row.cover_path ?? null,
   };
 }
 
@@ -1976,11 +2043,13 @@ async function contentAction(c: Context, action: string, d: any) {
       ? await c.admin.rpc("stage_video_engagement", { p_content_ids: ids })
       : { data: [], error: null };
     if (engagement.error) throw new Error("Não foi possível carregar o acompanhamento dos vídeos.");
+    const covers = await signedBatch((data ?? []).map((row: any) => row.cover_path));
     return {
       items: (data ?? []).map((row: any) => {
         const viewers = (engagement.data ?? []).filter((v: any) => v.content_id === row.id);
         return {
           ...stageContentShape(row),
+          coverUrl: row.cover_path ? (covers.get(row.cover_path) ?? null) : null,
           engagement:
             row.content_type === "video"
               ? {
@@ -2128,6 +2197,16 @@ async function contentAction(c: Context, action: string, d: any) {
         ? { topics: contentType === "video" ? cleanTopics(d.topics) : [] }
         : {}),
       ...(d && typeof d === "object" && "lessonId" in d ? { lesson_id: lessonId } : {}),
+      ...(d && typeof d === "object" && "coverPath" in d
+        ? {
+            cover_path:
+              contentType === "video" &&
+              typeof d.coverPath === "string" &&
+              /^covers\/[0-9a-f-]+\/[0-9a-f-]+\.[a-z0-9]+$/i.test(d.coverPath)
+                ? d.coverPath
+                : null,
+          }
+        : {}),
       ...(d && typeof d === "object" && "reflectionPrompt" in d
         ? {
             reflection_prompt:

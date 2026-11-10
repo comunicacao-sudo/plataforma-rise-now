@@ -35,6 +35,13 @@ function stepKind(item: JourneyTimelineItem): StepKind {
   return "video";
 }
 
+const PILLAR_BY_LETTER: Record<string, string> = {
+  R: "Reflexão",
+  I: "Identidade",
+  S: "Segurança",
+  E: "Evolução",
+};
+
 const KIND_LABEL: Record<StepKind, string> = {
   video: "Aulas gravadas",
   live: "Ao vivo com a turma",
@@ -92,6 +99,17 @@ export function JourneyHub({
   const currentPhase =
     trail.phases.find((phase) => phase.month === trail.currentMonth) ?? trail.phases[0];
   const [selectedMonth, setSelectedMonth] = useState(currentPhase?.month ?? 1);
+  // O cadastro antigo dos meses guarda só a letra do pilar (R, I, S, E): usa o nome dos
+  // pilares dos conteúdos daquele mês.
+  const pillarOf = (month: number, fallback: string) => {
+    const names = [
+      ...new Set(
+        journeyItems.filter((item) => item.monthNumber === month).map((item) => item.pillarName),
+      ),
+    ].filter(Boolean);
+    if (names.length) return names.join(" e ");
+    return PILLAR_BY_LETTER[fallback.trim().toUpperCase()] ?? fallback;
+  };
   const selected = months.find((month) => month.phase.month === selectedMonth) ?? months[0];
 
   const open = (item: JourneyTimelineItem, contentId?: string | null) => {
@@ -230,7 +248,7 @@ export function JourneyHub({
         <section className="journey-hub__intro" aria-label="Seu avanço na jornada">
           <span className="eyebrow eyebrow--gold">
             Mês {trail.currentMonth} de {trail.phases.length}
-            {currentPhase ? ` · Pilar ${currentPhase.pillar}` : ""}
+            {currentPhase ? ` · ${pillarOf(currentPhase.month, currentPhase.pillar)}` : ""}
           </span>
           <h2>
             {completed === allItems.length && allItems.length
@@ -262,6 +280,9 @@ export function JourneyHub({
               }
             >
               <span className="journey-resume__media" aria-hidden="true">
+                {resume.coverUrl ? (
+                  <img className="journey-resume__cover" src={resume.coverUrl} alt="" />
+                ) : null}
                 <span className="journey-resume__play">
                   <Play size={28} />
                 </span>
@@ -373,7 +394,7 @@ export function JourneyHub({
                   onClick={() => setSelectedMonth(phase.month)}
                 >
                   <small>Mês {phase.month}</small>
-                  <strong>{phase.pillar}</strong>
+                  <strong>{pillarOf(phase.month, phase.pillar)}</strong>
                   <span className="journey-map__track">
                     <span style={{ width: `${state === "upcoming" ? 0 : Math.max(pct, 4)}%` }} />
                   </span>
@@ -394,7 +415,7 @@ export function JourneyHub({
           <section className="journey-month" aria-labelledby="journey-month-title">
             <div className="journey-month__intro">
               <span className="eyebrow eyebrow--gold">
-                Mês {selected.phase.month} · {selected.phase.pillar}
+                Mês {selected.phase.month} · {pillarOf(selected.phase.month, selected.phase.pillar)}
               </span>
               <h2 id="journey-month-title">{selected.phase.title}</h2>
               {selected.phase.question ? <p>{selected.phase.question}</p> : null}

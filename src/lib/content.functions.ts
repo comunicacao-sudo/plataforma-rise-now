@@ -27,7 +27,29 @@ export type JourneyContentItem = {
     module?: string | null;
     durationMinutes: number | null;
     completed: boolean;
+    coverUrl?: string | null;
   }>;
+  /** Sequência da etapa (aulas e questionários, na ordem da equipe). */
+  lessons?: Array<{
+    id: string;
+    kind: "video" | "questionnaire";
+    title: string;
+    module?: string | null;
+    durationMinutes: number | null;
+    completed: boolean;
+    coverUrl?: string | null;
+  }>;
+  /** Item da sequência aberto agora (aula ou questionário). */
+  selectedContentId?: string | null;
+  /** Questionário aberto no lugar do player. */
+  currentQuestionnaire?: {
+    id: string;
+    title: string;
+    description: string;
+    questions: StageQuestion[];
+  } | null;
+  /** Capa da aula aberta. */
+  videoCoverUrl?: string | null;
   videoCompleted?: boolean;
   videoContentId?: string | null;
   videoRevision?: number | null;
@@ -83,6 +105,7 @@ export type JourneyResume = {
   index: number;
   total: number;
   durationMinutes: number | null;
+  coverUrl?: string | null;
   currentSeconds: number;
   durationSeconds: number | null;
 };
@@ -178,6 +201,9 @@ export type StageContentItem = {
   lessonId?: string | null;
   /** Pergunta "Para levar para a semana" da aula gravada. */
   reflectionPrompt?: string | null;
+  /** Capa própria da aula gravada (caminho no storage e link assinado). */
+  coverPath?: string | null;
+  coverUrl?: string | null;
 };
 
 export type AgendaMaterial = {

@@ -63,6 +63,7 @@ import {
 } from "@/lib/content.functions";
 import { getJourneyEditor, type JourneyDraftStep } from "@/lib/journey.functions";
 import { invalidateJourneyData, liveJourneyQueryOptions } from "@/lib/journey-sync";
+import { prepareJourneyCover } from "@/lib/prepare-journey-cover";
 import { uploadLessonToR2, getR2PlaybackUrl } from "@/lib/r2-worker";
 
 const typeLabel: Record<StageContentItem["contentType"], string> = {
@@ -149,6 +150,38 @@ function ContentForm({
   const [topicsText, setTopicsText] = useState((initial?.topics ?? []).join("\n"));
   const [lessonId, setLessonId] = useState(initial?.lessonId ?? "");
   const [reflectionPrompt, setReflectionPrompt] = useState(initial?.reflectionPrompt ?? "");
+  const [coverPath, setCoverPath] = useState<string | null>(initial?.coverPath ?? null);
+  const [coverPreview, setCoverPreview] = useState<string | null>(initial?.coverUrl ?? null);
+  const [coverUploading, setCoverUploading] = useState(false);
+
+  async function uploadCover(file: File) {
+    setCoverUploading(true);
+    setMessage("");
+    try {
+      const prepared = await prepareJourneyCover(file);
+      const signed = await createUpload({
+        data: {
+          kind: "cover",
+          fileName: prepared.name,
+          contentType: prepared.type || "application/octet-stream",
+          size: prepared.size,
+        },
+      });
+      const { error } = await supabase.storage
+        .from("journey-content")
+        .uploadToSignedUrl(signed.path, signed.token, prepared, {
+          contentType: prepared.type,
+          cacheControl: "31536000",
+        });
+      if (error) throw error;
+      setCoverPath(signed.path);
+      setCoverPreview(URL.createObjectURL(prepared));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Não foi possível enviar a capa.");
+    } finally {
+      setCoverUploading(false);
+    }
+  }
   const [duration, setDuration] = useState(
     initial?.durationMinutes ? String(initial.durationMinutes) : "",
   );
@@ -292,6 +325,7 @@ function ContentForm({
                   .map((topic) => topic.trim())
                   .filter(Boolean),
                 reflectionPrompt: reflectionPrompt.trim() || null,
+                coverPath,
               }
             : {}),
           ...(contentType === "material" ? { lessonId: lessonId || null } : {}),
@@ -432,6 +466,56 @@ function ContentForm({
                 Aparece abaixo da aula. A resposta vai para o caderno da pessoa.
               </small>
             </label>
+          ) : null}
+
+          {contentType === "video" ? (
+            <div className="ops-field lesson-cover-field">
+              <span>Capa da aula (opcional)</span>
+              <div className="lesson-cover-field__row">
+                {coverPreview ? (
+                  <img src={coverPreview} alt="Capa atual da aula" />
+                ) : (
+                  <span className="lesson-cover-field__empty">Sem capa: usa a da etapa</span>
+                )}
+                <div className="lesson-cover-field__actions">
+                  <label className="journey-upload">
+                    <Upload size={18} />
+                    <span>
+                      {coverUploading
+                        ? "Enviando capa…"
+                        : coverPreview
+                          ? "Trocar capa"
+                          : "Enviar capa"}
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      disabled={coverUploading}
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        if (file) void uploadCover(file);
+                      }}
+                    />
+                  </label>
+                  {coverPreview ? (
+                    <button
+                      className="button button--glass"
+                      type="button"
+                      onClick={() => {
+                        setCoverPath(null);
+                        setCoverPreview(null);
+                      }}
+                    >
+                      Remover capa
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+              <small className="ops-muted">
+                Aparece em “Continue de onde parou” e no cartão “A seguir”. Formato 16:9, PNG, JPG
+                ou WebP.
+              </small>
+            </div>
           ) : null}
 
           {contentType === "material" ? (
@@ -1051,8 +1135,8 @@ function StageContentManager({
               aria-label={`Selecionar ${item.title}`}
             />
             <span className={`content-admin-thumb is-${item.contentType}`}>
-              {coverUrl && item.contentType === "video" ? (
-                <img src={coverUrl} alt="" />
+              {(item.coverUrl ?? coverUrl) && item.contentType === "video" ? (
+                <img src={item.coverUrl ?? coverUrl ?? undefined} alt="" />
               ) : (
                 <Icon size={22} />
               )}

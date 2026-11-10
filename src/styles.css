@@ -12940,3 +12940,100 @@ button.journey-resume:hover {
     cursor: pointer;
   }
 }
+
+/* ===== Capas das aulas, questionários na sequência e lado vazio ===== */
+.journey-hub__side:empty {
+  display: none;
+}
+.journey-hub__next:has(> .journey-hub__side:empty) {
+  grid-template-columns: minmax(0, 1fr);
+}
+.journey-resume__cover {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.journey-resume__media:has(.journey-resume__cover)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.05), rgba(0, 0, 0, 0.35));
+}
+.journey-resume__play,
+.journey-resume__track,
+.journey-resume__media em {
+  z-index: 1;
+}
+.journey-resume__play {
+  position: relative;
+}
+.lesson-up-next__cover {
+  flex: 0 0 auto;
+  width: 104px;
+  aspect-ratio: 16 / 9;
+  border-radius: 10px;
+  object-fit: cover;
+}
+.lesson-up-next__icon {
+  display: flex;
+  flex: 0 0 auto;
+  width: 48px;
+  height: 48px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  color: var(--platform-accent);
+  background: color-mix(in srgb, var(--platform-accent) 14%, transparent);
+}
+.lesson-up-next > span {
+  flex: 1;
+}
+.lesson-stage-progress li.is-quiz button {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--platform-line-strong);
+}
+.lesson-stage-progress li.is-quiz.is-done button {
+  background: var(--status-success);
+  box-shadow: none;
+}
+.lesson-stage-progress li.is-quiz.is-current button {
+  background: var(--platform-accent);
+  box-shadow: none;
+}
+.lesson-questionnaire-step .lesson-summary {
+  margin-top: 0;
+}
+.lesson-questionnaire-step .ops-form > .button--glass {
+  margin-left: 0.6rem;
+}
+.lesson-cover-field__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+}
+.lesson-cover-field__row img,
+.lesson-cover-field__empty {
+  width: 176px;
+  aspect-ratio: 16 / 9;
+  border-radius: 12px;
+  object-fit: cover;
+}
+.lesson-cover-field__empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem;
+  border: 1px dashed var(--platform-line-strong);
+  color: var(--platform-muted);
+  font-size: 0.75rem;
+  text-align: center;
+}
+.lesson-cover-field__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+}
