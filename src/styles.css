@@ -2977,7 +2977,8 @@ hr,
 /* ================= Mapeamento Comportamental RISE ================= */
 .assessment-page {
   min-height: calc(100vh - var(--header-height, 76px));
-  padding: 1.5rem 0 5rem;
+  /* A barra do topo (78px) fica por cima da página: o conteúdo começa abaixo dela. */
+  padding: 110px 0 5rem;
   color: var(--platform-text);
   background-color: transparent;
   background-image: none;
@@ -4241,7 +4242,12 @@ hr,
 @media (max-width: 620px) {
   .assessment-page {
     background-attachment: scroll;
-    padding-top: 0.7rem;
+    padding-top: 88px;
+  }
+  /* "main." aumenta a prioridade: as regras base vêm depois no arquivo. */
+  main.inner-page.questionnaire-page,
+  main.inner-page.journey-content-state {
+    padding-top: 88px;
   }
   .assessment-intro {
     width: 100%;
@@ -8087,6 +8093,10 @@ hr,
   text-align: center;
   color: var(--cream);
 }
+/* Como página inteira, começa abaixo da barra do topo (que fica por cima). */
+.inner-page.journey-content-state {
+  padding-top: 110px;
+}
 .journey-content-state h1,
 .journey-content-state h2 {
   margin: 0;
@@ -8107,7 +8117,7 @@ hr,
 }
 .questionnaire-page {
   min-height: calc(100vh - var(--header-height));
-  padding: 2rem 0 4rem;
+  padding: 110px 0 4rem;
 }
 .questionnaire-page header {
   max-width: 54rem;
