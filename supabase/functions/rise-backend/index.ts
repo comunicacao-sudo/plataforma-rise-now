@@ -1285,9 +1285,15 @@ async function loadLibrary(
           (typeof effectiveMediaPath === "string" && effectiveMediaPath && !r2Media
             ? (signedUrls.get(effectiveMediaPath) ?? null)
             : null));
+      // Material ligado a outra aula fica só nela; sem aula (ou aula que saiu da etapa),
+      // aparece em todas as aulas.
+      const videoIds = new Set(videos.map((video: any) => video.id));
+      const lessonMaterials = stageMaterials.filter(
+        (m: any) => !m.lesson_id || !videoIds.has(m.lesson_id) || m.lesson_id === stageVideo?.id,
+      );
       const materials = locked
         ? []
-        : stageMaterials.map((m: any) => ({
+        : lessonMaterials.map((m: any) => ({
             id: String(m.id),
             title: String(m.title ?? "Material de apoio"),
             url: typeof m.external_url === "string" ? m.external_url : null,
@@ -1343,7 +1349,8 @@ async function loadLibrary(
             : null,
         format: s.format,
         description: s.description ?? "",
-        summary: s.summary || s.description || "",
+        // Resumo e temas da própria aula; sem eles, os da etapa.
+        summary: String(stageVideo?.description ?? "").trim() || s.summary || s.description || "",
         responsibleName: s.responsible_name,
         durationMinutes:
           typeof stageVideo?.duration_minutes === "number"
@@ -1374,7 +1381,12 @@ async function loadLibrary(
             : undefined,
         scheduledAt: dates.get(s.stable_key) ?? s.scheduled_at,
         releaseAt: s.release_at,
-        topics: Array.isArray(s.topics) ? s.topics : [],
+        topics:
+          Array.isArray(stageVideo?.topics) && stageVideo.topics.length
+            ? stageVideo.topics
+            : Array.isArray(s.topics)
+              ? s.topics
+              : [],
         materials,
         accessScope: s.access_scope,
         availability: locked ? "coming_soon" : hasResource ? "available" : "missing_resource",
@@ -1453,7 +1465,27 @@ function stageContentShape(row: any) {
     position: row.position ?? 0,
     active: row.active !== false,
     moduleTitle: cleanModuleTitle(row.module_title),
+    topics: Array.isArray(row.topics) ? row.topics : [],
+    lessonId: row.lesson_id ?? null,
   };
+}
+
+/** Principais temas de uma aula: até 12 linhas curtas, sem repetição. */
+function cleanTopics(value: unknown): string[] {
+  const list = Array.isArray(value) ? value : String(value ?? "").split(/\r?\n/);
+  const seen = new Set<string>();
+  const topics: string[] = [];
+  for (const entry of list) {
+    const topic = String(entry ?? "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 160);
+    if (!topic || seen.has(topic.toLowerCase())) continue;
+    seen.add(topic.toLowerCase());
+    topics.push(topic);
+    if (topics.length >= 12) break;
+  }
+  return topics;
 }
 
 /** Extensões recusadas no envio de materiais (executáveis e páginas com script). */
@@ -1937,6 +1969,20 @@ async function contentAction(c: Context, action: string, d: any) {
       contentType === "video"
         ? (remoteVideo?.durationSeconds ?? validVideoDuration(d.durationSeconds))
         : null;
+    // Material ligado a uma aula: precisa ser uma aula gravada desta mesma etapa.
+    let lessonId: string | null = null;
+    if (contentType === "material" && d && typeof d === "object" && d.lessonId) {
+      const lesson = await c.admin
+        .from("journey_stage_contents")
+        .select("id")
+        .is("deleted_at", null)
+        .eq("id", String(d.lessonId))
+        .eq("step_key", stepKey)
+        .eq("content_type", "video")
+        .maybeSingle();
+      if (lesson.error || !lesson.data) throw new Error("Escolha uma aula desta etapa.");
+      lessonId = lesson.data.id;
+    }
     const payload = {
       pillar_id: pillarId,
       step_key: stepKey,
@@ -1972,6 +2018,10 @@ async function contentAction(c: Context, action: string, d: any) {
       ...(d && typeof d === "object" && "moduleTitle" in d
         ? { module_title: cleanModuleTitle(d.moduleTitle) }
         : {}),
+      ...(d && typeof d === "object" && "topics" in d
+        ? { topics: contentType === "video" ? cleanTopics(d.topics) : [] }
+        : {}),
+      ...(d && typeof d === "object" && "lessonId" in d ? { lesson_id: lessonId } : {}),
       position: Number.isFinite(Number(d.position)) ? Math.max(0, Number(d.position)) : 0,
       active: d.active !== false,
       created_by: c.userId,
@@ -2215,6 +2265,7 @@ async function contentAction(c: Context, action: string, d: any) {
       enrollmentId: library.enrollmentId,
       previous: i > 0 ? available[i - 1].stepKey : null,
       next: i >= 0 && i < available.length - 1 ? available[i + 1].stepKey : null,
+      nextTitle: i >= 0 && i < available.length - 1 ? available[i + 1].title : null,
     };
   }
   if (action === "getJourneyStudyState") {

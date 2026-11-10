@@ -119,6 +119,7 @@ function ContentForm({
   mentees,
   modules = [],
   defaultModule = "",
+  lessons = [],
   onDone,
 }: {
   pillarId: string;
@@ -130,6 +131,8 @@ function ContentForm({
   mentees: Array<{ id: string; name: string }>;
   modules?: string[];
   defaultModule?: string;
+  /** Aulas gravadas da etapa, para ligar um material a uma aula. */
+  lessons?: Array<{ id: string; title: string }>;
   onDone: () => void;
 }) {
   const saveFn = useServerFn(saveStageContent);
@@ -143,6 +146,8 @@ function ContentForm({
   const [title, setTitle] = useState(initial?.title ?? "");
   const [moduleTitle, setModuleTitle] = useState(initial?.moduleTitle ?? defaultModule);
   const [description, setDescription] = useState(initial?.description ?? "");
+  const [topicsText, setTopicsText] = useState((initial?.topics ?? []).join("\n"));
+  const [lessonId, setLessonId] = useState(initial?.lessonId ?? "");
   const [duration, setDuration] = useState(
     initial?.durationMinutes ? String(initial.durationMinutes) : "",
   );
@@ -279,6 +284,15 @@ function ContentForm({
           menteeId: accessScope === "mentee" ? menteeId : null,
           questionnaire: { questions },
           moduleTitle: moduleTitle.replace(/\s+/g, " ").trim() || null,
+          ...(contentType === "video"
+            ? {
+                topics: topicsText
+                  .split(/\r?\n/)
+                  .map((topic) => topic.trim())
+                  .filter(Boolean),
+              }
+            : {}),
+          ...(contentType === "material" ? { lessonId: lessonId || null } : {}),
           position: initial?.position ?? nextPosition,
           active: true,
         },
@@ -373,13 +387,49 @@ function ContentForm({
           </label>
 
           <label className="ops-field">
-            <span>Descrição (opcional)</span>
+            <span>
+              {contentType === "video" ? "Resumo da aula (opcional)" : "Descrição (opcional)"}
+            </span>
             <textarea
-              rows={3}
+              rows={contentType === "video" ? 4 : 3}
               value={description}
               onChange={(event) => setDescription(event.target.value)}
             />
+            {contentType === "video" ? (
+              <small className="ops-muted">
+                Aparece em “Resumo”, logo abaixo do vídeo. Sem resumo, mostra o da etapa.
+              </small>
+            ) : null}
           </label>
+
+          {contentType === "video" ? (
+            <label className="ops-field">
+              <span>Principais temas (opcional)</span>
+              <textarea
+                rows={4}
+                placeholder={"Um tema por linha\nEx.: Autoconsciência no dia a dia"}
+                value={topicsText}
+                onChange={(event) => setTopicsText(event.target.value)}
+              />
+              <small className="ops-muted">
+                Um por linha, até 12. Sem temas, mostra os da etapa.
+              </small>
+            </label>
+          ) : null}
+
+          {contentType === "material" ? (
+            <label className="ops-field">
+              <span>Em qual aula este material aparece?</span>
+              <select value={lessonId} onChange={(event) => setLessonId(event.target.value)}>
+                <option value="">Em todas as aulas da etapa</option>
+                {lessons.map((lesson) => (
+                  <option key={lesson.id} value={lesson.id}>
+                    {lesson.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
 
           <fieldset className="ops-inline-form">
             <legend>Público</legend>
@@ -1427,6 +1477,9 @@ function StageContentManager({
           mentees={mentees}
           modules={modules}
           defaultModule={editing === "new" ? newModule : ""}
+          lessons={items
+            .filter((entry) => entry.contentType === "video")
+            .map((entry) => ({ id: entry.id, title: entry.title }))}
           onDone={() => setEditing(null)}
         />
       ) : null}

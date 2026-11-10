@@ -81,7 +81,13 @@ export const getJourneyContentLibrary = createEdgeFunction<undefined, JourneyCon
 );
 export const getJourneyContent = createEdgeFunction<
   { stepKey: string; contentId?: string },
-  { item: JourneyContentItem; enrollmentId: string; previous: string | null; next: string | null }
+  {
+    item: JourneyContentItem;
+    enrollmentId: string;
+    previous: string | null;
+    next: string | null;
+    nextTitle?: string | null;
+  }
 >("getJourneyContent");
 export const getJourneyStudyState = createEdgeFunction<
   { stepKey: string; contentId?: string },
@@ -133,6 +139,10 @@ export type StageContentItem = {
   active: boolean;
   /** Módulo dentro da etapa (null = sem módulo). */
   moduleTitle?: string | null;
+  /** Principais temas da aula gravada. */
+  topics?: string[];
+  /** Material de apoio ligado a uma aula específica (null = todas as aulas da etapa). */
+  lessonId?: string | null;
 };
 
 export type AgendaMaterial = {

@@ -6,7 +6,6 @@ import { useServerFn } from "@tanstack/react-start";
 import {
   ArrowRight,
   Bell,
-  BookOpen,
   BrainCircuit,
   CalendarDays,
   Check,
@@ -895,13 +894,11 @@ function JourneyView({
   trail,
   onOpen,
   onOpenContent,
-  onOpenLibrary,
   journeyItems,
 }: {
   trail: Trail;
   onOpen: (l: TrailLesson) => void;
   onOpenContent: (stepKey: string) => void;
-  onOpenLibrary: () => void;
   journeyItems: JourneyContentItem[];
 }) {
   const months = trail.phases.map((phase) => ({
@@ -964,18 +961,6 @@ function JourneyView({
             <p>Aguardando liberação da próxima etapa.</p>
           ) : null}
         </section>
-        <div className="journey-recorded-access">
-          <div>
-            <BookOpen size={24} />
-            <span>
-              <strong>Aulas gravadas</strong>
-              <small>Assista e reveja os conteúdos de cada pilar.</small>
-            </span>
-          </div>
-          <button className="button button--glass" type="button" onClick={onOpenLibrary}>
-            Abrir biblioteca <ArrowRight size={17} />
-          </button>
-        </div>
         <section className="mentee-journey-pillars" aria-label="Etapas da jornada RISE">
           {groups.map((group, index) => {
             const entries = group.months.flatMap((month) => month.items);
@@ -1213,7 +1198,6 @@ function MenteeArea({
           trail={trail}
           onOpen={openTrailLesson}
           onOpenContent={openJourneyContent}
-          onOpenLibrary={() => setLibraryOpen(true)}
           journeyItems={journeyLibrary.data?.items ?? []}
         />
       ) : view === "agenda" ? (

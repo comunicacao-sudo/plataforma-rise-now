@@ -11,7 +11,6 @@ import {
   ArrowLeft,
   ArrowRight,
   CheckCircle2,
-  FolderOpen,
   Clock3,
   Download,
   ClipboardList,
@@ -22,7 +21,7 @@ import {
   Plus,
   VideoOff,
 } from "lucide-react";
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { RecordedPlayer, type PlayerController } from "@/components/recorded-lessons";
 const RiseAssessmentExperience = deferredView<
@@ -773,6 +772,11 @@ export function JourneyContentLessonPage({
   const videoIndex = item?.videos?.findIndex((video) => video.id === item.videoContentId) ?? -1;
   const previousVideo = item?.videos?.[videoIndex - 1];
   const nextVideo = videoIndex >= 0 ? item?.videos?.[videoIndex + 1] : undefined;
+  const hasNext = !!nextVideo || !!query.data?.next;
+  const goNext = () => {
+    if (nextVideo) setSelectedVideo({ stepKey, id: nextVideo.id });
+    else if (query.data?.next) onNavigate(query.data.next);
+  };
 
   if (query.isLoading)
     return <main className="inner-page journey-content-state">Carregando conteúdo…</main>;
@@ -865,50 +869,23 @@ export function JourneyContentLessonPage({
               <i /> {typeLabel(item)}
             </p>
           </div>
-          <span className={`lesson-status ${study.data?.completed ? "is-complete" : ""}`}>
-            {study.data?.completed ? <CheckCircle2 size={17} /> : <Play size={15} />}
-            {study.data?.completed ? "Concluída" : "Em andamento"}
-          </span>
+          <div className="recorded-lesson__title-actions">
+            <span className={`lesson-status ${study.data?.completed ? "is-complete" : ""}`}>
+              {study.data?.completed ? <CheckCircle2 size={17} /> : <Play size={15} />}
+              {study.data?.completed ? "Concluída" : "Em andamento"}
+            </span>
+            <button
+              className="button button--primary lesson-next-button"
+              type="button"
+              disabled={!hasNext}
+              onClick={goNext}
+            >
+              {nextVideo ? "Próxima aula" : "Próxima etapa"} <ArrowRight size={17} />
+            </button>
+          </div>
         </header>
         <div className="recorded-lesson__workspace">
           <section className="recorded-lesson__main">
-            {(item.videos?.length ?? 0) > 1 ? (
-              <section className="stage-lesson-picker" aria-label="Aulas desta etapa">
-                <h2>Aulas desta etapa</h2>
-                <ol>
-                  {item.videos?.map((video, index, all) => (
-                    <Fragment key={video.id}>
-                      {all.some((entry) => entry.module) &&
-                      (index === 0 || all[index - 1]?.module !== video.module) ? (
-                        <li className="stage-lesson-picker__module">
-                          <FolderOpen size={15} /> {video.module || "Outras aulas"}
-                        </li>
-                      ) : null}
-                      <li>
-                        <button
-                          type="button"
-                          aria-current={item.videoContentId === video.id ? "true" : undefined}
-                          onClick={() => setSelectedVideo({ stepKey, id: video.id })}
-                        >
-                          {video.completed ? <CheckCircle2 size={18} /> : <Play size={18} />}
-                          <span>
-                            <strong>
-                              {index + 1}. {video.title}
-                            </strong>
-                            <small>
-                              {video.durationMinutes
-                                ? video.durationMinutes + " min"
-                                : "Duração a identificar"}{" "}
-                              · {video.completed ? "Concluída" : "Disponível"}
-                            </small>
-                          </span>
-                        </button>
-                      </li>
-                    </Fragment>
-                  ))}
-                </ol>
-              </section>
-            ) : null}
             {progressError ? (
               <p className="form-message" role="status">
                 {progressError}
@@ -964,7 +941,7 @@ export function JourneyContentLessonPage({
             ) : null}
             <section className="lesson-summary">
               <h2>
-                <FileText size={22} /> Resumo executivo
+                <FileText size={22} /> Resumo
               </h2>
               <p>{item.summary || item.description}</p>
             </section>
@@ -1020,12 +997,37 @@ export function JourneyContentLessonPage({
               />
             ) : null}
           </section>
-          <JourneyNotebook
-            key={item.stepKey}
-            item={item}
-            currentTime={currentTime}
-            player={player}
-          />
+          <aside className="recorded-lesson__side">
+            {hasNext ? (
+              <button className="lesson-up-next" type="button" onClick={goNext}>
+                <span>
+                  <small>{nextVideo ? "Próxima aula" : "Próxima etapa"}</small>
+                  <strong>
+                    {nextVideo?.title ?? query.data?.nextTitle ?? "Continuar a jornada"}
+                  </strong>
+                  {nextVideo?.durationMinutes ? (
+                    <em>
+                      <Clock3 size={13} /> {nextVideo.durationMinutes} min
+                    </em>
+                  ) : null}
+                </span>
+                <ArrowRight size={20} />
+              </button>
+            ) : (
+              <div className="lesson-up-next is-last">
+                <span>
+                  <small>Próxima aula</small>
+                  <strong>Esta é a última aula disponível por enquanto.</strong>
+                </span>
+              </div>
+            )}
+            <JourneyNotebook
+              key={item.stepKey}
+              item={item}
+              currentTime={currentTime}
+              player={player}
+            />
+          </aside>
         </div>
         <footer className="lesson-navigation">
           <button
@@ -1039,16 +1041,8 @@ export function JourneyContentLessonPage({
           >
             <ArrowLeft size={18} /> Aula anterior
           </button>
-          <button
-            type="button"
-            disabled={!nextVideo && !query.data?.next}
-            onClick={() =>
-              nextVideo
-                ? setSelectedVideo({ stepKey, id: nextVideo.id })
-                : query.data?.next && onNavigate(query.data.next)
-            }
-          >
-            Próxima aula <ArrowRight size={18} />
+          <button type="button" disabled={!hasNext} onClick={goNext}>
+            {nextVideo ? "Próxima aula" : "Próxima etapa"} <ArrowRight size={18} />
           </button>
         </footer>
       </div>
