@@ -151,6 +151,35 @@ export function moveModule(items: StageContentItem[], title: string, direction: 
   return groups.flatMap((entry) => entry.items.map((item) => item.id));
 }
 
+/**
+ * Nova ordem (ids) ao colocar um conteúdo dentro do seu módulo: no início, no fim ou
+ * depois de outro conteúdo do mesmo módulo. Módulo novo vai para o fim da etapa.
+ */
+export function placeInModule(
+  items: StageContentItem[],
+  id: string,
+  placement: "start" | "end" | { after: string },
+) {
+  const target = items.find((item) => item.id === id);
+  if (!target) return null;
+  const groups = groupByModule(items.filter((item) => item.id !== id));
+  const key = moduleOf(target);
+  let group = groups.find((entry) => entry.title === key);
+  if (!group) {
+    group = { title: key, items: [] };
+    groups.push(group);
+  }
+  const list = [...group.items];
+  if (placement === "start") list.unshift(target);
+  else if (placement === "end") list.push(target);
+  else {
+    const at = list.findIndex((item) => item.id === placement.after);
+    list.splice(at < 0 ? list.length : at + 1, 0, target);
+  }
+  group.items = list;
+  return groups.flatMap((entry) => entry.items.map((item) => item.id));
+}
+
 export function paginate<T>(items: T[], page: number, pageSize: number) {
   const pageCount = Math.max(1, Math.ceil(items.length / pageSize));
   const safePage = Math.min(Math.max(1, page), pageCount);

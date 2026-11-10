@@ -5,12 +5,14 @@ import {
   ArrowUp,
   ArrowDown,
   BookOpen,
+  Check,
   ChevronLeft,
   ChevronRight,
   ExternalLink,
   Eye,
   FileText,
   FolderOpen,
+  ImagePlus,
   Layers3,
   Pencil,
   Play,
@@ -22,7 +24,7 @@ import {
   UsersRound,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { RecordedPlayer } from "@/components/recorded-lessons";
 import { GoogleDriveCard } from "@/components/google-drive-card";
 import { QuestionnaireEditor } from "@/components/questionnaire-editor";
@@ -39,6 +41,7 @@ import {
   moveModule,
   moveWithinModule,
   paginate,
+  placeInModule,
   stageMatchesFilters,
   summarizeStageContent,
   type AudienceFilter,
@@ -110,6 +113,17 @@ function newQuestion(): StageQuestion {
   };
 }
 
+const NEW_MODULE = "__novo_modulo__";
+
+const TYPE_CARDS: Array<{ id: StageContentItem["contentType"]; description: string }> = [
+  { id: "video", description: "Vídeo com capa, resumo e temas" },
+  { id: "questionnaire", description: "Perguntas na sequência da etapa" },
+  { id: "material", description: "PDF, planilha ou link para baixar" },
+];
+
+const shortTitle = (value: string) =>
+  value.length > 48 ? value.slice(0, 46).trimEnd() + "…" : value;
+
 function ContentForm({
   pillarId,
   step,
@@ -120,7 +134,7 @@ function ContentForm({
   mentees,
   modules = [],
   defaultModule = "",
-  lessons = [],
+  stageItems = [],
   onDone,
 }: {
   pillarId: string;
@@ -132,8 +146,8 @@ function ContentForm({
   mentees: Array<{ id: string; name: string }>;
   modules?: string[];
   defaultModule?: string;
-  /** Aulas gravadas da etapa, para ligar um material a uma aula. */
-  lessons?: Array<{ id: string; title: string }>;
+  /** Todos os conteúdos da etapa (posição na etapa e material ligado a uma aula). */
+  stageItems?: StageContentItem[];
   onDone: () => void;
 }) {
   const saveFn = useServerFn(saveStageContent);
@@ -147,12 +161,38 @@ function ContentForm({
   const [title, setTitle] = useState(initial?.title ?? "");
   const [moduleTitle, setModuleTitle] = useState(initial?.moduleTitle ?? defaultModule);
   const [description, setDescription] = useState(initial?.description ?? "");
-  const [topicsText, setTopicsText] = useState((initial?.topics ?? []).join("\n"));
   const [lessonId, setLessonId] = useState(initial?.lessonId ?? "");
   const [reflectionPrompt, setReflectionPrompt] = useState(initial?.reflectionPrompt ?? "");
   const [coverPath, setCoverPath] = useState<string | null>(initial?.coverPath ?? null);
   const [coverPreview, setCoverPreview] = useState<string | null>(initial?.coverUrl ?? null);
   const [coverUploading, setCoverUploading] = useState(false);
+  const reorderFn = useServerFn(orderStageContents);
+  const lessons = stageItems.filter((entry) => entry.contentType === "video");
+  const [topics, setTopics] = useState<string[]>(initial?.topics ?? []);
+  const [topicDraft, setTopicDraft] = useState("");
+  const [creatingModule, setCreatingModule] = useState(
+    !!moduleTitle && !modules.includes(moduleTitle),
+  );
+  const [placement, setPlacement] = useState(initial ? "keep" : "end");
+  const [linkMode, setLinkMode] = useState(!!initial?.externalUrl);
+  const [dragging, setDragging] = useState(false);
+  const [uploadName, setUploadName] = useState("");
+  const moduleKey = moduleTitle.replace(/\s+/g, " ").trim();
+  const siblings =
+    groupByModule(stageItems.filter((entry) => entry.id !== initial?.id)).find(
+      (group) => group.title === moduleKey,
+    )?.items ?? [];
+
+  function addTopic() {
+    const topic = topicDraft.replace(/\s+/g, " ").replace(/,$/, "").trim();
+    if (!topic) return setTopicDraft("");
+    setTopics((current) =>
+      current.some((entry) => entry.toLowerCase() === topic.toLowerCase()) || current.length >= 12
+        ? current
+        : [...current, topic],
+    );
+    setTopicDraft("");
+  }
 
   async function uploadCover(file: File) {
     setCoverUploading(true);
@@ -234,6 +274,8 @@ function ContentForm({
   }, [contentType, externalUrl, inspectVideo]);
 
   async function uploadVideo(file: File) {
+    setUploadName(file.name);
+    setLinkMode(false);
     setUploading(true);
     setMessage("");
     setProgress(0);
@@ -256,6 +298,8 @@ function ContentForm({
   }
 
   async function uploadMaterial(file: File) {
+    setUploadName(file.name);
+    setLinkMode(false);
     setUploading(true);
     setMessage("");
     try {
@@ -300,7 +344,7 @@ function ContentForm({
 
     setBusy(true);
     try {
-      await saveFn({
+      const result = await saveFn({
         data: {
           id: initial?.id,
           pillarId,
@@ -320,10 +364,7 @@ function ContentForm({
           moduleTitle: moduleTitle.replace(/\s+/g, " ").trim() || null,
           ...(contentType === "video"
             ? {
-                topics: topicsText
-                  .split(/\r?\n/)
-                  .map((topic) => topic.trim())
-                  .filter(Boolean),
+                topics,
                 reflectionPrompt: reflectionPrompt.trim() || null,
                 coverPath,
               }
@@ -334,6 +375,36 @@ function ContentForm({
         },
       });
 
+      const saved = result?.item as StageContentItem | undefined;
+      if (saved && placement !== "keep") {
+        const current = [
+          ...stageItems.map((entry) => (entry.id === saved.id ? saved : entry)),
+          ...(stageItems.some((entry) => entry.id === saved.id) ? [] : [saved]),
+        ];
+        const expected = [...current]
+          .sort((a, b) => a.position - b.position || a.id.localeCompare(b.id))
+          .map((entry) => entry.id);
+        const ids = placeInModule(
+          current,
+          saved.id,
+          placement === "start" || placement === "end"
+            ? placement
+            : { after: placement.replace(/^after:/, "") },
+        );
+        if (ids && ids.join() !== expected.join()) {
+          try {
+            await reorderFn({
+              data: { pillarId, stepKey: step.stableKey, expectedIds: expected, ids },
+            });
+          } catch {
+            await invalidateJourneyData(qc);
+            setMessage(
+              "Conteúdo salvo, mas não foi possível ajustar a posição. Use as setas da lista.",
+            );
+            return;
+          }
+        }
+      }
       await invalidateJourneyData(qc);
       onDone();
     } catch (error) {
@@ -367,242 +438,449 @@ function ContentForm({
     );
   }
 
+  const isVideo = contentType === "video";
+  const hasTitle = title.trim().length > 0;
+  const videoReady = !!mediaPath || !!externalUrl.trim();
+  const fileReady = !!filePath || !!externalUrl.trim();
+  const checks = isVideo
+    ? [
+        {
+          ok: videoReady && !uploading,
+          optional: false,
+          label: uploading
+            ? `Vídeo enviando… ${progress ?? 0}%`
+            : videoReady
+              ? "Vídeo enviado"
+              : "Falta o vídeo",
+        },
+        { ok: hasTitle, optional: false, label: hasTitle ? "Título" : "Falta o título" },
+        { ok: !!coverPath, optional: true, label: coverPath ? "Capa" : "Capa (opcional)" },
+      ]
+    : [
+        {
+          ok: fileReady && !uploading,
+          optional: false,
+          label: uploading
+            ? "Arquivo enviando…"
+            : fileReady
+              ? "Arquivo ou link"
+              : "Falta o arquivo",
+        },
+        { ok: hasTitle, optional: false, label: hasTitle ? "Título" : "Falta o título" },
+      ];
+  const canSave =
+    !busy &&
+    !uploading &&
+    !coverUploading &&
+    !detectingDuration &&
+    checks.every((check) => check.optional || check.ok);
+  const stepCover = step.coverUrlDark ?? step.coverUrl ?? step.coverUrlLight ?? null;
+  const previewCover = coverPreview ?? stepCover;
+  const fileHandlers = (onFile: (file: File) => void) => ({
+    onDragOver: (event: DragEvent) => {
+      event.preventDefault();
+      setDragging(true);
+    },
+    onDragLeave: () => setDragging(false),
+    onDrop: (event: DragEvent) => {
+      event.preventDefault();
+      setDragging(false);
+      const file = event.dataTransfer.files?.[0];
+      if (file) onFile(file);
+    },
+  });
+
   return (
     <div className="modal-backdrop" role="presentation">
       <section
-        className="content-modal ops-modal"
+        className="content-modal ops-modal content-editor"
         role="dialog"
         aria-modal="true"
-        aria-label="Editar conteúdo"
+        aria-labelledby="content-editor-title"
       >
-        <button className="modal-close" type="button" onClick={onDone} aria-label="Fechar">
-          <X size={21} />
-        </button>
-        <div className="content-modal__body ops-form">
-          <span className="eyebrow eyebrow--gold">{step.title}</span>
-          <h2>{initial ? "Editar conteúdo" : "Adicionar conteúdo"}</h2>
+        <header className="content-editor__head">
+          <div>
+            <span className="eyebrow eyebrow--gold">{step.title}</span>
+            <h2 id="content-editor-title">
+              {initial ? `Editar ${typeLabel[contentType].toLowerCase()}` : "Adicionar conteúdo"}
+            </h2>
+          </div>
+          <button className="modal-close" type="button" onClick={onDone} aria-label="Fechar">
+            <X size={21} />
+          </button>
+        </header>
 
-          <label className="ops-field">
-            <span>Tipo de conteúdo</span>
-            <select
-              value={contentType}
-              disabled={!!initial}
-              onChange={(event) =>
-                setContentType(event.target.value as StageContentItem["contentType"])
-              }
-            >
-              <option value="video">Aula gravada</option>
-              <option value="material">Material de apoio</option>
-              <option value="questionnaire">Questionário</option>
-            </select>
-          </label>
+        <div className="content-editor__scroll">
+          <div className="content-editor__types" role="radiogroup" aria-label="Tipo de conteúdo">
+            {TYPE_CARDS.map((card) => {
+              const Icon = typeIcon[card.id];
+              return (
+                <button
+                  key={card.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={contentType === card.id}
+                  className={contentType === card.id ? "is-active" : undefined}
+                  disabled={!!initial && contentType !== card.id}
+                  onClick={() => setContentType(card.id)}
+                >
+                  <span className="content-editor__type-icon" aria-hidden="true">
+                    <Icon size={20} />
+                  </span>
+                  <span>
+                    <strong>{typeLabel[card.id]}</strong>
+                    <small>{card.description}</small>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
 
-          <label className="ops-field">
-            <span>Título</span>
-            <input value={title} onChange={(event) => setTitle(event.target.value)} />
-          </label>
-
-          <label className="ops-field">
-            <span>Módulo (opcional)</span>
-            <input
-              list="stage-module-options"
-              maxLength={120}
-              placeholder="Ex.: Módulo 1 — Autoconsciência"
-              value={moduleTitle}
-              onChange={(event) => setModuleTitle(event.target.value)}
-            />
-            <datalist id="stage-module-options">
-              {modules.map((name) => (
-                <option key={name} value={name} />
-              ))}
-            </datalist>
-            <small className="ops-muted">
-              Conteúdos com o mesmo nome de módulo aparecem juntos, para a equipe e para quem
-              participa.
-            </small>
-          </label>
-
-          <label className="ops-field">
-            <span>
-              {contentType === "video" ? "Resumo da aula (opcional)" : "Descrição (opcional)"}
-            </span>
-            <textarea
-              rows={contentType === "video" ? 4 : 3}
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-            />
-            {contentType === "video" ? (
-              <small className="ops-muted">
-                Aparece em “Resumo”, logo abaixo do vídeo. Sem resumo, mostra o da etapa.
-              </small>
-            ) : null}
-          </label>
-
-          {contentType === "video" ? (
-            <label className="ops-field">
-              <span>Principais temas (opcional)</span>
-              <textarea
-                rows={4}
-                placeholder={"Um tema por linha\nEx.: Autoconsciência no dia a dia"}
-                value={topicsText}
-                onChange={(event) => setTopicsText(event.target.value)}
-              />
-              <small className="ops-muted">
-                Um por linha, até 12. Sem temas, mostra os da etapa.
-              </small>
-            </label>
-          ) : null}
-
-          {contentType === "video" ? (
-            <label className="ops-field">
-              <span>Pergunta para levar para a semana (opcional)</span>
-              <input
-                maxLength={300}
-                placeholder="Ex.: Que situação desta semana está fora do seu controle?"
-                value={reflectionPrompt}
-                onChange={(event) => setReflectionPrompt(event.target.value)}
-              />
-              <small className="ops-muted">
-                Aparece abaixo da aula. A resposta vai para o caderno da pessoa.
-              </small>
-            </label>
-          ) : null}
-
-          {contentType === "material" ? (
-            <label className="ops-field">
-              <span>Em qual aula este material aparece?</span>
-              <select value={lessonId} onChange={(event) => setLessonId(event.target.value)}>
-                <option value="">Em todas as aulas da etapa</option>
-                {lessons.map((lesson) => (
-                  <option key={lesson.id} value={lesson.id}>
-                    {lesson.title}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : null}
-
-          <fieldset className="ops-inline-form">
-            <legend>Público</legend>
-            <label className="ops-field">
-              <span>Quem recebe este conteúdo?</span>
-              <select
-                value={accessScope}
-                onChange={(event) => {
-                  const scope = event.target.value as StageContentItem["accessScope"];
-                  setAccessScope(scope);
-                  if (scope !== "cohort") setCohortId("");
-                  if (scope !== "mentee") setMenteeId("");
-                }}
-              >
-                <option value="general">Todos</option>
-                <option value="cohort">Uma turma específica</option>
-                <option value="mentee">Uma pessoa específica</option>
-              </select>
-            </label>
-            {accessScope === "cohort" ? (
-              <label className="ops-field">
-                <span>Turma</span>
-                <select value={cohortId} onChange={(event) => setCohortId(event.target.value)}>
-                  <option value="">Selecione</option>
-                  {cohorts.map((cohort) => (
-                    <option key={cohort.id} value={cohort.id}>
-                      {cohort.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ) : null}
-            {accessScope === "mentee" ? (
-              <label className="ops-field">
-                <span>Participante</span>
-                <select value={menteeId} onChange={(event) => setMenteeId(event.target.value)}>
-                  <option value="">Selecione</option>
-                  {mentees.map((mentee) => (
-                    <option key={mentee.id} value={mentee.id}>
-                      {mentee.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ) : null}
-          </fieldset>
-
-          {contentType === "video" ? (
-            <fieldset className="ops-inline-form">
-              <legend>Aula</legend>
-              <label className="ops-field">
-                <span>Duração prevista em minutos</span>
-                <input
-                  type="number"
-                  min={1}
-                  max={1440}
-                  value={duration}
-                  onChange={(event) => {
-                    setDuration(event.target.value);
-                    setDurationSeconds(null);
-                  }}
-                />
-              </label>
-              {detectingDuration ? (
-                <p className="ops-muted" role="status">
-                  Lendo a duração do vídeo…
-                </p>
-              ) : null}
-              <label className="journey-upload">
-                <Upload size={18} />
-                <span>
-                  {uploading
-                    ? `Enviando para Cloudflare… ${progress ?? 0}%`
-                    : mediaPath?.startsWith("r2:")
-                      ? "Substituir aula no Cloudflare R2"
-                      : "Enviar aula para Cloudflare R2"}
-                </span>
-                <input
-                  type="file"
-                  accept="video/mp4,video/webm,video/quicktime"
-                  disabled={uploading}
-                  onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    if (file) void uploadVideo(file);
-                  }}
-                />
-              </label>
-              {mediaPath?.startsWith("r2:") ? (
-                <p className="ops-muted">Vídeo privado armazenado no Cloudflare R2.</p>
-              ) : null}
-              <label className="ops-field">
-                <span>URL externa alternativa (opcional)</span>
-                <input
-                  type="url"
-                  placeholder="https://"
-                  value={externalUrl}
-                  onChange={(event) => {
-                    setExternalUrl(event.target.value);
-                    setDurationSeconds(null);
-                    if (event.target.value.trim()) setMediaPath(null);
-                  }}
-                />
-              </label>
-              <div className="ops-field lesson-cover-field">
-                <span>Capa da aula (opcional)</span>
-                <div className="lesson-cover-field__row">
-                  {coverPreview ? (
-                    <img src={coverPreview} alt="Capa atual da aula" />
-                  ) : (
-                    <span className="lesson-cover-field__empty">Sem capa: usa a da etapa</span>
-                  )}
-                  <div className="lesson-cover-field__actions">
-                    <label className="journey-upload">
-                      <Upload size={18} />
-                      <span>
-                        {coverUploading
-                          ? "Enviando capa…"
-                          : coverPreview
-                            ? "Trocar capa"
-                            : "Enviar capa"}
-                      </span>
+          <div className="content-editor__body">
+            <div className="content-editor__main">
+              <section className="content-editor__section" aria-labelledby="content-editor-s1">
+                <h3 id="content-editor-s1">
+                  <span className="content-editor__step">1</span>
+                  {isVideo ? "Vídeo da aula" : "Arquivo"}
+                </h3>
+                {uploading ? (
+                  <div className="content-editor__progress" role="status">
+                    <div>
+                      <strong>{uploadName || (isVideo ? "Vídeo" : "Arquivo")}</strong>
+                      <span>{isVideo ? `${progress ?? 0}%` : "Enviando…"}</span>
+                    </div>
+                    <span className="content-editor__bar">
+                      <span style={{ width: `${isVideo ? (progress ?? 0) : 60}%` }} />
+                    </span>
+                    <small>
+                      Enviando para o servidor seguro. Você pode preencher o resto enquanto isso.
+                    </small>
+                  </div>
+                ) : (isVideo ? mediaPath : filePath) && !linkMode ? (
+                  <div className="content-editor__done">
+                    <span className="content-editor__done-icon" aria-hidden="true">
+                      <Check size={20} />
+                    </span>
+                    <span>
+                      <strong>
+                        {uploadName || (isVideo ? "Vídeo da aula" : "Arquivo do material")}
+                      </strong>
+                      <small>
+                        {isVideo
+                          ? duration
+                            ? `Vídeo enviado · duração: ${duration} min`
+                            : "Vídeo enviado"
+                          : "Arquivo privado vinculado"}
+                      </small>
+                    </span>
+                    <label className="button button--glass content-editor__swap">
+                      {isVideo ? "Trocar vídeo" : "Trocar arquivo"}
                       <input
+                        className="content-editor__file"
+                        type="file"
+                        accept={isVideo ? "video/mp4,video/webm,video/quicktime" : undefined}
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          if (file) void (isVideo ? uploadVideo(file) : uploadMaterial(file));
+                        }}
+                      />
+                    </label>
+                  </div>
+                ) : !linkMode ? (
+                  <label
+                    className={`content-editor__drop${dragging ? " is-dragging" : ""}`}
+                    {...fileHandlers(
+                      (file) => void (isVideo ? uploadVideo(file) : uploadMaterial(file)),
+                    )}
+                  >
+                    <span className="content-editor__drop-icon" aria-hidden="true">
+                      <Upload size={24} />
+                    </span>
+                    <strong>
+                      {isVideo
+                        ? "Arraste o vídeo aqui ou clique para escolher"
+                        : "Arraste o arquivo aqui ou clique para escolher"}
+                    </strong>
+                    <small>
+                      {isVideo
+                        ? "MP4, MOV ou WebM · a duração é lida sozinha"
+                        : "PDF, documento, planilha, imagem ou áudio · até 100 MB"}
+                    </small>
+                    <input
+                      className="content-editor__file"
+                      type="file"
+                      accept={isVideo ? "video/mp4,video/webm,video/quicktime" : undefined}
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        if (file) void (isVideo ? uploadVideo(file) : uploadMaterial(file));
+                      }}
+                    />
+                  </label>
+                ) : null}
+                {!uploading ? (
+                  <button
+                    className="content-editor__link-toggle"
+                    type="button"
+                    onClick={() => setLinkMode((value) => !value)}
+                  >
+                    {linkMode
+                      ? "Voltar para envio de arquivo"
+                      : isVideo
+                        ? "Prefere usar um link do Google Drive?"
+                        : "Prefere adicionar um link?"}
+                  </button>
+                ) : null}
+                {linkMode ? (
+                  <label className="ops-field">
+                    <span>{isVideo ? "Link do vídeo (Google Drive)" : "Link do material"}</span>
+                    <input
+                      type="url"
+                      placeholder="https://"
+                      value={externalUrl}
+                      onChange={(event) => {
+                        setExternalUrl(event.target.value);
+                        if (isVideo) {
+                          setDurationSeconds(null);
+                          if (event.target.value.trim()) setMediaPath(null);
+                        } else if (event.target.value) setFilePath(null);
+                      }}
+                    />
+                  </label>
+                ) : null}
+                {isVideo && detectingDuration ? (
+                  <p className="ops-muted" role="status">
+                    Lendo a duração do vídeo…
+                  </p>
+                ) : null}
+                {isVideo && videoReady && !uploading ? (
+                  <label className="content-editor__duration">
+                    <span>Duração (min)</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={1440}
+                      value={duration}
+                      onChange={(event) => {
+                        setDuration(event.target.value);
+                        setDurationSeconds(null);
+                      }}
+                    />
+                  </label>
+                ) : null}
+              </section>
+
+              <section className="content-editor__section" aria-labelledby="content-editor-s2">
+                <h3 id="content-editor-s2">
+                  <span className="content-editor__step">2</span>
+                  {isVideo ? "Sobre a aula" : "Sobre o material"}
+                </h3>
+                <label className="ops-field">
+                  <span>{isVideo ? "Título da aula *" : "Título *"}</span>
+                  <input
+                    value={title}
+                    maxLength={180}
+                    placeholder={
+                      isVideo
+                        ? "Ex.: Preparo, insegurança e círculo de controle"
+                        : "Ex.: Círculo de Controle — O que depende de mim?"
+                    }
+                    onChange={(event) => setTitle(event.target.value)}
+                  />
+                </label>
+                <div className="content-editor__two">
+                  <label className="ops-field">
+                    <span>Módulo</span>
+                    <select
+                      value={creatingModule ? NEW_MODULE : moduleTitle}
+                      onChange={(event) => {
+                        if (event.target.value === NEW_MODULE) {
+                          setCreatingModule(true);
+                          setModuleTitle("");
+                        } else {
+                          setCreatingModule(false);
+                          setModuleTitle(event.target.value);
+                        }
+                        setPlacement(initial ? "keep" : "end");
+                      }}
+                    >
+                      <option value="">Sem módulo</option>
+                      {modules.map((name) => (
+                        <option key={name} value={name}>
+                          {name}
+                        </option>
+                      ))}
+                      <option value={NEW_MODULE}>+ Criar novo módulo</option>
+                    </select>
+                  </label>
+                  <label className="ops-field">
+                    <span>Posição na etapa</span>
+                    <select
+                      value={placement}
+                      onChange={(event) => setPlacement(event.target.value)}
+                    >
+                      {initial ? <option value="keep">Manter onde está</option> : null}
+                      <option value="start">
+                        {moduleKey ? "No início do módulo" : "No início da etapa"}
+                      </option>
+                      {siblings.map((sibling) => (
+                        <option key={sibling.id} value={`after:${sibling.id}`}>
+                          Depois de “{shortTitle(sibling.title)}”
+                        </option>
+                      ))}
+                      <option value="end">
+                        {moduleKey ? "No fim do módulo" : "No fim da etapa"}
+                      </option>
+                    </select>
+                  </label>
+                </div>
+                {creatingModule ? (
+                  <label className="ops-field">
+                    <span>Nome do novo módulo</span>
+                    <input
+                      maxLength={120}
+                      placeholder="Ex.: Módulo 1 — Autoconsciência"
+                      value={moduleTitle}
+                      onChange={(event) => setModuleTitle(event.target.value)}
+                    />
+                  </label>
+                ) : null}
+                <label className="ops-field">
+                  <span>
+                    {isVideo ? "Resumo · aparece logo abaixo do vídeo" : "Descrição (opcional)"}
+                  </span>
+                  <textarea
+                    rows={isVideo ? 4 : 3}
+                    placeholder={
+                      isVideo ? "Em 2 ou 3 frases, o que a pessoa vai aprender nesta aula." : ""
+                    }
+                    value={description}
+                    onChange={(event) => setDescription(event.target.value)}
+                  />
+                </label>
+                {!isVideo ? (
+                  <label className="ops-field">
+                    <span>Aparece em</span>
+                    <select value={lessonId} onChange={(event) => setLessonId(event.target.value)}>
+                      <option value="">Todas as aulas da etapa</option>
+                      {lessons.map((lesson) => (
+                        <option key={lesson.id} value={lesson.id}>
+                          Só na aula “{shortTitle(lesson.title)}”
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
+              </section>
+
+              {isVideo ? (
+                <section
+                  className="content-editor__section is-optional"
+                  aria-labelledby="content-editor-s3"
+                >
+                  <h3 id="content-editor-s3">
+                    <span className="content-editor__step is-outline">3</span>
+                    Para aprofundar
+                    <small>opcional</small>
+                  </h3>
+                  <div className="ops-field">
+                    <span id="content-editor-topics">Principais temas</span>
+                    <div className="content-editor__chips" aria-labelledby="content-editor-topics">
+                      {topics.map((topic) => (
+                        <span className="content-editor__chip" key={topic}>
+                          {topic}
+                          <button
+                            type="button"
+                            aria-label={`Remover tema ${topic}`}
+                            onClick={() =>
+                              setTopics((current) => current.filter((entry) => entry !== topic))
+                            }
+                          >
+                            <X size={12} />
+                          </button>
+                        </span>
+                      ))}
+                      {topics.length < 12 ? (
+                        <input
+                          aria-label="Novo tema"
+                          value={topicDraft}
+                          placeholder={
+                            topics.length ? "Outro tema + Enter" : "Digite um tema e aperte Enter"
+                          }
+                          onChange={(event) => setTopicDraft(event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === ",") {
+                              event.preventDefault();
+                              addTopic();
+                            } else if (event.key === "Backspace" && !topicDraft && topics.length)
+                              setTopics((current) => current.slice(0, -1));
+                          }}
+                          onBlur={addTopic}
+                        />
+                      ) : null}
+                    </div>
+                  </div>
+                  <label className="ops-field">
+                    <span>Pergunta para levar para a semana</span>
+                    <input
+                      maxLength={300}
+                      placeholder="Ex.: Que situação desta semana está fora do seu controle?"
+                      value={reflectionPrompt}
+                      onChange={(event) => setReflectionPrompt(event.target.value)}
+                    />
+                  </label>
+                </section>
+              ) : null}
+            </div>
+
+            <aside className="content-editor__side">
+              {isVideo ? (
+                <section className="content-editor__card" aria-labelledby="content-editor-cover">
+                  <h3 id="content-editor-cover">Capa da aula</h3>
+                  {coverPreview ? (
+                    <>
+                      <img
+                        className="content-editor__cover"
+                        src={coverPreview}
+                        alt="Capa atual da aula"
+                      />
+                      <div className="content-editor__cover-actions">
+                        <label className="button button--glass">
+                          {coverUploading ? "Enviando…" : "Trocar"}
+                          <input
+                            className="content-editor__file"
+                            type="file"
+                            accept="image/png,image/jpeg,image/webp"
+                            disabled={coverUploading}
+                            onChange={(event) => {
+                              const file = event.target.files?.[0];
+                              if (file) void uploadCover(file);
+                            }}
+                          />
+                        </label>
+                        <button
+                          className="button button--glass"
+                          type="button"
+                          onClick={() => {
+                            setCoverPath(null);
+                            setCoverPreview(null);
+                          }}
+                        >
+                          Remover
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <label
+                      className={`content-editor__drop is-cover${dragging ? " is-dragging" : ""}`}
+                      {...fileHandlers((file) => void uploadCover(file))}
+                    >
+                      <span className="content-editor__drop-icon" aria-hidden="true">
+                        <ImagePlus size={22} />
+                      </span>
+                      <strong>{coverUploading ? "Enviando capa…" : "Enviar capa"}</strong>
+                      <small>16:9 · ideal 1280×720</small>
+                      <input
+                        className="content-editor__file"
                         type="file"
                         accept="image/png,image/jpeg,image/webp"
                         disabled={coverUploading}
@@ -612,67 +890,111 @@ function ContentForm({
                         }}
                       />
                     </label>
-                    {coverPreview ? (
-                      <button
-                        className="button button--glass"
-                        type="button"
-                        onClick={() => {
-                          setCoverPath(null);
-                          setCoverPreview(null);
-                        }}
-                      >
-                        Remover capa
-                      </button>
-                    ) : null}
+                  )}
+                  <small className="ops-muted">Sem capa, a aula usa a capa da etapa.</small>
+                </section>
+              ) : null}
+
+              {isVideo ? (
+                <section
+                  className="content-editor__preview"
+                  aria-labelledby="content-editor-preview"
+                >
+                  <h3 id="content-editor-preview">Como aparece para quem participa</h3>
+                  <div className="content-editor__next">
+                    {previewCover ? (
+                      <img src={previewCover} alt="" />
+                    ) : (
+                      <span className="content-editor__next-empty" aria-hidden="true">
+                        <Play size={16} />
+                      </span>
+                    )}
+                    <span>
+                      <small>A seguir · aula</small>
+                      <strong>{hasTitle ? title : "O título da aula aparece aqui"}</strong>
+                      <em>{duration ? `${duration} min` : "duração aparece depois do envio"}</em>
+                    </span>
                   </div>
+                </section>
+              ) : null}
+
+              <section className="content-editor__card" aria-labelledby="content-editor-audience">
+                <h3 id="content-editor-audience">Quem recebe</h3>
+                <div
+                  className="content-editor__segmented"
+                  role="radiogroup"
+                  aria-label="Quem recebe"
+                >
+                  {(
+                    [
+                      ["general", "Todos"],
+                      ["cohort", "Uma turma"],
+                      ["mentee", "Uma pessoa"],
+                    ] as const
+                  ).map(([scope, label]) => (
+                    <button
+                      key={scope}
+                      type="button"
+                      role="radio"
+                      aria-checked={accessScope === scope}
+                      className={accessScope === scope ? "is-active" : undefined}
+                      onClick={() => {
+                        setAccessScope(scope);
+                        if (scope !== "cohort") setCohortId("");
+                        if (scope !== "mentee") setMenteeId("");
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
                 </div>
-                <small className="ops-muted">
-                  Aparece em “Continue de onde parou” e no cartão “A seguir”. Formato 16:9, PNG, JPG
-                  ou WebP.
-                </small>
-              </div>
-            </fieldset>
-          ) : null}
+                {accessScope === "cohort" ? (
+                  <select
+                    aria-label="Turma"
+                    value={cohortId}
+                    onChange={(event) => setCohortId(event.target.value)}
+                  >
+                    <option value="">Selecione a turma</option>
+                    {cohorts.map((cohort) => (
+                      <option key={cohort.id} value={cohort.id}>
+                        {cohort.name}
+                      </option>
+                    ))}
+                  </select>
+                ) : null}
+                {accessScope === "mentee" ? (
+                  <select
+                    aria-label="Participante"
+                    value={menteeId}
+                    onChange={(event) => setMenteeId(event.target.value)}
+                  >
+                    <option value="">Selecione a pessoa</option>
+                    {mentees.map((mentee) => (
+                      <option key={mentee.id} value={mentee.id}>
+                        {mentee.name}
+                      </option>
+                    ))}
+                  </select>
+                ) : null}
+              </section>
+            </aside>
+          </div>
+        </div>
 
-          {contentType === "material" ? (
-            <fieldset className="ops-inline-form">
-              <legend>Material de apoio</legend>
-              <label className="journey-upload">
-                <Upload size={18} />
-                <span>
-                  {uploading
-                    ? "Enviando arquivo…"
-                    : filePath
-                      ? "Substituir arquivo"
-                      : "Adicionar arquivo"}
-                </span>
-                <input
-                  type="file"
-                  disabled={uploading}
-                  onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    if (file) void uploadMaterial(file);
-                  }}
-                />
-              </label>
-              {filePath ? <p className="ops-muted">Arquivo privado vinculado.</p> : null}
-              <label className="ops-field">
-                <span>Ou adicione um link</span>
-                <input
-                  type="url"
-                  placeholder="https://"
-                  value={externalUrl}
-                  onChange={(event) => {
-                    setExternalUrl(event.target.value);
-                    if (event.target.value) setFilePath(null);
-                  }}
-                />
-              </label>
-            </fieldset>
+        <footer className="content-editor__foot">
+          <ul className="content-editor__checks" aria-label="O que falta">
+            {checks.map((check) => (
+              <li key={check.label} className={check.ok ? "is-ok" : undefined}>
+                {check.ok ? <Check size={13} aria-hidden="true" /> : null} {check.label}
+              </li>
+            ))}
+          </ul>
+          {message ? (
+            <p className="form-message" role="alert">
+              {message}
+            </p>
           ) : null}
-
-          {message ? <p className="form-message">{message}</p> : null}
-          <div className="content-modal__actions">
+          <div className="content-editor__actions">
             <button className="button button--glass" type="button" onClick={onDone} disabled={busy}>
               Cancelar
             </button>
@@ -680,12 +1002,19 @@ function ContentForm({
               className="button button--primary"
               type="button"
               onClick={() => void save()}
-              disabled={busy || uploading || detectingDuration}
+              disabled={!canSave}
             >
-              <Save size={16} /> {busy ? "Salvando…" : "Salvar conteúdo"}
+              <Save size={16} />{" "}
+              {busy
+                ? "Salvando…"
+                : isVideo
+                  ? initial
+                    ? "Salvar aula"
+                    : "Salvar aula"
+                  : "Salvar material"}
             </button>
           </div>
-        </div>
+        </footer>
       </section>
     </div>
   );
@@ -1575,9 +1904,7 @@ function StageContentManager({
           mentees={mentees}
           modules={modules}
           defaultModule={editing === "new" ? newModule : ""}
-          lessons={items
-            .filter((entry) => entry.contentType === "video")
-            .map((entry) => ({ id: entry.id, title: entry.title }))}
+          stageItems={items}
           onDone={() => setEditing(null)}
         />
       ) : null}

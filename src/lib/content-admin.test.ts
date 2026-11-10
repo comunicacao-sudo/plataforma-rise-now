@@ -7,6 +7,7 @@ import {
   moduleNames,
   moveModule,
   moveWithinModule,
+  placeInModule,
   paginate,
   stageMatchesFilters,
   summarizeStageContent,
@@ -144,6 +145,21 @@ test("módulos agrupam na ordem do primeiro conteúdo e as setas ficam dentro do
   assert.equal(moveWithinModule(lessons, "b", -1), null);
   assert.deepEqual(moveModule(lessons, "Módulo B", -1), ["b", "a", "c", "d"]);
   assert.equal(moveModule(lessons, "Módulo A", -1), null);
+  // Posição na etapa: novo conteúdo do Módulo A vai para o início, depois de "a" ou para o fim
+  // do próprio módulo; módulo novo vai para o fim da etapa.
+  const novo = { ...base, id: "n", contentType: "video" as const, title: "Nova", position: 4 };
+  const comNovo = [...lessons, { ...novo, moduleTitle: "Módulo A" }];
+  assert.deepEqual(placeInModule(comNovo, "n", "start"), ["n", "a", "c", "b", "d"]);
+  assert.deepEqual(placeInModule(comNovo, "n", { after: "a" }), ["a", "n", "c", "b", "d"]);
+  assert.deepEqual(placeInModule(comNovo, "n", "end"), ["a", "c", "n", "b", "d"]);
+  assert.deepEqual(placeInModule([...lessons, { ...novo, moduleTitle: "Módulo C" }], "n", "end"), [
+    "a",
+    "c",
+    "b",
+    "d",
+    "n",
+  ]);
+  assert.equal(placeInModule(lessons, "x", "end"), null);
   assert.deepEqual(
     filterStageContents(lessons, {
       search: "",
