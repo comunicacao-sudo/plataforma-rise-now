@@ -468,56 +468,6 @@ function ContentForm({
             </label>
           ) : null}
 
-          {contentType === "video" ? (
-            <div className="ops-field lesson-cover-field">
-              <span>Capa da aula (opcional)</span>
-              <div className="lesson-cover-field__row">
-                {coverPreview ? (
-                  <img src={coverPreview} alt="Capa atual da aula" />
-                ) : (
-                  <span className="lesson-cover-field__empty">Sem capa: usa a da etapa</span>
-                )}
-                <div className="lesson-cover-field__actions">
-                  <label className="journey-upload">
-                    <Upload size={18} />
-                    <span>
-                      {coverUploading
-                        ? "Enviando capa…"
-                        : coverPreview
-                          ? "Trocar capa"
-                          : "Enviar capa"}
-                    </span>
-                    <input
-                      type="file"
-                      accept="image/png,image/jpeg,image/webp"
-                      disabled={coverUploading}
-                      onChange={(event) => {
-                        const file = event.target.files?.[0];
-                        if (file) void uploadCover(file);
-                      }}
-                    />
-                  </label>
-                  {coverPreview ? (
-                    <button
-                      className="button button--glass"
-                      type="button"
-                      onClick={() => {
-                        setCoverPath(null);
-                        setCoverPreview(null);
-                      }}
-                    >
-                      Remover capa
-                    </button>
-                  ) : null}
-                </div>
-              </div>
-              <small className="ops-muted">
-                Aparece em “Continue de onde parou” e no cartão “A seguir”. Formato 16:9, PNG, JPG
-                ou WebP.
-              </small>
-            </div>
-          ) : null}
-
           {contentType === "material" ? (
             <label className="ops-field">
               <span>Em qual aula este material aparece?</span>
@@ -634,6 +584,53 @@ function ContentForm({
                   }}
                 />
               </label>
+              <div className="ops-field lesson-cover-field">
+                <span>Capa da aula (opcional)</span>
+                <div className="lesson-cover-field__row">
+                  {coverPreview ? (
+                    <img src={coverPreview} alt="Capa atual da aula" />
+                  ) : (
+                    <span className="lesson-cover-field__empty">Sem capa: usa a da etapa</span>
+                  )}
+                  <div className="lesson-cover-field__actions">
+                    <label className="journey-upload">
+                      <Upload size={18} />
+                      <span>
+                        {coverUploading
+                          ? "Enviando capa…"
+                          : coverPreview
+                            ? "Trocar capa"
+                            : "Enviar capa"}
+                      </span>
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        disabled={coverUploading}
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          if (file) void uploadCover(file);
+                        }}
+                      />
+                    </label>
+                    {coverPreview ? (
+                      <button
+                        className="button button--glass"
+                        type="button"
+                        onClick={() => {
+                          setCoverPath(null);
+                          setCoverPreview(null);
+                        }}
+                      >
+                        Remover capa
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+                <small className="ops-muted">
+                  Aparece em “Continue de onde parou” e no cartão “A seguir”. Formato 16:9, PNG, JPG
+                  ou WebP.
+                </small>
+              </div>
             </fieldset>
           ) : null}
 

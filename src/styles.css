@@ -13037,3 +13037,43 @@ button.journey-resume:hover {
   align-items: center;
   gap: 0.6rem;
 }
+
+/* ===== "Continue de onde parou": capa sempre em 16:9, inteira ===== */
+.journey-resume {
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  align-items: stretch;
+}
+.journey-resume__media {
+  min-height: 0;
+  aspect-ratio: 16 / 9;
+  align-self: start;
+}
+.journey-resume__play {
+  position: absolute;
+  bottom: 1rem;
+  left: 1rem;
+  width: 3.25rem;
+  height: 3.25rem;
+}
+.journey-resume__play svg {
+  width: 22px;
+  height: 22px;
+}
+.journey-resume__body {
+  align-self: center;
+}
+@media (max-width: 980px) {
+  .journey-resume {
+    grid-template-columns: 1fr;
+  }
+  .journey-resume__media {
+    min-height: 0;
+    width: 100%;
+  }
+}.journey-resume__media:not(:has(.journey-resume__cover)) .journey-resume__play {
+  position: relative;
+  bottom: auto;
+  left: auto;
+  width: 4.5rem;
+  height: 4.5rem;
+}
