@@ -1456,6 +1456,30 @@ function stageContentShape(row: any) {
   };
 }
 
+/** Extensões recusadas no envio de materiais (executáveis e páginas com script). */
+const BLOCKED_UPLOAD_EXTENSIONS = new Set([
+  "exe",
+  "msi",
+  "bat",
+  "cmd",
+  "com",
+  "scr",
+  "ps1",
+  "vbs",
+  "js",
+  "mjs",
+  "jar",
+  "sh",
+  "app",
+  "dmg",
+  "apk",
+  "html",
+  "htm",
+  "xhtml",
+  "svg",
+  "php",
+]);
+
 /** Nome do módulo: espaços normalizados, até 120 caracteres; vazio = sem módulo. */
 function cleanModuleTitle(value: unknown) {
   const text = String(value ?? "")
@@ -2163,6 +2187,15 @@ async function contentAction(c: Context, action: string, d: any) {
         .pop()
         ?.toLowerCase()
         .replace(/[^a-z0-9]/g, "") || "bin";
+    // Materiais: até 100 MB e sem arquivos que rodam código no navegador ou no computador.
+    if (d.kind !== "cover" && d.kind !== "media") {
+      if (!(Number(d.size) > 0) || Number(d.size) > 100_000_000)
+        throw new Error("O material deve ter no máximo 100 MB.");
+      if (BLOCKED_UPLOAD_EXTENSIONS.has(ext))
+        throw new Error(
+          "Este tipo de arquivo não é aceito. Envie PDF, documento, planilha, imagem ou áudio.",
+        );
+    }
     const folder = d.kind === "cover" ? "covers" : d.kind === "media" ? "media" : "materials";
     const path = `${folder}/${c.userId}/${crypto.randomUUID()}.${ext}`;
     const { data, error } = await c.admin.storage
@@ -4387,10 +4420,19 @@ async function whatsappAction(c: Context, action: string, d: any) {
   }
   if (action === "saveWhatsAppContact") {
     const rawPhone = String(d.phone ?? "").trim();
-    const phone = toChatId(rawPhone)?.digits ?? null;
+    let phone = toChatId(rawPhone)?.digits ?? null;
     if (rawPhone && !phone) throw new Error("Telefone inválido. Informe DDD e número.");
     if (typeof d.authorized !== "boolean")
       throw new Error("Informe se a pessoa autorizou o envio.");
+    if (!phone && d.authorized === false) {
+      // Revogar com o campo vazio não pode apagar o telefone do perfil: mantém o atual.
+      const { data: current } = await c.admin
+        .from("profiles")
+        .select("phone")
+        .eq("id", String(d.userId ?? ""))
+        .maybeSingle();
+      phone = toChatId(String(current?.phone ?? ""))?.digits ?? null;
+    }
     const { error } = await c.admin.rpc("record_whatsapp_permission", {
       p_user_id: String(d.userId ?? ""),
       p_phone: phone,

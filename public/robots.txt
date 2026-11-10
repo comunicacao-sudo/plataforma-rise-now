@@ -1,14 +1,18 @@
-User-agent: Googlebot
+# Plataforma privada: só as páginas públicas (sobre, termos e privacidade)
+# ficam abertas aos buscadores. Os robôs de prévia de link (WhatsApp,
+# Facebook, X) continuam liberados para mostrar título e imagem.
+
+User-agent: facebookexternalhit
 Allow: /
 
-User-agent: Bingbot
+User-agent: WhatsApp
 Allow: /
 
 User-agent: Twitterbot
 Allow: /
 
-User-agent: facebookexternalhit
-Allow: /
-
 User-agent: *
-Allow: /
+Allow: /sobre
+Allow: /termos-de-uso
+Allow: /politica-de-privacidade
+Disallow: /

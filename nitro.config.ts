@@ -25,6 +25,9 @@ export default defineConfig({
         "Content-Security-Policy":
           "frame-ancestors 'self' https://lovable.dev https://*.lovable.dev; object-src 'none'; base-uri 'self'",
         "X-Content-Type-Options": "nosniff",
+        "Referrer-Policy": "strict-origin-when-cross-origin",
+        "Strict-Transport-Security": "max-age=31536000",
+        "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=()",
       },
     },
   },
