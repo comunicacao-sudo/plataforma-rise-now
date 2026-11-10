@@ -72,12 +72,11 @@ import {
   useJourneyContentLibrary,
 } from "@/components/journey-content";
 import type { JourneyContentItem, JourneyContentLibrary } from "@/lib/content.functions";
-import { JourneyHub } from "@/components/journey-hub";
+const JourneyHub = deferredView<
+  import("react").ComponentProps<typeof import("@/components/journey-hub").JourneyHub> & object
+>(() => import("@/components/journey-hub").then((module) => ({ default: module.JourneyHub })));
 import { installDialogAccessibility } from "@/lib/dialog-accessibility";
-import {
-  findJourneyContentForLesson,
-  hasOpenableJourneyContent,
-} from "@/lib/journey-navigation";
+import { findJourneyContentForLesson, hasOpenableJourneyContent } from "@/lib/journey-navigation";
 const AssessmentProfileModal = deferredView<
   import("react").ComponentProps<
     typeof import("@/components/rise-assessment").AssessmentProfileModal
