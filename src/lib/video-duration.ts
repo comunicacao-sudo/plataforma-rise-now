@@ -22,6 +22,30 @@ export function readLocalVideoDuration(file: File): Promise<number | null> {
   });
 }
 
+/** Lê só os metadados de um vídeo já publicado (link temporário) para saber a duração. */
+export function readRemoteVideoDuration(url: string): Promise<number | null> {
+  return new Promise((resolve) => {
+    const video = document.createElement("video");
+    const finish = (duration: number | null) => {
+      clearTimeout(timer);
+      video.onloadedmetadata = null;
+      video.onerror = null;
+      video.removeAttribute("src");
+      video.load();
+      resolve(duration);
+    };
+    const timer = setTimeout(() => finish(null), 20000);
+    video.preload = "metadata";
+    video.muted = true;
+    video.onloadedmetadata = () =>
+      finish(
+        Number.isFinite(video.duration) && video.duration > 0 ? Math.round(video.duration) : null,
+      );
+    video.onerror = () => finish(null);
+    video.src = url;
+  });
+}
+
 export function videoDurationLabel(seconds: number | null | undefined, minutes?: number | null) {
   if (seconds && Number.isFinite(seconds)) {
     const total = Math.max(1, Math.round(seconds));

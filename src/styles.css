@@ -13631,3 +13631,35 @@ button.journey-resume:hover {
   outline: none;
   border-color: var(--platform-accent);
 }
+/* ===== Questionário dentro do formulário de conteúdos ===== */
+.content-editor__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.platform-shell .questionnaire-editor.questionnaire-editor--embedded {
+  display: grid;
+  width: auto;
+  max-width: none;
+  height: auto;
+  max-height: none;
+  gap: 1rem;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.platform-shell .questionnaire-editor--embedded .questionnaire-editor__question {
+  background: var(--platform-surface-soft);
+}
+.platform-shell .questionnaire-editor--embedded.questionnaire-editor__preview {
+  padding: 1.2rem;
+  border: 1px solid var(--platform-line);
+  border-radius: 16px;
+  background: var(--platform-surface-soft);
+}

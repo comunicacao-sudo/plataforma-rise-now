@@ -27,9 +27,14 @@ import {
 import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { RecordedPlayer } from "@/components/recorded-lessons";
 import { GoogleDriveCard } from "@/components/google-drive-card";
-import { QuestionnaireEditor } from "@/components/questionnaire-editor";
+import { QuestionnairePreview, QuestionsBuilder } from "@/components/questionnaire-editor";
+import { questionnaireProblem } from "@/lib/questionnaire-validation";
 import { confirmProtectedOperation } from "@/lib/protected-dialog";
-import { readLocalVideoDuration, videoDurationLabel } from "@/lib/video-duration";
+import {
+  readLocalVideoDuration,
+  readRemoteVideoDuration,
+  videoDurationLabel,
+} from "@/lib/video-duration";
 import { driveFileId } from "../../supabase/functions/_shared/video-media";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -177,6 +182,8 @@ function ContentForm({
   const [linkMode, setLinkMode] = useState(!!initial?.externalUrl);
   const [dragging, setDragging] = useState(false);
   const [uploadName, setUploadName] = useState("");
+  const [quizPreview, setQuizPreview] = useState(false);
+  const [quizFocus, setQuizFocus] = useState<string | null>(null);
   const moduleKey = moduleTitle.replace(/\s+/g, " ").trim();
   const siblings =
     groupByModule(stageItems.filter((entry) => entry.id !== initial?.id)).find(
@@ -273,6 +280,33 @@ function ContentForm({
     };
   }, [contentType, externalUrl, inspectVideo]);
 
+  // Aula já publicada sem duração: lê a duração do próprio vídeo e já salva.
+  const loadPlayback = useServerFn(getStageVideoPlayback);
+  const saveMetadata = useServerFn(updateStageVideoMetadata);
+  const [readingDuration, setReadingDuration] = useState(false);
+  const askedDuration = useRef(false);
+  useEffect(() => {
+    if (askedDuration.current || contentType !== "video") return;
+    if (!initial?.id || !initial.mediaPath || mediaPath !== initial.mediaPath) return;
+    if (initial.durationSeconds || initial.durationMinutes) return;
+    askedDuration.current = true;
+    const contentId = initial.id;
+    const revision = initial.sourceRevision ?? 1;
+    setReadingDuration(true);
+    void (async () => {
+      const source = await loadPlayback({ data: { contentId } });
+      const url = source.r2 ? (await getR2PlaybackUrl(source.contentId)).url : source.url;
+      const seconds = url ? await readRemoteVideoDuration(url) : null;
+      if (!seconds) return;
+      setDurationSeconds(seconds);
+      setDuration(String(Math.ceil(seconds / 60)));
+      await saveMetadata({ data: { contentId, revision, durationSeconds: seconds } });
+      void qc.invalidateQueries({ queryKey: ["stage-contents"] });
+    })()
+      .catch(() => undefined)
+      .finally(() => setReadingDuration(false));
+  }, [contentType, initial, mediaPath, loadPlayback, saveMetadata, qc]);
+
   async function uploadVideo(file: File) {
     setUploadName(file.name);
     setLinkMode(false);
@@ -339,8 +373,14 @@ function ContentForm({
       return setMessage("Envie a aula ou informe uma URL externa.");
     if (contentType === "material" && !filePath && !externalUrl.trim())
       return setMessage("Envie um arquivo ou informe um link.");
-    if (contentType === "questionnaire" && !questions.some((question) => question.prompt.trim()))
-      return setMessage("Adicione pelo menos uma pergunta.");
+    if (contentType === "questionnaire") {
+      const problem = questionnaireProblem(questions);
+      if (problem) {
+        setQuizPreview(false);
+        setQuizFocus(problem.id);
+        return setMessage(problem.message);
+      }
+    }
 
     setBusy(true);
     try {
@@ -414,60 +454,52 @@ function ContentForm({
     }
   }
 
-  if (contentType === "questionnaire") {
-    return (
-      <QuestionnaireEditor
-        value={{ title, description, accessScope, cohortId, menteeId, questions }}
-        onChange={(patch) => {
-          if (patch.title !== undefined) setTitle(patch.title);
-          if (patch.description !== undefined) setDescription(patch.description);
-          if (patch.accessScope !== undefined) setAccessScope(patch.accessScope);
-          if (patch.cohortId !== undefined) setCohortId(patch.cohortId ?? "");
-          if (patch.menteeId !== undefined) setMenteeId(patch.menteeId ?? "");
-          if (patch.questions !== undefined) setQuestions(patch.questions);
-        }}
-        stepTitle={step.title}
-        editing={!!initial}
-        cohorts={cohorts}
-        mentees={mentees}
-        busy={busy}
-        message={message}
-        onSave={() => void save()}
-        onClose={onDone}
-      />
-    );
-  }
-
   const isVideo = contentType === "video";
+  const isQuiz = contentType === "questionnaire";
+  const quizProblem = isQuiz ? questionnaireProblem(questions) : null;
+  const requiredCount = questions.filter((question) => question.required).length;
   const hasTitle = title.trim().length > 0;
   const videoReady = !!mediaPath || !!externalUrl.trim();
   const fileReady = !!filePath || !!externalUrl.trim();
-  const checks = isVideo
+  const checks = isQuiz
     ? [
-        {
-          ok: videoReady && !uploading,
-          optional: false,
-          label: uploading
-            ? `Vídeo enviando… ${progress ?? 0}%`
-            : videoReady
-              ? "Vídeo enviado"
-              : "Falta o vídeo",
-        },
         { ok: hasTitle, optional: false, label: hasTitle ? "Título" : "Falta o título" },
-        { ok: !!coverPath, optional: true, label: coverPath ? "Capa" : "Capa (opcional)" },
+        {
+          ok: !quizProblem,
+          optional: false,
+          label: !quizProblem
+            ? `${questions.length} ${questions.length === 1 ? "pergunta" : "perguntas"}`
+            : questions.length
+              ? "Revise as perguntas"
+              : "Falta a pergunta",
+        },
       ]
-    : [
-        {
-          ok: fileReady && !uploading,
-          optional: false,
-          label: uploading
-            ? "Arquivo enviando…"
-            : fileReady
-              ? "Arquivo ou link"
-              : "Falta o arquivo",
-        },
-        { ok: hasTitle, optional: false, label: hasTitle ? "Título" : "Falta o título" },
-      ];
+    : isVideo
+      ? [
+          {
+            ok: videoReady && !uploading,
+            optional: false,
+            label: uploading
+              ? `Vídeo enviando… ${progress ?? 0}%`
+              : videoReady
+                ? "Vídeo enviado"
+                : "Falta o vídeo",
+          },
+          { ok: hasTitle, optional: false, label: hasTitle ? "Título" : "Falta o título" },
+          { ok: !!coverPath, optional: true, label: coverPath ? "Capa" : "Capa (opcional)" },
+        ]
+      : [
+          {
+            ok: fileReady && !uploading,
+            optional: false,
+            label: uploading
+              ? "Arquivo enviando…"
+              : fileReady
+                ? "Arquivo ou link"
+                : "Falta o arquivo",
+          },
+          { ok: hasTitle, optional: false, label: hasTitle ? "Título" : "Falta o título" },
+        ];
   const canSave =
     !busy &&
     !uploading &&
@@ -538,43 +570,75 @@ function ContentForm({
 
           <div className="content-editor__body">
             <div className="content-editor__main">
-              <section className="content-editor__section" aria-labelledby="content-editor-s1">
-                <h3 id="content-editor-s1">
-                  <span className="content-editor__step">1</span>
-                  {isVideo ? "Vídeo da aula" : "Arquivo"}
-                </h3>
-                {uploading ? (
-                  <div className="content-editor__progress" role="status">
-                    <div>
-                      <strong>{uploadName || (isVideo ? "Vídeo" : "Arquivo")}</strong>
-                      <span>{isVideo ? `${progress ?? 0}%` : "Enviando…"}</span>
+              {isQuiz ? null : (
+                <section className="content-editor__section" aria-labelledby="content-editor-s1">
+                  <h3 id="content-editor-s1">
+                    <span className="content-editor__step">1</span>
+                    {isVideo ? "Vídeo da aula" : "Arquivo"}
+                  </h3>
+                  {uploading ? (
+                    <div className="content-editor__progress" role="status">
+                      <div>
+                        <strong>{uploadName || (isVideo ? "Vídeo" : "Arquivo")}</strong>
+                        <span>{isVideo ? `${progress ?? 0}%` : "Enviando…"}</span>
+                      </div>
+                      <span className="content-editor__bar">
+                        <span style={{ width: `${isVideo ? (progress ?? 0) : 60}%` }} />
+                      </span>
+                      <small>
+                        Enviando para o servidor seguro. Você pode preencher o resto enquanto isso.
+                      </small>
                     </div>
-                    <span className="content-editor__bar">
-                      <span style={{ width: `${isVideo ? (progress ?? 0) : 60}%` }} />
-                    </span>
-                    <small>
-                      Enviando para o servidor seguro. Você pode preencher o resto enquanto isso.
-                    </small>
-                  </div>
-                ) : (isVideo ? mediaPath : filePath) && !linkMode ? (
-                  <div className="content-editor__done">
-                    <span className="content-editor__done-icon" aria-hidden="true">
-                      <Check size={20} />
-                    </span>
-                    <span>
+                  ) : (isVideo ? mediaPath : filePath) && !linkMode ? (
+                    <div className="content-editor__done">
+                      <span className="content-editor__done-icon" aria-hidden="true">
+                        <Check size={20} />
+                      </span>
+                      <span>
+                        <strong>
+                          {uploadName || (isVideo ? "Vídeo da aula" : "Arquivo do material")}
+                        </strong>
+                        <small>
+                          {isVideo
+                            ? duration
+                              ? `Vídeo enviado · duração: ${duration} min`
+                              : "Vídeo enviado"
+                            : "Arquivo privado vinculado"}
+                        </small>
+                      </span>
+                      <label className="button button--glass content-editor__swap">
+                        {isVideo ? "Trocar vídeo" : "Trocar arquivo"}
+                        <input
+                          className="content-editor__file"
+                          type="file"
+                          accept={isVideo ? "video/mp4,video/webm,video/quicktime" : undefined}
+                          onChange={(event) => {
+                            const file = event.target.files?.[0];
+                            if (file) void (isVideo ? uploadVideo(file) : uploadMaterial(file));
+                          }}
+                        />
+                      </label>
+                    </div>
+                  ) : !linkMode ? (
+                    <label
+                      className={`content-editor__drop${dragging ? " is-dragging" : ""}`}
+                      {...fileHandlers(
+                        (file) => void (isVideo ? uploadVideo(file) : uploadMaterial(file)),
+                      )}
+                    >
+                      <span className="content-editor__drop-icon" aria-hidden="true">
+                        <Upload size={24} />
+                      </span>
                       <strong>
-                        {uploadName || (isVideo ? "Vídeo da aula" : "Arquivo do material")}
+                        {isVideo
+                          ? "Arraste o vídeo aqui ou clique para escolher"
+                          : "Arraste o arquivo aqui ou clique para escolher"}
                       </strong>
                       <small>
                         {isVideo
-                          ? duration
-                            ? `Vídeo enviado · duração: ${duration} min`
-                            : "Vídeo enviado"
-                          : "Arquivo privado vinculado"}
+                          ? "MP4, MOV ou WebM · a duração é lida sozinha"
+                          : "PDF, documento, planilha, imagem ou áudio · até 100 MB"}
                       </small>
-                    </span>
-                    <label className="button button--glass content-editor__swap">
-                      {isVideo ? "Trocar vídeo" : "Trocar arquivo"}
                       <input
                         className="content-editor__file"
                         type="file"
@@ -585,94 +649,64 @@ function ContentForm({
                         }}
                       />
                     </label>
-                  </div>
-                ) : !linkMode ? (
-                  <label
-                    className={`content-editor__drop${dragging ? " is-dragging" : ""}`}
-                    {...fileHandlers(
-                      (file) => void (isVideo ? uploadVideo(file) : uploadMaterial(file)),
-                    )}
-                  >
-                    <span className="content-editor__drop-icon" aria-hidden="true">
-                      <Upload size={24} />
-                    </span>
-                    <strong>
-                      {isVideo
-                        ? "Arraste o vídeo aqui ou clique para escolher"
-                        : "Arraste o arquivo aqui ou clique para escolher"}
-                    </strong>
-                    <small>
-                      {isVideo
-                        ? "MP4, MOV ou WebM · a duração é lida sozinha"
-                        : "PDF, documento, planilha, imagem ou áudio · até 100 MB"}
-                    </small>
-                    <input
-                      className="content-editor__file"
-                      type="file"
-                      accept={isVideo ? "video/mp4,video/webm,video/quicktime" : undefined}
-                      onChange={(event) => {
-                        const file = event.target.files?.[0];
-                        if (file) void (isVideo ? uploadVideo(file) : uploadMaterial(file));
-                      }}
-                    />
-                  </label>
-                ) : null}
-                {!uploading ? (
-                  <button
-                    className="content-editor__link-toggle"
-                    type="button"
-                    onClick={() => setLinkMode((value) => !value)}
-                  >
-                    {linkMode
-                      ? "Voltar para envio de arquivo"
-                      : isVideo
-                        ? "Prefere usar um link do Google Drive?"
-                        : "Prefere adicionar um link?"}
-                  </button>
-                ) : null}
-                {linkMode ? (
-                  <label className="ops-field">
-                    <span>{isVideo ? "Link do vídeo (Google Drive)" : "Link do material"}</span>
-                    <input
-                      type="url"
-                      placeholder="https://"
-                      value={externalUrl}
-                      onChange={(event) => {
-                        setExternalUrl(event.target.value);
-                        if (isVideo) {
+                  ) : null}
+                  {!uploading ? (
+                    <button
+                      className="content-editor__link-toggle"
+                      type="button"
+                      onClick={() => setLinkMode((value) => !value)}
+                    >
+                      {linkMode
+                        ? "Voltar para envio de arquivo"
+                        : isVideo
+                          ? "Prefere usar um link do Google Drive?"
+                          : "Prefere adicionar um link?"}
+                    </button>
+                  ) : null}
+                  {linkMode ? (
+                    <label className="ops-field">
+                      <span>{isVideo ? "Link do vídeo (Google Drive)" : "Link do material"}</span>
+                      <input
+                        type="url"
+                        placeholder="https://"
+                        value={externalUrl}
+                        onChange={(event) => {
+                          setExternalUrl(event.target.value);
+                          if (isVideo) {
+                            setDurationSeconds(null);
+                            if (event.target.value.trim()) setMediaPath(null);
+                          } else if (event.target.value) setFilePath(null);
+                        }}
+                      />
+                    </label>
+                  ) : null}
+                  {isVideo && (detectingDuration || readingDuration) ? (
+                    <p className="ops-muted" role="status">
+                      Lendo a duração do vídeo…
+                    </p>
+                  ) : null}
+                  {isVideo && videoReady && !uploading ? (
+                    <label className="content-editor__duration">
+                      <span>Duração (min)</span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={1440}
+                        value={duration}
+                        onChange={(event) => {
+                          setDuration(event.target.value);
                           setDurationSeconds(null);
-                          if (event.target.value.trim()) setMediaPath(null);
-                        } else if (event.target.value) setFilePath(null);
-                      }}
-                    />
-                  </label>
-                ) : null}
-                {isVideo && detectingDuration ? (
-                  <p className="ops-muted" role="status">
-                    Lendo a duração do vídeo…
-                  </p>
-                ) : null}
-                {isVideo && videoReady && !uploading ? (
-                  <label className="content-editor__duration">
-                    <span>Duração (min)</span>
-                    <input
-                      type="number"
-                      min={1}
-                      max={1440}
-                      value={duration}
-                      onChange={(event) => {
-                        setDuration(event.target.value);
-                        setDurationSeconds(null);
-                      }}
-                    />
-                  </label>
-                ) : null}
-              </section>
+                        }}
+                      />
+                    </label>
+                  ) : null}
+                </section>
+              )}
 
               <section className="content-editor__section" aria-labelledby="content-editor-s2">
                 <h3 id="content-editor-s2">
-                  <span className="content-editor__step">2</span>
-                  {isVideo ? "Sobre a aula" : "Sobre o material"}
+                  <span className="content-editor__step">{isQuiz ? 1 : 2}</span>
+                  {isVideo ? "Sobre a aula" : isQuiz ? "Sobre o questionário" : "Sobre o material"}
                 </h3>
                 <label className="ops-field">
                   <span>{isVideo ? "Título da aula *" : "Título *"}</span>
@@ -682,7 +716,9 @@ function ContentForm({
                     placeholder={
                       isVideo
                         ? "Ex.: Preparo, insegurança e círculo de controle"
-                        : "Ex.: Círculo de Controle — O que depende de mim?"
+                        : isQuiz
+                          ? "Ex.: Mapa de Preparo e Círculo de Controle"
+                          : "Ex.: Círculo de Controle — O que depende de mim?"
                     }
                     onChange={(event) => setTitle(event.target.value)}
                   />
@@ -746,7 +782,11 @@ function ContentForm({
                 ) : null}
                 <label className="ops-field">
                   <span>
-                    {isVideo ? "Resumo · aparece logo abaixo do vídeo" : "Descrição (opcional)"}
+                    {isVideo
+                      ? "Resumo · aparece logo abaixo do vídeo"
+                      : isQuiz
+                        ? "Instruções para quem participa (opcional)"
+                        : "Descrição (opcional)"}
                   </span>
                   <textarea
                     rows={isVideo ? 4 : 3}
@@ -757,7 +797,7 @@ function ContentForm({
                     onChange={(event) => setDescription(event.target.value)}
                   />
                 </label>
-                {!isVideo ? (
+                {contentType === "material" ? (
                   <label className="ops-field">
                     <span>Aparece em</span>
                     <select value={lessonId} onChange={(event) => setLessonId(event.target.value)}>
@@ -771,6 +811,45 @@ function ContentForm({
                   </label>
                 ) : null}
               </section>
+
+              {isQuiz ? (
+                <section className="content-editor__section" aria-labelledby="content-editor-q">
+                  <h3 id="content-editor-q">
+                    <span className="content-editor__step">2</span>
+                    Perguntas
+                    <small>
+                      {questions.length} {questions.length === 1 ? "pergunta" : "perguntas"} ·{" "}
+                      {requiredCount} {requiredCount === 1 ? "obrigatória" : "obrigatórias"}
+                    </small>
+                  </h3>
+                  <button
+                    className="content-editor__link-toggle"
+                    type="button"
+                    onClick={() => setQuizPreview((value) => !value)}
+                  >
+                    {quizPreview
+                      ? "Voltar à edição das perguntas"
+                      : "Ver como fica para quem participa"}
+                  </button>
+                  {quizPreview ? (
+                    <QuestionnairePreview
+                      title={title}
+                      description={description}
+                      questions={questions}
+                    />
+                  ) : (
+                    <QuestionsBuilder
+                      questions={questions}
+                      onChange={(next) => {
+                        setQuestions(next);
+                        setQuizFocus(null);
+                      }}
+                      disabled={busy}
+                      focusId={quizFocus}
+                    />
+                  )}
+                </section>
+              ) : null}
 
               {isVideo ? (
                 <section
@@ -918,6 +997,25 @@ function ContentForm({
                 </section>
               ) : null}
 
+              {isQuiz ? (
+                <section
+                  className="content-editor__preview"
+                  aria-labelledby="content-editor-quiz-preview"
+                >
+                  <h3 id="content-editor-quiz-preview">Como aparece para quem participa</h3>
+                  <div className="content-editor__next">
+                    <span className="content-editor__next-empty" aria-hidden="true">
+                      <BookOpen size={18} />
+                    </span>
+                    <span>
+                      <small>Próximo questionário</small>
+                      <strong>{hasTitle ? title : "O título do questionário aparece aqui"}</strong>
+                      <em>Aparece sozinho, no lugar do vídeo, na vez dele</em>
+                    </span>
+                  </div>
+                </section>
+              ) : null}
+
               <section className="content-editor__card" aria-labelledby="content-editor-audience">
                 <h3 id="content-editor-audience">Quem recebe</h3>
                 <div
@@ -1011,7 +1109,9 @@ function ContentForm({
                   ? initial
                     ? "Salvar aula"
                     : "Salvar aula"
-                  : "Salvar material"}
+                  : isQuiz
+                    ? "Salvar questionário"
+                    : "Salvar material"}
             </button>
           </div>
         </footer>
