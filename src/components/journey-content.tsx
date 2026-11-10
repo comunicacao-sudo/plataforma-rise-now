@@ -425,10 +425,13 @@ function JourneyNotebook({
   item,
   currentTime,
   player,
+  appendRef,
 }: {
   item: JourneyContentItem;
   currentTime: number;
   player: PlayerController;
+  /** Permite que outra parte da aula acrescente um bloco de texto ao caderno. */
+  appendRef?: { current: ((block: string) => boolean) | null };
 }) {
   const load = useServerFn(getJourneyStudyState);
   const save = useServerFn(saveJourneyContentNote);
@@ -460,6 +463,20 @@ function JourneyNotebook({
     setSavedText(query.data.note);
     setReady(true);
   }, [query.data, ready]);
+
+  useEffect(() => {
+    if (!appendRef) return;
+    appendRef.current = ready
+      ? (block: string) => {
+          setText((current) => (current.trim() ? current.trimEnd() + "\n\n" : "") + block);
+          setTab("notes");
+          return true;
+        }
+      : null;
+    return () => {
+      appendRef.current = null;
+    };
+  }, [appendRef, ready]);
 
   useEffect(() => {
     if (!ready || !query.data || text === query.data.note) return;
@@ -605,14 +622,19 @@ function JourneyNotebook({
 
 export function JourneyContentLessonPage({
   stepKey,
+  initialContentId,
   onBack,
   onNavigate,
 }: {
   stepKey: string;
+  /** Abre direto nesta aula da etapa (ex.: "Continue de onde parou"). */
+  initialContentId?: string | null;
   onBack: () => void;
   onNavigate: (stepKey: string) => void;
 }) {
-  const [selectedVideo, setSelectedVideo] = useState<{ stepKey: string; id: string } | null>(null);
+  const [selectedVideo, setSelectedVideo] = useState<{ stepKey: string; id: string } | null>(
+    initialContentId ? { stepKey, id: initialContentId } : null,
+  );
   const contentId = selectedVideo?.stepKey === stepKey ? selectedVideo.id : undefined;
   const load = useServerFn(getJourneyContent);
   const loadStudy = useServerFn(getJourneyStudyState);
@@ -648,6 +670,14 @@ export function JourneyContentLessonPage({
   const [r2Loading, setR2Loading] = useState(false);
   const [player, setPlayer] = useState<PlayerController>({ canSeek: false, seek: () => undefined });
   const lastSaved = useRef(0);
+  // Fim do vídeo: "Aula concluída" com a próxima começando sozinha em 5 s.
+  const [ended, setEnded] = useState(false);
+  const [countdown, setCountdown] = useState<number | null>(null);
+  // Celular: abas Resumo / Caderno / Materiais.
+  const [mobileTab, setMobileTab] = useState<"resumo" | "caderno" | "materiais">("resumo");
+  const [reflectionAnswer, setReflectionAnswer] = useState("");
+  const [reflectionSaved, setReflectionSaved] = useState(false);
+  const notebookAppend = useRef<((block: string) => boolean) | null>(null);
   const playbackState = useRef({ seconds: 0, duration: null as number | null });
   playbackState.current = { seconds: currentTime, duration };
 
@@ -712,6 +742,10 @@ export function JourneyContentLessonPage({
     setDuration(null);
     setR2Url(null);
     setR2Error("");
+    setEnded(false);
+    setCountdown(null);
+    setReflectionAnswer("");
+    setReflectionSaved(false);
     lastSaved.current = 0;
   }, [stepKey, item?.videoContentId, item?.videoRevision]);
 
@@ -777,6 +811,51 @@ export function JourneyContentLessonPage({
     if (nextVideo) setSelectedVideo({ stepKey, id: nextVideo.id });
     else if (query.data?.next) onNavigate(query.data.next);
   };
+  const goNextRef = useRef(goNext);
+  goNextRef.current = goNext;
+  const videoCount = item?.videos?.length ?? 0;
+  const doneCount = item?.videos?.filter((video) => video.completed).length ?? 0;
+  const currentVideo = videoIndex >= 0 ? item?.videos?.[videoIndex] : undefined;
+
+  // Contagem regressiva para a próxima aula (só quando a próxima é da mesma etapa).
+  useEffect(() => {
+    if (countdown === null) return;
+    if (countdown <= 0) {
+      setCountdown(null);
+      setEnded(false);
+      goNextRef.current();
+      return;
+    }
+    const timer = window.setTimeout(() => setCountdown((value) => (value ?? 1) - 1), 1000);
+    return () => window.clearTimeout(timer);
+  }, [countdown]);
+
+  function handleEnded(seconds: number) {
+    void persistProgress(seconds, true);
+    setEnded(true);
+    setCountdown(nextVideo ? 5 : null);
+  }
+
+  function stayAndNote() {
+    setCountdown(null);
+    setEnded(false);
+    setMobileTab("caderno");
+    document
+      .querySelector(".recorded-lesson .lesson-notebook textarea")
+      ?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
+  function saveReflection() {
+    const answer = reflectionAnswer.trim();
+    if (!answer || !item?.reflectionPrompt) return;
+    const saved = notebookAppend.current?.(
+      `✦ Para levar para a semana — ${item.reflectionPrompt}\n${answer}`,
+    );
+    if (saved) {
+      setReflectionSaved(true);
+      setReflectionAnswer("");
+    }
+  }
 
   if (query.isLoading)
     return <main className="inner-page journey-content-state">Carregando conteúdo…</main>;
@@ -856,7 +935,10 @@ export function JourneyContentLessonPage({
         <header className="recorded-lesson__title">
           <div>
             <span className="eyebrow eyebrow--gold">
-              MÊS {item.monthNumber} · {item.pillarName}
+              {videoCount > 1 && videoIndex >= 0
+                ? `Aula ${videoIndex + 1} de ${videoCount}` +
+                  (currentVideo?.module ? ` · ${currentVideo.module}` : ` · ${item.title}`)
+                : `Mês ${item.monthNumber} · ${item.pillarName}`}
             </span>
             <h1>{item.videoTitle || item.title}</h1>
             <p>
@@ -884,7 +966,42 @@ export function JourneyContentLessonPage({
             </button>
           </div>
         </header>
-        <div className="recorded-lesson__workspace">
+        {videoCount > 1 ? (
+          <section className="lesson-stage-progress" aria-label="Progresso da etapa">
+            <ol>
+              {item.videos?.map((video, index) => (
+                <li
+                  key={video.id}
+                  className={
+                    video.completed ? "is-done" : index === videoIndex ? "is-current" : undefined
+                  }
+                >
+                  <button
+                    type="button"
+                    onClick={() => setSelectedVideo({ stepKey, id: video.id })}
+                    aria-label={`Aula ${index + 1}: ${video.title}${video.completed ? " (concluída)" : index === videoIndex ? " (aberta agora)" : ""}`}
+                    aria-current={index === videoIndex ? "step" : undefined}
+                    title={`${index + 1}. ${video.title}`}
+                  />
+                </li>
+              ))}
+            </ol>
+            <p>
+              <span>
+                {doneCount} de {videoCount} aulas concluídas nesta etapa
+              </span>
+              {[...new Set(item.videos?.map((video) => video.module).filter(Boolean))].length ? (
+                <span>
+                  Módulos:{" "}
+                  {[...new Set(item.videos?.map((video) => video.module).filter(Boolean))].join(
+                    " · ",
+                  )}
+                </span>
+              ) : null}
+            </p>
+          </section>
+        ) : null}
+        <div className="recorded-lesson__workspace" data-mobile-tab={mobileTab}>
           <section className="recorded-lesson__main">
             {progressError ? (
               <p className="form-message" role="status">
@@ -915,7 +1032,7 @@ export function JourneyContentLessonPage({
                         ? currentTime
                         : (study.data?.currentSeconds ?? item.currentSeconds)
                     }
-                    onEnded={(seconds) => void persistProgress(seconds ?? currentTime, true)}
+                    onEnded={(seconds) => handleEnded(seconds ?? currentTime)}
                     onTime={(seconds) => {
                       setCurrentTime(seconds);
                       if (seconds - lastSaved.current >= 10) {
@@ -937,16 +1054,75 @@ export function JourneyContentLessonPage({
                     <p>Nenhum player é simulado enquanto o vídeo não estiver disponível.</p>
                   </div>
                 )}
+                {ended ? (
+                  <div className="lesson-ended" role="status">
+                    <span className="lesson-ended__icon">
+                      <CheckCircle2 size={30} />
+                    </span>
+                    <strong>Aula concluída</strong>
+                    {nextVideo ? (
+                      <p>
+                        {countdown !== null ? `Próxima em ${countdown} s: ` : "A seguir: "}
+                        {nextVideo.title}
+                      </p>
+                    ) : hasNext ? (
+                      <p>Você terminou as aulas desta etapa.</p>
+                    ) : (
+                      <p>Você chegou à última aula disponível por enquanto.</p>
+                    )}
+                    <div>
+                      {hasNext ? (
+                        <button
+                          className="button button--primary"
+                          type="button"
+                          onClick={() => {
+                            setCountdown(null);
+                            setEnded(false);
+                            goNext();
+                          }}
+                        >
+                          {nextVideo ? "Seguir agora" : "Ir para a próxima etapa"}
+                        </button>
+                      ) : (
+                        <button className="button button--primary" type="button" onClick={onBack}>
+                          Voltar para Minha jornada
+                        </button>
+                      )}
+                      <button className="button button--glass" type="button" onClick={stayAndNote}>
+                        Ficar e anotar
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
               </div>
             ) : null}
-            <section className="lesson-summary">
+            <nav className="lesson-mobile-tabs" aria-label="Seções da aula">
+              {(
+                [
+                  ["resumo", "Resumo"],
+                  ["caderno", "Caderno"],
+                  ["materiais", `Materiais (${item.materials.length})`],
+                ] as const
+              ).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  aria-pressed={mobileTab === key}
+                  className={mobileTab === key ? "is-active" : undefined}
+                  onClick={() => setMobileTab(key)}
+                >
+                  {label}
+                </button>
+              ))}
+            </nav>
+            <section className="lesson-summary lesson-pane--resumo">
               <h2>
                 <FileText size={22} /> Resumo
               </h2>
               <p>{item.summary || item.description}</p>
             </section>
             <section className="lesson-details-grid">
-              <div>
+              <div className="lesson-pane--resumo">
                 <h2>Principais temas</h2>
                 {item.topics.length ? (
                   <ul>
@@ -960,7 +1136,7 @@ export function JourneyContentLessonPage({
                   <p>Os temas serão publicados junto com a aula.</p>
                 )}
               </div>
-              <div>
+              <div className="lesson-pane--materiais">
                 <h2>Materiais de apoio</h2>
                 {item.materials.length ? (
                   <div className="journey-materials">
@@ -980,22 +1156,57 @@ export function JourneyContentLessonPage({
                 )}
               </div>
             </section>
-            {item.questionnaires && item.questionnaires.length > 1 ? (
-              item.questionnaires.map((questionnaire) => (
-                <StageQuestionnaire
-                  key={questionnaire.id}
-                  contentId={questionnaire.id}
-                  questions={questionnaire.questions}
-                  title={questionnaire.title}
-                  description={questionnaire.description}
+            {item.reflectionPrompt ? (
+              <section className="lesson-reflection lesson-pane--resumo">
+                <span className="eyebrow eyebrow--gold">Para levar para a semana</span>
+                <label htmlFor="lesson-reflection-answer">{item.reflectionPrompt}</label>
+                <textarea
+                  id="lesson-reflection-answer"
+                  rows={3}
+                  value={reflectionAnswer}
+                  placeholder="Escreva com suas palavras…"
+                  onChange={(event) => {
+                    setReflectionAnswer(event.target.value);
+                    setReflectionSaved(false);
+                  }}
                 />
-              ))
-            ) : item.questionnaireId && item.questionnaire?.questions?.length ? (
-              <StageQuestionnaire
-                contentId={item.questionnaireId}
-                questions={item.questionnaire.questions}
-              />
+                <div>
+                  <button
+                    className="button button--primary"
+                    type="button"
+                    disabled={!reflectionAnswer.trim()}
+                    onClick={saveReflection}
+                  >
+                    Salvar no caderno
+                  </button>
+                  {reflectionSaved ? (
+                    <span className="lesson-reflection__saved" role="status">
+                      <CheckCircle2 size={15} /> Salvo no seu caderno.
+                    </span>
+                  ) : (
+                    <small>Você pode levar essa resposta para o seu próximo 1:1.</small>
+                  )}
+                </div>
+              </section>
             ) : null}
+            <div className="lesson-pane--resumo lesson-questionnaires">
+              {item.questionnaires && item.questionnaires.length > 1 ? (
+                item.questionnaires.map((questionnaire) => (
+                  <StageQuestionnaire
+                    key={questionnaire.id}
+                    contentId={questionnaire.id}
+                    questions={questionnaire.questions}
+                    title={questionnaire.title}
+                    description={questionnaire.description}
+                  />
+                ))
+              ) : item.questionnaireId && item.questionnaire?.questions?.length ? (
+                <StageQuestionnaire
+                  contentId={item.questionnaireId}
+                  questions={item.questionnaire.questions}
+                />
+              ) : null}
+            </div>
           </section>
           <aside className="recorded-lesson__side">
             {hasNext ? (
@@ -1021,12 +1232,15 @@ export function JourneyContentLessonPage({
                 </span>
               </div>
             )}
-            <JourneyNotebook
-              key={item.stepKey}
-              item={item}
-              currentTime={currentTime}
-              player={player}
-            />
+            <div className="lesson-pane--caderno">
+              <JourneyNotebook
+                key={item.stepKey}
+                item={item}
+                currentTime={currentTime}
+                player={player}
+                appendRef={notebookAppend}
+              />
+            </div>
           </aside>
         </div>
         <footer className="lesson-navigation">
@@ -1045,6 +1259,24 @@ export function JourneyContentLessonPage({
             {nextVideo ? "Próxima aula" : "Próxima etapa"} <ArrowRight size={18} />
           </button>
         </footer>
+      </div>
+      <div className="lesson-mobile-bar">
+        <button
+          type="button"
+          className="lesson-mobile-bar__note"
+          aria-label="Abrir o caderno"
+          onClick={stayAndNote}
+        >
+          <NotebookPen size={20} />
+        </button>
+        <button
+          className="button button--primary"
+          type="button"
+          disabled={!hasNext}
+          onClick={goNext}
+        >
+          {nextVideo ? "Próxima aula" : "Próxima etapa"} <ArrowRight size={18} />
+        </button>
       </div>
     </main>
   );

@@ -1233,7 +1233,7 @@ async function loadLibrary(
       .order("scheduled_at"),
     c.admin
       .from("journey_video_progress")
-      .select("content_id,source_revision,current_seconds,duration_seconds,completed")
+      .select("content_id,source_revision,current_seconds,duration_seconds,completed,updated_at")
       .eq("enrollment_id", enrollment.id)
       .eq("user_id", userId),
   ]);
@@ -1320,6 +1320,7 @@ async function loadLibrary(
       return {
         stepKey: s.stable_key,
         videoTitle: stageVideo?.title ?? null,
+        reflectionPrompt: locked ? null : (stageVideo?.reflection_prompt ?? null),
         videos: videos.map((video: any) => {
           const watched = (videoProgressResult.data ?? []).find(
             (v: any) => v.content_id === video.id && v.source_revision === video.source_revision,
@@ -1408,11 +1409,115 @@ async function loadLibrary(
       };
     }),
   );
+  const sorted = items.sort((a, b) => a.position - b.position);
+  if (selection)
+    return { enrollmentId: enrollment.id, currentMonth: enrollment.current_month, items: sorted };
   return {
     enrollmentId: enrollment.id,
     currentMonth: enrollment.current_month,
-    items: items.sort((a, b) => a.position - b.position),
+    items: sorted,
+    resume: journeyResume(sorted, videoProgressResult.data ?? []),
+    recentNotes: await recentNotebookEntries(enrollment.id, userId, sorted),
   };
+}
+
+/**
+ * "Continue de onde parou": a aula assistida por último que ainda não terminou; se ela
+ * terminou, a próxima aula da mesma etapa; sem histórico, a primeira aula pendente.
+ */
+function journeyResume(items: any[], progressRows: any[]) {
+  const open = items.filter((it: any) => it.availability === "available" && it.videos?.length);
+  const shape = (it: any, index: number, row: any) => {
+    const video = it.videos[index];
+    return {
+      stepKey: it.stepKey,
+      contentId: video.id,
+      title: video.title,
+      module: video.module ?? null,
+      stageTitle: it.title,
+      monthNumber: it.monthNumber,
+      pillarName: it.pillarName,
+      index: index + 1,
+      total: it.videos.length,
+      durationMinutes: video.durationMinutes ?? null,
+      currentSeconds: row?.current_seconds ?? 0,
+      durationSeconds: row?.duration_seconds ?? null,
+    };
+  };
+  const recent = [...progressRows].sort(
+    (a, b) => Date.parse(b.updated_at ?? 0) - Date.parse(a.updated_at ?? 0),
+  );
+  for (const row of recent) {
+    const it = open.find((entry: any) => entry.videos.some((v: any) => v.id === row.content_id));
+    if (!it) continue;
+    const index = it.videos.findIndex((v: any) => v.id === row.content_id);
+    if (!row.completed && !it.videos[index].completed) return shape(it, index, row);
+    const next = it.videos.findIndex((v: any, i: number) => i > index && !v.completed);
+    if (next >= 0) return shape(it, next, null);
+    break;
+  }
+  const pending = open.find((it: any) => it.videos.some((v: any) => !v.completed));
+  return pending
+    ? shape(
+        pending,
+        pending.videos.findIndex((v: any) => !v.completed),
+        null,
+      )
+    : null;
+}
+
+/** Últimas anotações e momentos marcados do caderno (só da própria pessoa). */
+async function recentNotebookEntries(enrollmentId: string, userId: string, items: any[]) {
+  const [notes, markers] = await Promise.all([
+    admin
+      .from("journey_content_notes")
+      .select("step_key, content, updated_at")
+      .eq("enrollment_id", enrollmentId)
+      .eq("user_id", userId)
+      .order("updated_at", { ascending: false })
+      .limit(6),
+    admin
+      .from("journey_content_markers")
+      .select("id, step_key, content_id, timestamp_seconds, reflection, created_at")
+      .eq("enrollment_id", enrollmentId)
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(6),
+  ]);
+  if (notes.error || markers.error) return [];
+  const byStep = new Map(items.map((it: any) => [it.stepKey, it]));
+  const entries = [
+    ...(notes.data ?? [])
+      .filter((n: any) => String(n.content ?? "").trim() && byStep.has(n.step_key))
+      .map((n: any) => ({
+        id: "note:" + n.step_key,
+        kind: "note",
+        stepKey: n.step_key,
+        contentId: null,
+        stageTitle: byStep.get(n.step_key).title,
+        lessonTitle: null,
+        seconds: null,
+        text: String(n.content).trim().slice(0, 280),
+        at: n.updated_at,
+      })),
+    ...(markers.data ?? [])
+      .filter((m: any) => String(m.reflection ?? "").trim() && byStep.has(m.step_key))
+      .map((m: any) => {
+        const it = byStep.get(m.step_key);
+        return {
+          id: "marker:" + m.id,
+          kind: "marker",
+          stepKey: m.step_key,
+          contentId: m.content_id ?? null,
+          stageTitle: it.title,
+          lessonTitle: it.videos?.find((v: any) => v.id === m.content_id)?.title ?? null,
+          seconds: m.timestamp_seconds,
+          text: String(m.reflection).trim().slice(0, 280),
+          at: m.created_at,
+        };
+      }),
+  ];
+  return entries.sort((a, b) => Date.parse(b.at) - Date.parse(a.at)).slice(0, 4);
 }
 async function requireContent(c: Context, stepKey: string, contentId?: string) {
   const library = await loadLibrary(c, true, { stepKey, contentId });
@@ -1467,6 +1572,7 @@ function stageContentShape(row: any) {
     moduleTitle: cleanModuleTitle(row.module_title),
     topics: Array.isArray(row.topics) ? row.topics : [],
     lessonId: row.lesson_id ?? null,
+    reflectionPrompt: row.reflection_prompt ?? null,
   };
 }
 
@@ -2022,6 +2128,17 @@ async function contentAction(c: Context, action: string, d: any) {
         ? { topics: contentType === "video" ? cleanTopics(d.topics) : [] }
         : {}),
       ...(d && typeof d === "object" && "lessonId" in d ? { lesson_id: lessonId } : {}),
+      ...(d && typeof d === "object" && "reflectionPrompt" in d
+        ? {
+            reflection_prompt:
+              contentType === "video"
+                ? String(d.reflectionPrompt ?? "")
+                    .replace(/\s+/g, " ")
+                    .trim()
+                    .slice(0, 300) || null
+                : null,
+          }
+        : {}),
       position: Number.isFinite(Number(d.position)) ? Math.max(0, Number(d.position)) : 0,
       active: d.active !== false,
       created_by: c.userId,

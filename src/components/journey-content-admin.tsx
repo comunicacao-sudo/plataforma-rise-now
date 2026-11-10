@@ -148,6 +148,7 @@ function ContentForm({
   const [description, setDescription] = useState(initial?.description ?? "");
   const [topicsText, setTopicsText] = useState((initial?.topics ?? []).join("\n"));
   const [lessonId, setLessonId] = useState(initial?.lessonId ?? "");
+  const [reflectionPrompt, setReflectionPrompt] = useState(initial?.reflectionPrompt ?? "");
   const [duration, setDuration] = useState(
     initial?.durationMinutes ? String(initial.durationMinutes) : "",
   );
@@ -290,6 +291,7 @@ function ContentForm({
                   .split(/\r?\n/)
                   .map((topic) => topic.trim())
                   .filter(Boolean),
+                reflectionPrompt: reflectionPrompt.trim() || null,
               }
             : {}),
           ...(contentType === "material" ? { lessonId: lessonId || null } : {}),
@@ -413,6 +415,21 @@ function ContentForm({
               />
               <small className="ops-muted">
                 Um por linha, até 12. Sem temas, mostra os da etapa.
+              </small>
+            </label>
+          ) : null}
+
+          {contentType === "video" ? (
+            <label className="ops-field">
+              <span>Pergunta para levar para a semana (opcional)</span>
+              <input
+                maxLength={300}
+                placeholder="Ex.: Que situação desta semana está fora do seu controle?"
+                value={reflectionPrompt}
+                onChange={(event) => setReflectionPrompt(event.target.value)}
+              />
+              <small className="ops-muted">
+                Aparece abaixo da aula. A resposta vai para o caderno da pessoa.
               </small>
             </label>
           ) : null}

@@ -19,6 +19,8 @@ export type JourneyMaterial = {
 export type JourneyContentItem = {
   stepKey: string;
   videoTitle?: string | null;
+  /** Pergunta "Para levar para a semana" da aula aberta. */
+  reflectionPrompt?: string | null;
   videos?: Array<{
     id: string;
     title: string;
@@ -70,10 +72,41 @@ export type JourneyContentItem = {
   durationSeconds: number | null;
 };
 
+export type JourneyResume = {
+  stepKey: string;
+  contentId: string;
+  title: string;
+  module: string | null;
+  stageTitle: string;
+  monthNumber: number;
+  pillarName: string;
+  index: number;
+  total: number;
+  durationMinutes: number | null;
+  currentSeconds: number;
+  durationSeconds: number | null;
+};
+
+export type NotebookEntry = {
+  id: string;
+  kind: "note" | "marker";
+  stepKey: string;
+  contentId: string | null;
+  stageTitle: string;
+  lessonTitle: string | null;
+  seconds: number | null;
+  text: string;
+  at: string;
+};
+
 export type JourneyContentLibrary = {
   enrollmentId: string;
   currentMonth: number;
   items: JourneyContentItem[];
+  /** "Continue de onde parou". */
+  resume?: JourneyResume | null;
+  /** Últimas anotações e momentos do caderno. */
+  recentNotes?: NotebookEntry[];
 };
 
 export const getJourneyContentLibrary = createEdgeFunction<undefined, JourneyContentLibrary | null>(
@@ -143,6 +176,8 @@ export type StageContentItem = {
   topics?: string[];
   /** Material de apoio ligado a uma aula específica (null = todas as aulas da etapa). */
   lessonId?: string | null;
+  /** Pergunta "Para levar para a semana" da aula gravada. */
+  reflectionPrompt?: string | null;
 };
 
 export type AgendaMaterial = {

@@ -340,6 +340,48 @@ export function NextMeetingBanner({ onAgenda }: { onAgenda: () => void }) {
   );
 }
 
+/** Cartão compacto do próximo encontro (Minha jornada). */
+export function NextMeetingMini({ onAgenda }: { onAgenda: () => void }) {
+  const { data = [] } = useMeetings();
+  const next = data.find((m) => endOf(m) >= Date.now());
+  if (!next) return null;
+  const start = new Date(next.scheduled_at);
+  const live = Date.now() >= start.getTime() - 15 * 60000;
+  return (
+    <article className="journey-side-card">
+      <span className="journey-side-card__eyebrow">
+        <CalendarDays size={16} aria-hidden="true" /> Próximo encontro
+      </span>
+      <strong>{next.title}</strong>
+      <span className="journey-side-card__meta">
+        {next.kind === "individual" ? "Sessão 1:1" : "Ao vivo com a turma"} ·{" "}
+        {start.toLocaleString("pt-BR", {
+          weekday: "short",
+          day: "2-digit",
+          month: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+        })}
+      </span>
+      <div className="journey-side-card__actions">
+        {live && next.join_url ? (
+          <a
+            className="button button--primary"
+            href={next.join_url}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Entrar agora
+          </a>
+        ) : null}
+        <button className="button button--glass" type="button" onClick={onAgenda}>
+          Ver na agenda
+        </button>
+      </div>
+    </article>
+  );
+}
+
 /* ---------- google ---------- */
 
 function waitForOAuth(popup: Window) {

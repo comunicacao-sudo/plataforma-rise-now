@@ -13,7 +13,6 @@ import {
   ChevronDown,
   ChevronRight,
   UserRound,
-  Clock3,
   Download,
   Eye,
   EyeOff,
@@ -24,7 +23,6 @@ import {
   Mail,
   Play,
   ShieldCheck,
-  Sparkles,
   UsersRound,
   X,
 } from "lucide-react";
@@ -73,14 +71,12 @@ import {
   NextMovementSection,
   useJourneyContentLibrary,
 } from "@/components/journey-content";
-import type { JourneyContentItem } from "@/lib/content.functions";
+import type { JourneyContentItem, JourneyContentLibrary } from "@/lib/content.functions";
+import { JourneyHub } from "@/components/journey-hub";
 import { installDialogAccessibility } from "@/lib/dialog-accessibility";
 import {
-  buildJourneyTimelineItems,
   findJourneyContentForLesson,
   hasOpenableJourneyContent,
-  isJourneyTimelineItemDisabled,
-  resolveJourneyTimelineTarget,
 } from "@/lib/journey-navigation";
 const AssessmentProfileModal = deferredView<
   import("react").ComponentProps<
@@ -759,14 +755,6 @@ function Rail({
   );
 }
 
-function phaseStatus(trail: Trail, month: number) {
-  return month < trail.currentMonth
-    ? "completed"
-    : month === trail.currentMonth
-      ? "current"
-      : "upcoming";
-}
-
 function HomeView({
   trail,
   onView,
@@ -894,160 +882,25 @@ function JourneyView({
   trail,
   onOpen,
   onOpenContent,
-  journeyItems,
+  onView,
+  library,
 }: {
   trail: Trail;
   onOpen: (l: TrailLesson) => void;
-  onOpenContent: (stepKey: string) => void;
-  journeyItems: JourneyContentItem[];
+  onOpenContent: (stepKey: string, contentId?: string | null) => void;
+  onView: (v: View) => void;
+  library: JourneyContentLibrary | null | undefined;
 }) {
-  const months = trail.phases.map((phase) => ({
-    phase,
-    items: buildJourneyTimelineItems(phase.month, phase.lessons, journeyItems),
-  }));
-  const allItems = months.flatMap((month) => month.items);
-  const completed = allItems.filter((item) => item.completed).length;
-  const progress = allItems.length ? Math.round((completed / allItems.length) * 100) : 0;
-  const current =
-    allItems.find(
-      (item) =>
-        !item.completed &&
-        !isJourneyTimelineItemDisabled(item, trail.currentMonth) &&
-        resolveJourneyTimelineTarget(item),
-    ) ?? allItems.find((item) => !item.completed);
-  const groups = [...new Set(months.map((month) => month.phase.pillar))].map((pillar) => ({
-    pillar,
-    months: months.filter((month) => month.phase.pillar === pillar),
-  }));
-  const open = (item: (typeof allItems)[number]) => {
-    const target = resolveJourneyTimelineTarget(item);
-    if (target?.type === "content") onOpenContent(target.stepKey);
-    else if (target?.type === "lesson") onOpen(target.lesson);
-  };
   return (
-    <main className="inner-page inner-page--section-hero mentee-journey-page">
-      <SectionHero
-        section="Minha jornada"
-        phrase="Cada etapa revela a força que sustenta a sua evolução"
-      />
-      <div className="page-width mentee-journey-layout">
-        <section className="mentee-current-step" aria-label="Seu avanço na jornada">
-          <span className="eyebrow eyebrow--gold">{current ? "Etapa atual" : "Sua jornada"}</span>
-          <h2>{current?.title ?? "Todas as etapas concluídas"}</h2>
-          {current ? (
-            <p>
-              {current.label}
-              {current.content?.scheduledAt
-                ? " · " + new Date(current.content.scheduledAt).toLocaleDateString("pt-BR")
-                : ""}
-            </p>
-          ) : null}
-          <div className="mentee-journey-progress">
-            <span>Seu avanço</span>
-            <strong>{progress}%</strong>
-          </div>
-          <progress
-            value={completed}
-            max={Math.max(1, allItems.length)}
-            aria-label="Etapas concluídas"
-          />
-          {current &&
-          !isJourneyTimelineItemDisabled(current, trail.currentMonth) &&
-          resolveJourneyTimelineTarget(current) ? (
-            <button className="button button--primary" type="button" onClick={() => open(current)}>
-              Ir para a etapa <ArrowRight size={18} />
-            </button>
-          ) : current ? (
-            <p>Aguardando liberação da próxima etapa.</p>
-          ) : null}
-        </section>
-        <section className="mentee-journey-pillars" aria-label="Etapas da jornada RISE">
-          {groups.map((group, index) => {
-            const entries = group.months.flatMap((month) => month.items);
-            const done = entries.length > 0 && entries.every((item) => item.completed);
-            const active = group.months.some(
-              (month) => phaseStatus(trail, month.phase.month) === "current",
-            );
-            return (
-              <article
-                className={
-                  "mentee-journey-pillar " +
-                  (done ? "is-complete" : active ? "is-current" : "is-upcoming")
-                }
-                key={group.pillar}
-              >
-                <header>
-                  <span className="mentee-journey-pillar__number">{index + 1}</span>
-                  <div>
-                    <h2>{group.pillar}</h2>
-                    <p>{[...new Set(group.months.map((m) => m.phase.mentor))].join(" · ")}</p>
-                  </div>
-                </header>
-                <p className="mentee-journey-pillar__state">
-                  {done ? (
-                    <CheckCircle2 size={18} />
-                  ) : active ? (
-                    <Sparkles size={18} />
-                  ) : (
-                    <LockKeyhole size={18} />
-                  )}{" "}
-                  {done ? "Concluído" : active ? "Em andamento" : "Em breve"}
-                </p>
-                {group.months.map(({ phase, items }) => (
-                  <section className="mentee-journey-month" key={phase.month}>
-                    <div className="mentee-journey-month__intro">
-                      <span className="eyebrow">Mês {phase.month}</span>
-                      <h3>{phase.title}</h3>
-                      <p>{phase.question}</p>
-                    </div>
-                    <ul className="mentee-journey-steps">
-                      {items.map((item) => {
-                        const disabled =
-                          isJourneyTimelineItemDisabled(item, trail.currentMonth) ||
-                          !resolveJourneyTimelineTarget(item);
-                        const when = item.content?.scheduledAt || item.content?.releaseAt;
-                        return (
-                          <li key={item.key}>
-                            <button type="button" disabled={disabled} onClick={() => open(item)}>
-                              {item.completed ? (
-                                <CheckCircle2 size={20} />
-                              ) : disabled ? (
-                                <LockKeyhole size={20} />
-                              ) : (
-                                <Play size={20} />
-                              )}
-                              <span>
-                                <strong>{item.title}</strong>
-                                <small>{item.label}</small>
-                              </span>
-                              <span className="mentee-journey-steps__status">
-                                {item.completed
-                                  ? "Concluída"
-                                  : disabled
-                                    ? "Em breve"
-                                    : "Disponível"}
-                                {when ? (
-                                  <time dateTime={when}>
-                                    {new Date(when).toLocaleDateString("pt-BR", {
-                                      day: "2-digit",
-                                      month: "2-digit",
-                                    })}
-                                  </time>
-                                ) : null}
-                              </span>
-                            </button>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </section>
-                ))}
-              </article>
-            );
-          })}
-        </section>
-      </div>
-    </main>
+    <JourneyHub
+      trail={trail}
+      journeyItems={library?.items ?? []}
+      resume={library?.resume}
+      recentNotes={library?.recentNotes}
+      onOpen={onOpen}
+      onOpenContent={onOpenContent}
+      onAgenda={() => onView("agenda")}
+    />
   );
 }
 
@@ -1103,10 +956,12 @@ function MenteeArea({
   });
   const [lesson, setLesson] = useState<TrailLesson | null>(null);
   const [contentStepKey, setContentStepKey] = useState<string | null>(null);
+  const [contentInitialId, setContentInitialId] = useState<string | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
-  function openJourneyContent(stepKey: string) {
+  function openJourneyContent(stepKey: string, contentId?: string | null) {
     setLesson(null);
     setLibraryOpen(false);
+    setContentInitialId(contentId ?? null);
     setContentStepKey(stepKey);
     if (view !== "jornada") onView("jornada");
   }
@@ -1169,9 +1024,14 @@ function MenteeArea({
     <>
       {contentStepKey ? (
         <JourneyContentLessonPage
+          key={contentStepKey + ":" + (contentInitialId ?? "")}
           stepKey={contentStepKey}
+          initialContentId={contentInitialId}
           onBack={() => setContentStepKey(null)}
-          onNavigate={setContentStepKey}
+          onNavigate={(next) => {
+            setContentInitialId(null);
+            setContentStepKey(next);
+          }}
         />
       ) : lesson?.kind === "aula" ? (
         <RecordedLessonPage
@@ -1198,7 +1058,8 @@ function MenteeArea({
           trail={trail}
           onOpen={openTrailLesson}
           onOpenContent={openJourneyContent}
-          journeyItems={journeyLibrary.data?.items ?? []}
+          onView={onView}
+          library={journeyLibrary.data}
         />
       ) : view === "agenda" ? (
         <AgendaView trail={trail} onOpen={openTrailLesson} />
